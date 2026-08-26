@@ -25,6 +25,7 @@ The part every module stands on. No business logic lives here.
 | CQRS | Request/handler/pipeline contracts, declarative permission attribute | **done** |
 | Platform entities | Tenant, company, branch, user, permission set, setup value, audit log, outbox | **done** |
 | Number series | Gapless or gap-tolerant per series, dated ranges, per-branch numbering | **done** |
+| | *This read "done" for a while on the strength of the contract, entities, seed and admin screen. Nothing implemented the service that issues a number, and the gap only surfaced when Transfers asked for one. Now genuinely done, and tested.* | |
 | Dimensions | Canonical combinations, shared dimension sets, shortcut dimensions | **done** |
 | Persistence | DbContext, company query filters, module schema registration, migrations | **done** |
 | Module runtime | Dependency ordering, cycle detection, per-tenant licence gating | **done** |
@@ -64,10 +65,13 @@ Everything else posts here, so it goes first.
 - **Negative inventory**, allowed or blocked per company, with cost settled on later receipt so
   the cost layer never corrupts — **done**
 - Adjustments, revaluation, physical count
-- Transfer requests, transfer orders, in-transit tracking, receipt and shipment
+- **done** Transfer orders, in-transit tracking, shipment and receipt including short receipts
+  (transfer *requests* — a branch asking rather than being sent — still to come)
 - Reorder policy, reservations, item availability
 - **done** Inventory-to-finance posting through a kernel event, with expected cost held back
-- Reports: stock on hand by location, valuation, velocity, ageing, movement history
+- *in progress* Reports: **stock on hand by location done**, with below-zero balances flagged and
+  their estimated costs settleable from the screen; valuation, velocity, ageing to come
+- **done** Client screens: items, stock movements, stock on hand, transfers
 
 ## Phase 3 — Purchasing
 

@@ -119,11 +119,13 @@ public static class AsapModules
     [
         new Platform.Core.Modules.PlatformModule(),
         new FinanceModule(),
+        new Modules.Inventory.InventoryModule(),
     ];
 
     /// <summary>Every built-in module that owns tables.</summary>
     public static IReadOnlyList<IModuleSchema> Schemas { get; } =
     [
         new FinanceSchema(),
+        new Modules.Inventory.InventorySchema(),
     ];
 }

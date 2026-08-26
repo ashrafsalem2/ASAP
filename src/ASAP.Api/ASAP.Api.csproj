@@ -7,6 +7,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Platform\ASAP.Platform.Extensibility\ASAP.Platform.Extensibility.csproj" />
     <ProjectReference Include="..\Modules\ASAP.Modules.Finance\ASAP.Modules.Finance.csproj" />
+    <ProjectReference Include="..\Modules\ASAP.Modules.Inventory\ASAP.Modules.Inventory.csproj" />
   </ItemGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />

@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>ASAP.Modules.Inventory</RootNamespace>
+    <Description>ASAP ERP Inventory module: items, locations, item ledger, costing, transfers and inventory-to-finance posting.</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Platform\ASAP.Platform.Persistence\ASAP.Platform.Persistence.csproj" />
+  </ItemGroup>
+</Project>

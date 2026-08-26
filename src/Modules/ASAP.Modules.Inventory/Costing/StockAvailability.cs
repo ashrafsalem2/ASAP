@@ -1,0 +1,235 @@
+using ASAP.Modules.Inventory.Items;
+using ASAP.Platform.Kernel.Messaging;
+using ASAP.Platform.Kernel.Results;
+
+namespace ASAP.Modules.Inventory.Costing;
+
+/// <summary>What the engine needs to know about an item to judge a movement.</summary>
+/// <param name="ItemNo">The item number.</param>
+/// <param name="Name">Its description.</param>
+/// <param name="Kind">Whether it is stocked at all.</param>
+/// <param name="CostingMethod">How it is costed.</param>
+/// <param name="IsBlocked">Whether it is withdrawn from use.</param>
+/// <param name="AllowNegativeInventory">
+/// Whether this item in particular may go below zero, or null to follow the company.
+/// </param>
+/// <param name="UnitCost">Current cost per unit, used to value a shortfall.</param>
+/// <param name="ReorderPoint">The level at which the item should be reordered.</param>
+public sealed record ItemView(
+    string ItemNo,
+    string Name,
+    ItemKind Kind,
+    CostingMethod CostingMethod,
+    bool IsBlocked,
+    bool? AllowNegativeInventory,
+    decimal UnitCost,
+    decimal ReorderPoint);
+
+/// <summary>What the engine needs to know about a location.</summary>
+/// <param name="Code">The location code.</param>
+/// <param name="Name">Its name.</param>
+/// <param name="IsBlocked">Whether it is withdrawn from use.</param>
+/// <param name="IsSellable">Whether stock here may be sold or shipped.</param>
+public sealed record LocationView(string Code, string Name, bool IsBlocked, bool IsSellable);
+
+/// <summary>One movement about to be posted.</summary>
+/// <param name="LineNo">Position in the batch, so a message can point at the right row.</param>
+/// <param name="Item">The item moving.</param>
+/// <param name="Location">Where it is moving at.</param>
+/// <param name="Quantity">Signed. Positive is stock coming in, negative going out.</param>
+/// <param name="QuantityOnHand">What is on hand at that location before this movement.</param>
+public sealed record MovementView(
+    int LineNo,
+    ItemView Item,
+    LocationView Location,
+    decimal Quantity,
+    decimal QuantityOnHand);
+
+/// <summary>
+/// Decides whether stock may move, and says what it means when it goes below zero.
+/// </summary>
+/// <remarks>
+/// <para>
+/// This is where "allow selling into negative, without corrupting the cost" is actually settled,
+/// and it is two decisions rather than one.
+/// </para>
+/// <para>
+/// The first is whether to permit it at all, which is a business choice and belongs to the
+/// company: a shop that can see the goods on the shelf should not be stopped by paperwork that has
+/// not caught up, while a warehouse running serialised equipment usually should be. The setting
+/// can be narrowed per item, because the right answer genuinely differs between loose produce and
+/// a numbered appliance.
+/// </para>
+/// <para>
+/// The second is what happens to the cost once it is permitted, and that is not a choice at all.
+/// The shortfall is valued at an estimate, the movement is marked as having gone negative, and a
+/// warning says so in plain terms. That warning is not decoration: it is the record that the
+/// figure is provisional, and it is what the settlement routine looks for when the goods finally
+/// arrive.
+/// </para>
+/// </remarks>
+/// <param name="messages">Renders the messages.</param>
+public sealed class StockAvailability(IMessageCatalog messages)
+{
+    /// <summary>
+    /// Checks a set of movements.
+    /// </summary>
+    /// <param name="movements">The movements about to be posted.</param>
+    /// <param name="companyAllowsNegative">Whether the company permits stock below zero.</param>
+    /// <param name="heldOverridePermissions">Override permissions the caller holds.</param>
+    /// <returns>
+    /// A failure carrying every reason the movement is refused, or a success carrying the warnings
+    /// that go with it -- stock gone negative, an item below its reorder point.
+    /// </returns>
+    public Result Check(
+        IReadOnlyList<MovementView> movements,
+        bool companyAllowsNegative,
+        IReadOnlySet<string>? heldOverridePermissions = null)
+    {
+        ArgumentNullException.ThrowIfNull(movements);
+
+        var found = new List<AsapMessage>();
+
+        foreach (var movement in movements)
+        {
+            CheckMovement(movement, companyAllowsNegative, heldOverridePermissions, found);
+        }
+
+        return found.Exists(static m => m.IsFailure)
+            ? Result.Failure(found)
+            : Result.Success(found);
+    }
+
+    private void CheckMovement(
+        MovementView movement,
+        bool companyAllowsNegative,
+        IReadOnlySet<string>? held,
+        List<AsapMessage> found)
+    {
+        var target = MessageTarget.OnField($"Lines[{movement.LineNo}]");
+
+        var arguments = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["LineNo"] = movement.LineNo,
+            ["ItemNo"] = movement.Item.ItemNo,
+            ["ItemName"] = movement.Item.Name,
+            ["Location"] = movement.Location.Name,
+        };
+
+        if (movement.Quantity == 0)
+        {
+            found.Add(Raise(InventoryMessages.QuantityZero, arguments, target, held));
+        }
+
+        if (movement.Item.IsBlocked)
+        {
+            found.Add(Raise(InventoryMessages.ItemBlocked, arguments, target, held));
+        }
+
+        if (movement.Location.IsBlocked)
+        {
+            found.Add(Raise(InventoryMessages.LocationBlocked, arguments, target, held));
+        }
+
+        // A service or a charge has no stock, so nothing below here applies to it.
+        if (movement.Item.Kind is not ItemKind.Inventory)
+        {
+            return;
+        }
+
+        if (movement.Quantity >= 0)
+        {
+            return;
+        }
+
+        // Stock at a quarantine or in-transit location is counted in the valuation but must not be
+        // promised to a customer, so taking it out is refused separately from the quantity check.
+        if (!movement.Location.IsSellable)
+        {
+            found.Add(Raise(InventoryMessages.LocationNotSellable, arguments, target, held));
+        }
+
+        var requested = -movement.Quantity;
+        var balance = movement.QuantityOnHand + movement.Quantity;
+
+        if (balance >= 0)
+        {
+            WarnIfBelowReorderPoint(movement, balance, arguments, target, found);
+            return;
+        }
+
+        var shortfall = -balance;
+        var allowed = movement.Item.AllowNegativeInventory ?? companyAllowsNegative;
+
+        arguments["Requested"] = requested;
+        arguments["Available"] = movement.QuantityOnHand;
+        arguments["Balance"] = balance;
+        arguments["Shortfall"] = shortfall;
+        arguments["EstimatedUnitCost"] = movement.Item.UnitCost;
+
+        if (!allowed)
+        {
+            found.Add(Raise(InventoryMessages.NegativeInventoryBlocked, arguments, target, held));
+            return;
+        }
+
+        // Permitted, and said out loud. The sale proceeds; this is the record that part of its
+        // cost is an estimate, which is what the settlement routine will come back for.
+        found.Add(Raise(InventoryMessages.NegativeInventoryAllowed, arguments, target, held));
+    }
+
+    private void WarnIfBelowReorderPoint(
+        MovementView movement,
+        decimal balance,
+        Dictionary<string, object?> arguments,
+        MessageTarget target,
+        List<AsapMessage> found)
+    {
+        if (movement.Item.ReorderPoint <= 0 || balance > movement.Item.ReorderPoint)
+        {
+            return;
+        }
+
+        // Only when the movement takes it across the line. Warning on every subsequent sale of an
+        // item already below its point would train people to ignore the warning entirely.
+        if (movement.QuantityOnHand <= movement.Item.ReorderPoint)
+        {
+            return;
+        }
+
+        found.Add(messages.Render(
+            InventoryMessages.BelowReorderPoint,
+            new Dictionary<string, object?>(arguments, StringComparer.OrdinalIgnoreCase)
+            {
+                ["Balance"] = balance,
+                ["ReorderPoint"] = movement.Item.ReorderPoint,
+            },
+            target));
+    }
+
+    /// <summary>
+    /// Renders a message, downgrading a block the caller is permitted to override.
+    /// </summary>
+    /// <remarks>
+    /// The same rule the posting engine uses: holding the override permission turns a refusal into
+    /// a warning, the operation proceeds, and the audit log records that someone pushed past a
+    /// protection. The rule lives on the message definition, not in scattered conditions.
+    /// </remarks>
+    private AsapMessage Raise(
+        MessageCode code,
+        Dictionary<string, object?> arguments,
+        MessageTarget target,
+        IReadOnlySet<string>? held)
+    {
+        var rendered = messages.Render(code, arguments, target);
+
+        if (rendered.Severity is MessageSeverity.Blocked
+            && rendered.OverridePermission is { } permission
+            && held?.Contains(permission) == true)
+        {
+            return rendered with { Severity = MessageSeverity.Warning };
+        }
+
+        return rendered;
+    }
+}

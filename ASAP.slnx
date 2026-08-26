@@ -10,6 +10,7 @@
   </Folder>
   <Folder Name="/src/Modules/">
     <Project Path="src/Modules/ASAP.Modules.Finance/ASAP.Modules.Finance.csproj" />
+    <Project Path="src/Modules/ASAP.Modules.Inventory/ASAP.Modules.Inventory.csproj" />
   </Folder>
   <Folder Name="/src/Sdk/">
     <Project Path="src/Sdk/ASAP.Extensions.Sdk/ASAP.Extensions.Sdk.csproj" />
@@ -17,5 +18,6 @@
   <Folder Name="/tests/">
     <Project Path="tests/ASAP.Platform.Tests/ASAP.Platform.Tests.csproj" />
     <Project Path="tests/ASAP.Modules.Finance.Tests/ASAP.Modules.Finance.Tests.csproj" />
+    <Project Path="tests/ASAP.Modules.Inventory.Tests/ASAP.Modules.Inventory.Tests.csproj" />
   </Folder>
 </Solution>

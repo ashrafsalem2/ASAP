@@ -23,10 +23,10 @@ The part every module stands on. No business logic lives here.
 | Security contracts | Permission descriptors, nine fixed verbs, per-company user context | **done** |
 | Setup contracts | Typed setup descriptors, four scopes, narrowest-wins resolution | **done** |
 | CQRS | Request/handler/pipeline contracts, declarative permission attribute | **done** |
-| Platform entities | Tenant, company, branch, user, permission set, setup value, audit log | *in progress* |
-| Number series | Document numbering with per-company, per-branch and per-year series | planned |
-| Dimensions | Global dimension framework used by every module | planned |
-| Persistence | DbContext, company query filters, module schema registration, migrations | planned |
+| Platform entities | Tenant, company, branch, user, permission set, setup value, audit log, outbox | **done** |
+| Number series | Gapless or gap-tolerant per series, dated ranges, per-branch numbering | **done** |
+| Dimensions | Canonical combinations, shared dimension sets, shortcut dimensions | **done** |
+| Persistence | DbContext, company query filters, module schema registration, migrations | **done** |
 | Extension host | Isolated plugin loading, event binding, metadata field extensions | planned |
 | API host | Authentication, pipeline behaviours, problem details carrying ASAP messages | planned |
 | Angular shell | Layout, auth, company switcher, generated menu, bilingual AR/EN with RTL | planned |

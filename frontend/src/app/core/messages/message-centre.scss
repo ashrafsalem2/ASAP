@@ -1,0 +1,124 @@
+.message-centre {
+  position: fixed;
+  bottom: 1.5rem;
+
+  // Anchored to the inline end, so it sits bottom-right in English and bottom-left in Arabic
+  // without a second rule. Every position in this application is written this way; the alternative
+  // is a right-to-left layout that is subtly wrong in a dozen places nobody notices until a
+  // customer does.
+  inset-inline-end: 1.5rem;
+
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: min(30rem, calc(100vw - 3rem));
+}
+
+.message {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border-radius: var(--radius);
+  background: var(--surface);
+  border: 1px solid var(--border);
+
+  // The severity stripe sits on the inline start edge, so it leads the text in both directions.
+  border-inline-start: 4px solid var(--muted);
+
+  box-shadow: var(--shadow-raised);
+  animation: message-in 160ms ease-out;
+
+  &--success {
+    border-inline-start-color: var(--positive);
+  }
+
+  &--information {
+    border-inline-start-color: var(--accent);
+  }
+
+  &--warning {
+    border-inline-start-color: var(--caution);
+  }
+
+  &--error,
+  &--blocked {
+    border-inline-start-color: var(--negative);
+  }
+}
+
+.message__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.message__title {
+  margin: 0;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.message__detail {
+  margin: 0.25rem 0 0;
+  color: var(--ink-soft);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.message__resolution {
+  margin: 0.5rem 0 0;
+  padding: 0.5rem 0.625rem;
+  border-radius: calc(var(--radius) - 2px);
+  background: var(--surface-sunken);
+  color: var(--ink);
+  font-size: 0.875rem;
+  line-height: 1.5;
+}
+
+.message__resolution-label {
+  display: block;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-faint);
+  margin-bottom: 0.125rem;
+}
+
+.message__code {
+  margin: 0.5rem 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  color: var(--ink-faint);
+}
+
+.message__close {
+  flex: none;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font-size: 1.25rem;
+  line-height: 1;
+  padding: 0.125rem 0.25rem;
+  border-radius: 4px;
+  color: var(--ink-faint);
+
+  &:hover {
+    background: var(--surface-sunken);
+    color: var(--ink);
+  }
+}
+
+@keyframes message-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .message {
+    animation: none;
+  }
+}

@@ -59,8 +59,19 @@ public sealed class HttpUserContext(
     /// <inheritdoc />
     public string? DisplayName => Principal?.FindFirstValue(AsapClaims.DisplayName);
 
-    /// <inheritdoc />
-    public string? Culture => Principal?.FindFirstValue(AsapClaims.Culture);
+    /// <summary>
+    /// The language to answer this request in.
+    /// </summary>
+    /// <remarks>
+    /// The request header wins over the stored preference on the token, and the distinction
+    /// matters. The claim is what the user chose once and had saved; the header is the language
+    /// they are reading the screen in right now. A client that lets someone switch language
+    /// without signing out again -- which every client should -- would otherwise keep receiving
+    /// server-rendered text in the old one, so the menu and the messages would stay English while
+    /// the rest of the page turned Arabic.
+    /// </remarks>
+    public string? Culture =>
+        ReadRequestedLanguage() ?? Principal?.FindFirstValue(AsapClaims.Culture);
 
     /// <inheritdoc />
     public bool IsSuperUser =>
@@ -86,6 +97,40 @@ public sealed class HttpUserContext(
             "This operation needs a signed-in user, and the request is anonymous.");
 
     private ClaimsPrincipal? Principal => accessor.HttpContext?.User;
+
+    /// <summary>
+    /// Reads the language the client asked for, if it is one ASAP has.
+    /// </summary>
+    /// <remarks>
+    /// Only the first tag is read, and only the leading two letters of it. Full Accept-Language
+    /// negotiation with quality weights would be answering a question nobody asked: ASAP ships two
+    /// languages, and a header naming eight in order of preference still resolves to one of them.
+    /// </remarks>
+    private string? ReadRequestedLanguage()
+    {
+        var header = accessor.HttpContext?.Request.Headers.AcceptLanguage.ToString();
+
+        if (string.IsNullOrWhiteSpace(header))
+        {
+            return null;
+        }
+
+        var first = header.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .FirstOrDefault()?
+            .Split(';')[0]
+            .Trim();
+
+        if (first is not { Length: >= 2 })
+        {
+            return null;
+        }
+
+        var language = first[..2].ToLowerInvariant();
+
+        // Anything else falls through to the stored preference rather than being honoured, so a
+        // browser advertising French does not produce a half-translated screen.
+        return language is "ar" or "en" ? language : null;
+    }
 
     private Guid? ReadGuid(string claimType)
     {

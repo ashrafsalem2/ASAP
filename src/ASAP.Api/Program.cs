@@ -102,11 +102,30 @@ builder.Services
 
 builder.Services.AddAuthorization();
 
+// The Angular dev server runs on its own origin, so the browser treats every API call as
+// cross-origin. Named and restricted to that origin rather than left open: a policy that allows
+// any origin with credentials is one nobody remembers to tighten before going live.
+builder.Services.AddCors(options => options.AddPolicy(
+    "asap-client",
+    policy => policy
+        .WithOrigins(
+            "http://localhost:4200",
+            "https://localhost:4200",
+            "http://localhost:4300",
+            "https://localhost:4300")
+        .AllowAnyHeader()
+        .AllowAnyMethod()));
+
 var app = builder.Build();
 
 app.UseSerilogRequestLogging();
 app.UseExceptionHandler();
 app.UseStatusCodePages();
+if (app.Environment.IsDevelopment())
+{
+    app.UseCors("asap-client");
+}
+
 app.UseAuthentication();
 app.UseAuthorization();
 
@@ -125,6 +144,7 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
 
 app.MapAuthEndpoints();
 app.MapFinanceEndpoints();
+app.MapNavigationEndpoints();
 
 await StartupTasks.RunAsync(app, moduleCatalog).ConfigureAwait(false);
 

@@ -4,6 +4,7 @@ using ASAP.Platform.Core.Messaging;
 using ASAP.Platform.Kernel.Messaging;
 using ASAP.Platform.Kernel.Security;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace ASAP.Api.Endpoints;
 
@@ -57,7 +58,7 @@ public static class AuthEndpoints
              .WithName("SignOut")
              .WithSummary("Ends the session, invalidating every token in its chain.");
 
-        group.MapGet("/me", Me)
+        group.MapGet("/me", MeAsync)
              .RequireAuthorization()
              .WithName("Me")
              .WithSummary("Reports who the caller is and what they may do in the active company.");
@@ -158,8 +159,25 @@ public static class AuthEndpoints
         return Results.NoContent();
     }
 
-    private static IResult Me(IUserContext user, ASAP.Platform.Kernel.Tenancy.ITenantContext tenant)
-        => Results.Ok(new
+    private static async Task<IResult> MeAsync(
+        IUserContext user,
+        ASAP.Platform.Kernel.Tenancy.ITenantContext tenant,
+        ASAP.Platform.Persistence.AsapDbContext context,
+        CancellationToken cancellationToken)
+    {
+        // The branch name, not only its key. A screen that shows a user which branch they are
+        // working in by printing a GUID has told them nothing, and this is the one place that
+        // knows how to turn one into the other.
+        var branch = tenant.BranchId is { } branchId
+            ? await context.Branches
+                .AsNoTracking()
+                .Where(b => b.Id == branchId)
+                .Select(b => new { b.Code, b.Name, b.NameArabic })
+                .FirstOrDefaultAsync(cancellationToken)
+                .ConfigureAwait(false)
+            : null;
+
+        return Results.Ok(new
         {
             userId = user.UserId,
             userName = user.UserName,
@@ -169,8 +187,11 @@ public static class AuthEndpoints
             tenantId = tenant.TenantId,
             companyId = tenant.CompanyId,
             branchId = tenant.BranchId,
+            branchCode = branch?.Code,
+            branchName = user.Culture is "ar" && branch?.NameArabic is { } arabic ? arabic : branch?.Name,
             permissions = user.Permissions.Order(StringComparer.Ordinal).ToList(),
         });
+    }
 
     private static async Task<IResult> CompaniesAsync(
         IUserContext user,

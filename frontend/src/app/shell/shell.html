@@ -1,0 +1,96 @@
+<div class="shell" [class.shell--menu-open]="menuOpen()">
+  <header class="shell__header">
+    <button
+      type="button"
+      class="button button--quiet shell__menu-toggle"
+      [attr.aria-label]="t('shell.menu')"
+      [attr.aria-expanded]="menuOpen()"
+      (click)="toggleMenu()"
+    >
+      ☰
+    </button>
+
+    <a class="shell__brand" routerLink="/" (click)="closeMenu()">
+      <span class="shell__mark">A</span>
+      <span class="shell__name">{{ t('app.name') }}</span>
+    </a>
+
+    <div class="shell__spacer"></div>
+
+    @if (auth.companies().length > 0) {
+      <label class="shell__company">
+        <span class="shell__company-label">{{ t('shell.company') }}</span>
+        <select
+          class="select shell__company-select"
+          [value]="auth.user()?.companyId ?? ''"
+          [disabled]="switching()"
+          (change)="switchCompany($event)"
+        >
+          @for (company of auth.companies(); track company.id) {
+            <option [value]="company.id">
+              {{ i18n.language() === 'ar' && company.nameArabic ? company.nameArabic : company.name }}
+            </option>
+          }
+        </select>
+      </label>
+    }
+
+    <button type="button" class="button button--quiet" (click)="i18n.toggle()">
+      {{ t('shell.language') }}
+    </button>
+
+    <div class="shell__user">
+      <span class="shell__user-name">{{ auth.user()?.displayName }}</span>
+      <button type="button" class="button button--quiet" (click)="signOut()">
+        {{ t('auth.signOut') }}
+      </button>
+    </div>
+  </header>
+
+  <!-- Only shown on narrow screens, where the menu overlays rather than sits beside the content. -->
+  <div class="shell__scrim" (click)="closeMenu()" aria-hidden="true"></div>
+
+  <nav class="shell__sidebar" [attr.aria-label]="t('shell.menu')">
+    @if (menu().length === 0) {
+      <p class="shell__no-access">{{ t('shell.noAccess') }}</p>
+    }
+
+    @for (group of menu(); track group.id) {
+      <section class="menu-group">
+        @if (group.kind === 'Group') {
+          <h2 class="menu-group__title">{{ group.displayName }}</h2>
+
+          @for (item of group.children; track item.id) {
+            <a
+              class="menu-item"
+              [routerLink]="item.route"
+              routerLinkActive="menu-item--active"
+              (click)="closeMenu()"
+            >
+              <span class="menu-item__label">{{ item.displayName }}</span>
+
+              @if (item.kind === 'Report') {
+                <span class="tag tag--muted">{{ item.kind }}</span>
+              } @else if (item.kind === 'Setup') {
+                <span class="tag tag--muted">{{ item.kind }}</span>
+              }
+            </a>
+          }
+        } @else {
+          <a
+            class="menu-item"
+            [routerLink]="group.route"
+            routerLinkActive="menu-item--active"
+            (click)="closeMenu()"
+          >
+            <span class="menu-item__label">{{ group.displayName }}</span>
+          </a>
+        }
+      </section>
+    }
+  </nav>
+
+  <main class="shell__content">
+    <router-outlet />
+  </main>
+</div>

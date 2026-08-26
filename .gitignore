@@ -46,3 +46,7 @@ Thumbs.db
 
 # Generated schema scripts and other build artefacts
 build/
+
+# Angular workspace
+frontend/.angular/
+frontend/dist/

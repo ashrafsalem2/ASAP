@@ -1,0 +1,42 @@
+.journal__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.journal__header-description {
+  flex: 1;
+  min-width: 16rem;
+}
+
+/* The grid holds inputs rather than text, so the default cell padding would make every row taller
+   than it needs to be on a screen that may show forty of them. */
+.journal__grid td {
+  padding: 0.3125rem 0.5rem;
+  white-space: normal;
+}
+
+.journal__col-account {
+  min-width: 18rem;
+}
+
+.journal__col-amount {
+  width: 9rem;
+}
+
+.journal__col-actions {
+  width: 3rem;
+}
+
+.journal__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
+.journal__spacer {
+  flex: 1;
+}

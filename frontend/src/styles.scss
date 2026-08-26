@@ -1,0 +1,383 @@
+/* ASAP design tokens and base styles.
+ *
+ * Two things drive every choice here.
+ *
+ * First, this is a screen people look at for eight hours. The palette is low-contrast on the
+ * surfaces and high-contrast on the text, figures are tabular so columns line up, and nothing
+ * animates for longer than it takes to notice.
+ *
+ * Second, it has to work identically in Arabic. Every rule that could take `left` or `right` uses
+ * `inline-start` and `inline-end` instead, so switching direction flips the whole layout without a
+ * second stylesheet. The one exception is numeric columns, which stay left to right in both
+ * languages, because figures are read the same way in both.
+ */
+
+:root {
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-sunken: #f4f6f8;
+  --surface-shell: #f8fafb;
+
+  --ink: #16202a;
+  --ink-soft: #4a5763;
+  --ink-faint: #7d8b98;
+
+  --border: #dfe5ea;
+  --border-strong: #c3ccd4;
+
+  --accent: #0f6db5;
+  --accent-soft: #e7f1f9;
+  --accent-ink: #ffffff;
+
+  --positive: #1a7f4b;
+  --positive-soft: #e6f4ec;
+  --caution: #b0700d;
+  --caution-soft: #fdf3e2;
+  --negative: #c0342c;
+  --negative-soft: #fdecea;
+
+  --muted: #9aa7b2;
+
+  --radius: 8px;
+  --shadow-raised: 0 6px 20px rgb(22 32 42 / 12%);
+  --shadow-panel: 0 1px 2px rgb(22 32 42 / 6%);
+
+  --font-sans:
+    'Segoe UI', system-ui, -apple-system, 'Noto Sans Arabic', 'Segoe UI Arabic', Tahoma, sans-serif;
+  --font-mono: ui-monospace, 'Cascadia Mono', 'Consolas', monospace;
+
+  --shell-sidebar: 16rem;
+  --shell-header: 3.5rem;
+}
+
+:root:not([data-theme='light']) {
+  @media (prefers-color-scheme: dark) {
+    --surface: #161c23;
+    --surface-raised: #1c242d;
+    --surface-sunken: #10151b;
+    --surface-shell: #0d1217;
+
+    --ink: #e8edf2;
+    --ink-soft: #a8b6c2;
+    --ink-faint: #7a8894;
+
+    --border: #2a333d;
+    --border-strong: #3b4753;
+
+    --accent: #4ba3e3;
+    --accent-soft: #17293a;
+    --accent-ink: #0d1217;
+
+    --positive: #4cb783;
+    --positive-soft: #14291f;
+    --caution: #d9a441;
+    --caution-soft: #2b2214;
+    --negative: #e8776e;
+    --negative-soft: #2e1917;
+
+    --muted: #5d6b77;
+
+    --shadow-raised: 0 6px 24px rgb(0 0 0 / 45%);
+    --shadow-panel: 0 1px 2px rgb(0 0 0 / 30%);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: var(--font-sans);
+  font-size: 0.9375rem;
+  line-height: 1.55;
+  color: var(--ink);
+  background: var(--surface-shell);
+  -webkit-font-smoothing: antialiased;
+}
+
+h1,
+h2,
+h3 {
+  margin: 0;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+
+h1 {
+  font-size: 1.375rem;
+}
+
+h2 {
+  font-size: 1.0625rem;
+}
+
+a {
+  color: var(--accent);
+}
+
+/* ---- Form controls ---- */
+
+input,
+select,
+textarea,
+button {
+  font: inherit;
+  color: inherit;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3125rem;
+}
+
+.field__label {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.input,
+.select {
+  width: 100%;
+  padding: 0.5rem 0.6875rem;
+  border: 1px solid var(--border-strong);
+  border-radius: calc(var(--radius) - 2px);
+  background: var(--surface);
+  color: var(--ink);
+}
+
+.input:focus-visible,
+.select:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+  border-color: var(--accent);
+}
+
+.input:disabled,
+.select:disabled {
+  background: var(--surface-sunken);
+  color: var(--ink-faint);
+}
+
+/* Figures are read left to right in Arabic as well as English, so numeric inputs and columns keep
+   their direction while the surrounding layout flips. */
+.input--number {
+  direction: ltr;
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4375rem;
+  padding: 0.5rem 0.9375rem;
+  border: 1px solid var(--border-strong);
+  border-radius: calc(var(--radius) - 2px);
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 100ms ease;
+}
+
+.button:hover:not(:disabled) {
+  background: var(--surface-sunken);
+}
+
+.button:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.button--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+
+.button--primary:hover:not(:disabled) {
+  filter: brightness(1.08);
+  background: var(--accent);
+}
+
+.button--quiet {
+  border-color: transparent;
+  background: none;
+  color: var(--ink-soft);
+}
+
+.button--danger {
+  border-color: var(--negative);
+  color: var(--negative);
+}
+
+.button--danger:hover:not(:disabled) {
+  background: var(--negative-soft);
+}
+
+/* ---- Panels ---- */
+
+.panel {
+  background: var(--surface-raised);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-panel);
+  overflow: hidden;
+}
+
+.panel__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.875rem 1.125rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.panel__body {
+  padding: 1.125rem;
+}
+
+.page {
+  padding: 1.5rem;
+  max-width: 78rem;
+  margin-inline: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.page__intro {
+  margin: 0;
+  color: var(--ink-soft);
+  max-width: 60ch;
+}
+
+/* ---- Tables ---- */
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.table th,
+.table td {
+  padding: 0.5rem 0.75rem;
+  text-align: start;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+
+.table th {
+  position: sticky;
+  top: 0;
+  background: var(--surface-sunken);
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  z-index: 1;
+}
+
+.table tbody tr:hover {
+  background: var(--surface-sunken);
+}
+
+.table tfoot td {
+  font-weight: 600;
+  background: var(--surface-sunken);
+  border-top: 2px solid var(--border-strong);
+}
+
+.numeric {
+  direction: ltr;
+  text-align: end;
+  font-variant-numeric: tabular-nums;
+}
+
+.code {
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  direction: ltr;
+  text-align: start;
+}
+
+.tag {
+  display: inline-block;
+  padding: 0.0625rem 0.4375rem;
+  border-radius: 999px;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  background: var(--surface-sunken);
+  color: var(--ink-soft);
+  border: 1px solid var(--border);
+}
+
+.tag--muted {
+  color: var(--ink-faint);
+}
+
+.tag--positive {
+  background: var(--positive-soft);
+  color: var(--positive);
+  border-color: transparent;
+}
+
+.tag--negative {
+  background: var(--negative-soft);
+  color: var(--negative);
+  border-color: transparent;
+}
+
+.empty {
+  padding: 2.5rem 1.125rem;
+  text-align: center;
+  color: var(--ink-faint);
+}
+
+.spinner {
+  display: inline-block;
+  width: 0.9375rem;
+  height: 0.9375rem;
+  border: 2px solid currentcolor;
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: spin 700ms linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation-duration: 2s;
+  }
+
+  * {
+    transition-duration: 1ms !important;
+  }
+}

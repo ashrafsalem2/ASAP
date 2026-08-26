@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "asap-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["start"],
+      "cwd": "frontend",
+      "port": 4200
+    }
+  ]
+}

@@ -35,7 +35,7 @@ The part every module stands on. No business logic lives here.
 | API host | JWT auth with rotating refresh tokens, problem details carrying ASAP messages | **done** |
 | Demo seed | Tenant, company, branches, permission sets, number series, dimensions | **done** |
 | Setup service | Reading and writing declared settings, narrowest-scope-wins | **done** |
-| Angular shell | Layout, auth, company switcher, generated menu, bilingual AR/EN with RTL | planned |
+| Angular shell | Layout, auth, company switcher, generated menu, bilingual AR/EN with RTL | **done** |
 
 ## Phase 1 — Finance
 

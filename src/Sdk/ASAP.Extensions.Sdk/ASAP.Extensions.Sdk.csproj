@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>ASAP.Extensions.Sdk</RootNamespace>
+    <Description>ASAP ERP Extension SDK: the surface third-party developers compile against to build ASAP extensions.</Description>
+    <PackageId>ASAP.Extensions.Sdk</PackageId>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\Platform\ASAP.Platform.Kernel\ASAP.Platform.Kernel.csproj" />
+  </ItemGroup>
+</Project>

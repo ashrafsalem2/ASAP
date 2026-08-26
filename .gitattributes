@@ -1,0 +1,33 @@
+# Normalise line endings so the repository stays consistent regardless of which
+# machine a contributor works on. Text is stored LF in git and checked out native.
+* text=auto
+
+# Source and configuration
+*.cs        text diff=csharp
+*.csproj    text
+*.slnx      text
+*.props     text
+*.targets   text
+*.json      text
+*.md        text
+*.ts        text
+*.html      text
+*.scss      text
+*.css       text
+*.yml       text
+*.yaml      text
+
+# Scripts keep the endings their interpreter expects
+*.sh        text eol=lf
+*.ps1       text eol=crlf
+*.cmd       text eol=crlf
+*.bat       text eol=crlf
+
+# Binary
+*.png       binary
+*.jpg       binary
+*.ico       binary
+*.pdf       binary
+*.dll       binary
+*.snk       binary
+*.rar       binary

@@ -1,0 +1,21 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/ASAP.Api/ASAP.Api.csproj" />
+  </Folder>
+  <Folder Name="/src/Platform/">
+    <Project Path="src/Platform/ASAP.Platform.Kernel/ASAP.Platform.Kernel.csproj" />
+    <Project Path="src/Platform/ASAP.Platform.Core/ASAP.Platform.Core.csproj" />
+    <Project Path="src/Platform/ASAP.Platform.Persistence/ASAP.Platform.Persistence.csproj" />
+    <Project Path="src/Platform/ASAP.Platform.Extensibility/ASAP.Platform.Extensibility.csproj" />
+  </Folder>
+  <Folder Name="/src/Modules/">
+    <Project Path="src/Modules/ASAP.Modules.Finance/ASAP.Modules.Finance.csproj" />
+  </Folder>
+  <Folder Name="/src/Sdk/">
+    <Project Path="src/Sdk/ASAP.Extensions.Sdk/ASAP.Extensions.Sdk.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/ASAP.Platform.Tests/ASAP.Platform.Tests.csproj" />
+    <Project Path="tests/ASAP.Modules.Finance.Tests/ASAP.Modules.Finance.Tests.csproj" />
+  </Folder>
+</Solution>

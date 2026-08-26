@@ -1,0 +1,55 @@
+<Project>
+
+  <!--
+    Central Package Management for the whole ASAP solution.
+    Versions are pinned to 10.0.10 to match the installed ASP.NET Core / .NET runtime.
+    Transitive pinning is ON so a vulnerable indirect dependency can be forced up from here.
+  -->
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+    <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
+  </PropertyGroup>
+
+  <ItemGroup Label="Runtime">
+    <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.Options" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.10" />
+  </ItemGroup>
+
+  <ItemGroup Label="Data">
+    <PackageVersion Include="Microsoft.EntityFrameworkCore" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Relational" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.10" />
+  </ItemGroup>
+
+  <ItemGroup Label="Api">
+    <PackageVersion Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
+    <PackageVersion Include="Scalar.AspNetCore" Version="2.17.1" />
+    <PackageVersion Include="Serilog.AspNetCore" Version="9.0.0" />
+    <PackageVersion Include="Serilog.Sinks.Console" Version="6.0.0" />
+    <PackageVersion Include="Serilog.Sinks.File" Version="6.0.0" />
+    <PackageVersion Include="BCrypt.Net-Next" Version="4.0.3" />
+    <PackageVersion Include="FluentValidation" Version="12.0.0" />
+    <PackageVersion Include="FluentValidation.DependencyInjectionExtensions" Version="12.0.0" />
+  </ItemGroup>
+
+  <ItemGroup Label="Testing">
+    <!-- Shouldly (BSD) rather than FluentAssertions 8+, which needs a paid licence for commercial products. -->
+    <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
+    <PackageVersion Include="xunit" Version="2.9.2" />
+    <PackageVersion Include="xunit.runner.visualstudio" Version="2.8.2" />
+    <PackageVersion Include="Shouldly" Version="4.2.1" />
+    <PackageVersion Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.10" />
+    <PackageVersion Include="NSubstitute" Version="5.3.0" />
+  </ItemGroup>
+
+  <ItemGroup Label="Security patches for transitive dependencies">
+    <PackageVersion Include="System.Security.Cryptography.Xml" Version="10.0.10" />
+    <PackageVersion Include="Microsoft.OpenApi" Version="2.12.2" />
+  </ItemGroup>
+
+</Project>

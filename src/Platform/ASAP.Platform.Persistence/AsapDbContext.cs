@@ -85,6 +85,9 @@ public sealed class AsapDbContext(
     /// <summary>Who holds which set, where.</summary>
     public DbSet<UserPermissionAssignment> UserPermissionAssignments => Set<UserPermissionAssignment>();
 
+    /// <summary>Live sign-in sessions, one row per rotation.</summary>
+    public DbSet<RefreshToken> RefreshTokens => Set<RefreshToken>();
+
     /// <summary>Settings that have been given a value.</summary>
     public DbSet<SetupValue> SetupValues => Set<SetupValue>();
 

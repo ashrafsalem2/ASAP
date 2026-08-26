@@ -31,7 +31,10 @@ The part every module stands on. No business logic lives here.
 | Event bus | Handler dispatch and ordering, vetoable events, transactional outbox | **done** |
 | Extension host | Isolated plugin loading, manifest gate, signature check | **done** |
 | Metadata extensions | Adding fields to core tables from an extension | planned |
-| API host | Authentication, pipeline behaviours, problem details carrying ASAP messages | planned |
+| CQRS pipeline | Dispatcher, declarative permissions, startup permission audit, transactions | **done** |
+| API host | JWT auth with rotating refresh tokens, problem details carrying ASAP messages | **done** |
+| Demo seed | Tenant, company, branches, permission sets, number series, dimensions | **done** |
+| Setup service | Reading and writing declared settings, narrowest-scope-wins | planned |
 | Angular shell | Layout, auth, company switcher, generated menu, bilingual AR/EN with RTL | planned |
 
 ## Phase 1 — Finance

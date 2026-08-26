@@ -66,8 +66,32 @@ the contracts in `Kernel`, which is what allows a customer to buy Inventory with
 
 Requires the .NET 10 SDK, Node 20 or later, and SQL Server or LocalDB.
 
+The signing key is never committed. Set one before the first run — startup refuses a key that is
+missing, short, or still the placeholder, because a guessable one lets anyone mint a token for any
+user in any company:
+
 ```bash
-dotnet build ASAP.slnx
+cd src/ASAP.Api && dotnet user-secrets set "Asap:Jwt:SigningKey" "$(openssl rand -base64 48)"
+```
+
+Then run it. Migrations apply automatically, and an empty database is seeded with a demo company:
+
+```bash
+cd src/ASAP.Api && dotnet run
+```
+
+On first run the console prints a generated password for the `admin` account. It is shown once
+and cannot be recovered — the hash is one-way by design — so copy it before the window scrolls.
+
+- API: `http://localhost:5199`
+- Interactive API reference: `http://localhost:5199/scalar/v1`
+- Health: `http://localhost:5199/health`
+
+The demo seed creates one tenant, one company (`MAIN`, SAR), three branches (head office plus
+Riyadh and Jeddah stores), three permission sets, seven number series and two dimensions.
+
+```bash
+dotnet test ASAP.slnx
 ```
 
 Further setup steps are documented in [docs/developer](docs/developer) as each layer lands.

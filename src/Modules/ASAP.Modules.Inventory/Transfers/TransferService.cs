@@ -119,7 +119,7 @@ public sealed class TransferService(
                 transfer.No,
                 companyAllowsNegative,
                 heldOverridePermissions,
-                cancellationToken)
+                cancellationToken: cancellationToken)
             .ConfigureAwait(false);
 
         if (result.Failed)
@@ -233,7 +233,7 @@ public sealed class TransferService(
                 transfer.No,
                 companyAllowsNegative,
                 heldOverridePermissions,
-                cancellationToken)
+                cancellationToken: cancellationToken)
             .ConfigureAwait(false);
 
         if (result.Failed)

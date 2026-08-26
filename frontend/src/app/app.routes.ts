@@ -44,6 +44,23 @@ export const routes: Routes = [
           import('./features/finance/ledger-entries').then((m) => m.LedgerEntries),
       },
       {
+        path: 'inventory/items',
+        canActivate: [requirePermission('Inventory.Item.Read')],
+        loadComponent: () => import('./features/inventory/items').then((m) => m.Items),
+      },
+      {
+        path: 'inventory/movements',
+        canActivate: [requirePermission('Inventory.Stock.Read')],
+        loadComponent: () =>
+          import('./features/inventory/stock-movements').then((m) => m.StockMovements),
+      },
+      {
+        path: 'inventory/reports/stock-on-hand',
+        canActivate: [requirePermission('Inventory.Report.Read')],
+        loadComponent: () =>
+          import('./features/inventory/stock-on-hand').then((m) => m.StockOnHand),
+      },
+      {
         path: 'finance/reports/trial-balance',
         canActivate: [requirePermission('Finance.Report.Read')],
         loadComponent: () =>

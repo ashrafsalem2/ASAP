@@ -123,6 +123,7 @@ public sealed class TransferLifecycleTests : IDisposable
             new NullPublisher(),
             catalog,
             _tenancy,
+            new StubUser(),
             _clock,
             _allocator,
             NullLogger<StockPostingService>.Instance);

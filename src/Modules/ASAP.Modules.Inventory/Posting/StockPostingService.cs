@@ -1,12 +1,15 @@
+using System.Globalization;
 using ASAP.Modules.Inventory.Costing;
 using ASAP.Modules.Inventory.Events;
 using ASAP.Modules.Inventory.Items;
 using ASAP.Modules.Inventory.Ledger;
 using ASAP.Modules.Inventory.Locations;
+using ASAP.Platform.Core.Auditing;
 using ASAP.Platform.Kernel.Events;
 using ASAP.Platform.Kernel.Messaging;
 using ASAP.Platform.Kernel.Numbering;
 using ASAP.Platform.Kernel.Results;
+using ASAP.Platform.Kernel.Security;
 using ASAP.Platform.Kernel.Tenancy;
 using ASAP.Platform.Kernel.Time;
 using ASAP.Platform.Persistence;
@@ -57,6 +60,7 @@ public readonly record struct StockPostingReceipt(
 /// <param name="events">Gives extensions their say, and announces the result.</param>
 /// <param name="messages">Renders messages.</param>
 /// <param name="tenantContext">Supplies the company and branch.</param>
+/// <param name="userContext">Names who is posting, so an override can be recorded against them.</param>
 /// <param name="clock">Supplies the time.</param>
 /// <param name="transactionNumbers">Issues the number that groups the entries.</param>
 /// <param name="logger">Records postings.</param>
@@ -66,6 +70,7 @@ public sealed partial class StockPostingService(
     IEventPublisher events,
     IMessageCatalog messages,
     ITenantContext tenantContext,
+    IUserContext userContext,
     IClock clock,
     ITransactionNumberAllocator transactionNumbers,
     ILogger<StockPostingService> logger)
@@ -79,6 +84,7 @@ public sealed partial class StockPostingService(
     /// <param name="documentNo">The document behind them.</param>
     /// <param name="companyAllowsNegative">Whether the company permits stock below zero.</param>
     /// <param name="heldOverridePermissions">Override permissions the caller holds.</param>
+    /// <param name="overrideReason">Why a protection was pushed past, recorded with the override.</param>
     /// <param name="cancellationToken">Cancels the work.</param>
     public async Task<Result<StockPostingReceipt>> PostAsync(
         IReadOnlyList<StockMovementRequest> requests,
@@ -87,6 +93,7 @@ public sealed partial class StockPostingService(
         string? documentNo,
         bool companyAllowsNegative,
         IReadOnlySet<string>? heldOverridePermissions = null,
+        string? overrideReason = null,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(requests);
@@ -122,6 +129,11 @@ public sealed partial class StockPostingService(
         }
 
         var transactionNo = await NextTransactionNoAsync(cancellationToken).ConfigureAwait(false);
+
+        // Anything that reached here carrying an overridden block was a refusal a moment ago.
+        // Recorded against the transaction number so the trail and the entries point at each
+        // other; both live or die with the same transaction.
+        RecordOverrides(checkResult, vetoed, documentNo, transactionNo, overrideReason);
         var written = new List<ItemLedgerEntry>();
         var costAmount = 0m;
         var estimatedAmount = 0m;
@@ -514,6 +526,46 @@ public sealed partial class StockPostingService(
     /// in Finance, because reaching into another module table would mean Inventory could not run
     /// without it.
     /// </remarks>
+    /// <summary>
+    /// Writes an audit row for every protection this posting pushed past.
+    /// </summary>
+    /// <remarks>
+    /// Inventory kept none of these for a while, so a sale could go out below zero from a
+    /// location that was not sellable and leave nothing behind saying who allowed it. An override
+    /// nobody recorded is indistinguishable from a rule that was never there.
+    /// </remarks>
+    private void RecordOverrides(
+        Result validation,
+        Result vetoed,
+        string? documentNo,
+        long transactionNo,
+        string? overrideReason)
+    {
+        foreach (var warning in validation.Messages.Concat(vetoed.Messages))
+        {
+            if (!warning.WasOverridden)
+            {
+                continue;
+            }
+
+            context.AuditLog.Add(new AuditLogEntry
+            {
+                TenantId = tenantContext.TenantId ?? Guid.Empty,
+                CompanyId = tenantContext.CompanyId,
+                BranchId = tenantContext.BranchId,
+                UserId = userContext.UserId,
+                UserName = userContext.UserName,
+                OccurredAtUtc = clock.UtcNow,
+                Action = AuditAction.Override,
+                EntityType = "Inventory.ItemLedgerEntry",
+                DisplayNo = documentNo ?? transactionNo.ToString(CultureInfo.InvariantCulture),
+                OverriddenMessageCode = warning.Code.Value,
+                OverrideReason = overrideReason,
+                Changes = warning.Detail,
+            });
+        }
+    }
+
     private Task<long> NextTransactionNoAsync(CancellationToken cancellationToken)
         => transactionNumbers.NextAsync(cancellationToken);
 }

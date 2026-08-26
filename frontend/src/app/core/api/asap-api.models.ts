@@ -1,3 +1,5 @@
+import { AsapMessage } from './asap-message';
+
 /** What the server returns when a sign-in succeeds. */
 export interface SignInResponse {
   accessToken: string;
@@ -92,7 +94,7 @@ export interface PostingReceipt {
   documentNo?: string;
   entryCount: number;
   totalAmount: number;
-  messages?: { code: string; severity: string; title: string; detail?: string }[];
+  messages?: AsapMessage[];
 }
 
 /** One account on the trial balance. */
@@ -118,4 +120,78 @@ export interface TrialBalance {
   totalDebit: number;
   totalCredit: number;
   isBalanced: boolean;
+}
+
+/** An item as the client sees it. */
+export interface Item {
+  no: string;
+  description: string;
+  descriptionArabic?: string;
+  costingMethod: 'Fifo' | 'Average' | 'Standard' | 'Specific';
+  unitCost: number;
+  unitPrice: number;
+  quantityOnHand: number;
+  reorderPoint: number;
+  allowNegativeInventory?: boolean | null;
+}
+
+/** A place stock is held. */
+export interface StockLocation {
+  code: string;
+  name: string;
+  nameArabic?: string;
+  isSellable: boolean;
+  isInTransit: boolean;
+  isBlocked: boolean;
+}
+
+/** What is on hand for one item at one location. */
+export interface StockOnHandRow {
+  itemNo: string;
+  description: string;
+  descriptionArabic?: string;
+  locationCode: string;
+  quantity: number;
+  isNegative: boolean;
+}
+
+/** One recorded stock movement. */
+export interface StockMovement {
+  postingDate: string;
+  transactionNo: number;
+  itemNo: string;
+  locationCode: string;
+  entryType: string;
+  quantity: number;
+  remainingQuantity: number;
+  documentNo?: string;
+  sourceCode: string;
+  wentNegative: boolean;
+}
+
+/** One movement being posted. */
+export interface StockMovementRequest {
+  itemNo: string;
+  locationCode: string;
+  quantity: number;
+  unitCost?: number;
+  entryType: string;
+  salesAmount?: number;
+}
+
+/** What a stock posting produced. */
+export interface StockPostingReceipt {
+  transactionNo: number;
+  entryCount: number;
+  costAmount: number;
+  estimatedCostAmount: number;
+  messages?: AsapMessage[];
+}
+
+/** What a settlement run corrected. */
+export interface SettlementReceipt {
+  itemsExamined: number;
+  applicationsSettled: number;
+  totalCorrection: number;
+  messages?: AsapMessage[];
 }

@@ -234,13 +234,8 @@ public sealed class StockAvailability(IMessageCatalog messages)
     {
         var rendered = messages.Render(code, arguments, target);
 
-        if (rendered.Severity is MessageSeverity.Blocked
-            && rendered.OverridePermission is { } permission
-            && held?.Contains(permission) == true)
-        {
-            return rendered with { Severity = MessageSeverity.Warning };
-        }
-
-        return rendered;
+        return rendered.OverridePermission is { } permission && held?.Contains(permission) == true
+            ? messages.AsOverridden(rendered)
+            : rendered;
     }
 }

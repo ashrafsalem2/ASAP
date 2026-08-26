@@ -107,6 +107,53 @@ public sealed class MessageCatalog : IMessageCatalog
         };
     }
 
+    /// <inheritdoc />
+    public AsapMessage AsOverridden(AsapMessage blocked)
+    {
+        ArgumentNullException.ThrowIfNull(blocked);
+
+        // Only a block with a permission behind it can be overridden. Anything else is returned
+        // untouched so callers can pass every message through without sorting them first.
+        if (blocked.Severity is not MessageSeverity.Blocked || blocked.OverridePermission is null)
+        {
+            return blocked;
+        }
+
+        var cultureName = _userContext?.Culture;
+
+        var arguments = new Dictionary<string, object?>(blocked.Arguments, StringComparer.OrdinalIgnoreCase)
+        {
+            ["Permission"] = blocked.OverridePermission,
+        };
+
+        // The detail is left alone: it states the rule and the figures behind it, and both are
+        // still true. Only the resolution is replaced, because it was written for somebody who
+        // had been refused, and this caller was not.
+        return blocked with
+        {
+            Severity = MessageSeverity.Warning,
+            WasOverridden = true,
+            Resolution = MessageTemplateRenderer.Render(
+                OverriddenResolution.For(cultureName),
+                arguments,
+                ResolveCulture(cultureName)),
+            Arguments = arguments,
+        };
+    }
+
+    /// <summary>
+    /// What replaces the resolution when a block is overridden.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately says that the record was kept. Someone reading their own override needs to
+    /// know it was not silent, and someone considering a careless one needs to know the same.
+    /// </remarks>
+    private static readonly LocalizedText OverriddenResolution = new(
+        "This would normally have been refused. It went through because you hold {Permission}, "
+        + "and the override has been recorded against your name.",
+        "كان من المفترض رفض هذه العملية. وقد تمت لأنك تملك صلاحية {Permission}، "
+        + "وسُجِّل هذا التجاوز باسمك.");
+
     private static CultureInfo ResolveCulture(string? cultureName)
     {
         if (string.IsNullOrWhiteSpace(cultureName))

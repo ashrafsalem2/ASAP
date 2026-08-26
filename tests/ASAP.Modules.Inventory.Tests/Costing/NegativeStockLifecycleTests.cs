@@ -3,6 +3,7 @@ using ASAP.Modules.Inventory.Items;
 using ASAP.Modules.Inventory.Ledger;
 using ASAP.Modules.Inventory.Locations;
 using ASAP.Modules.Inventory.Posting;
+using ASAP.Platform.Core.Auditing;
 using ASAP.Platform.Core.Events;
 using ASAP.Platform.Core.Messaging;
 using ASAP.Platform.Core.Tenancy;
@@ -104,6 +105,7 @@ public sealed class NegativeStockLifecycleTests : IDisposable
             new NullPublisher(),
             catalog,
             _tenancy,
+            new StubUser(),
             _clock,
             _allocator,
             NullLogger<StockPostingService>.Instance);
@@ -204,6 +206,79 @@ public sealed class NegativeStockLifecycleTests : IDisposable
             // goods actually cost.
             var soldCost = values.Where(v => v.Quantity <= 0).Sum(v => v.CostAmount);
             soldCost.ShouldBe(-135.00m);
+        }
+    }
+
+    [Fact]
+    public async Task Pushing_past_a_block_leaves_a_record_of_who_did_it()
+    {
+        // Inventory honoured override permissions long before it recorded them, so a sale could
+        // go out below zero at a company that forbids it and leave nothing behind naming whoever
+        // allowed it. An override nobody wrote down is indistinguishable from a rule that was
+        // never there.
+        await using (var context = NewContext())
+        {
+            // The seeded item allows negative stock outright, which would settle the question
+            // before any block was raised. Clearing the override makes it follow the company,
+            // and the company is about to say no.
+            var item = await context.Set<Item>().SingleAsync(i => i.No == "ITEM-1001");
+            item.AllowNegativeInventory = null;
+            await context.SaveChangesAsync();
+
+            var result = await Posting(context).PostAsync(
+                [new StockMovementRequest("ITEM-1001", "SHOP", -10, EntryType: ItemLedgerEntryType.Sale)],
+                SaleDate,
+                "POS",
+                "POS-0009",
+
+                // The company forbids it. Only the held permission gets this through.
+                companyAllowsNegative: false,
+                heldOverridePermissions: new HashSet<string> { "Inventory.Stock.Override" },
+                overrideReason: "Customer waiting; delivery signed for this morning.");
+
+            result.Succeeded.ShouldBeTrue();
+        }
+
+        await using (var context = NewContext())
+        {
+            var overrides = await context.AuditLog
+                .IgnoreQueryFilters()
+                .Where(a => a.Action == AuditAction.Override)
+                .ToListAsync();
+
+            var entry = overrides.ShouldHaveSingleItem();
+
+            entry.OverriddenMessageCode.ShouldBe("INV.STOCK.NEGATIVE_BLOCKED");
+            entry.EntityType.ShouldBe("Inventory.ItemLedgerEntry");
+            entry.DisplayNo.ShouldBe("POS-0009");
+            entry.OverrideReason.ShouldBe("Customer waiting; delivery signed for this morning.");
+            entry.UserName.ShouldNotBeNullOrWhiteSpace();
+        }
+    }
+
+    [Fact]
+    public async Task A_sale_within_stock_records_no_override()
+    {
+        // The audit log is only worth reading if it holds the exceptions and nothing else.
+        await using (var context = NewContext())
+        {
+            await Posting(context).PostAsync(
+                [new StockMovementRequest("ITEM-1001", "SHOP", 50, 12.00m, ItemLedgerEntryType.Purchase)],
+                SaleDate,
+                "PURCH",
+                "PINV-0009",
+                companyAllowsNegative: false,
+                heldOverridePermissions: new HashSet<string> { "Inventory.Stock.Override" });
+        }
+
+        await using (var context = NewContext())
+        {
+            var overrides = await context.AuditLog
+                .IgnoreQueryFilters()
+                .Where(a => a.Action == AuditAction.Override)
+                .ToListAsync();
+
+            overrides.ShouldBeEmpty();
         }
     }
 

@@ -325,11 +325,8 @@ public sealed class JournalPostingValidator(IMessageCatalog messages)
     {
         var rendered = messages.Render(code, arguments, target);
 
-        if (rendered.Severity is MessageSeverity.Blocked && environment.CanOverride(rendered.OverridePermission))
-        {
-            return rendered with { Severity = MessageSeverity.Warning };
-        }
-
-        return rendered;
+        return environment.CanOverride(rendered.OverridePermission)
+            ? messages.AsOverridden(rendered)
+            : rendered;
     }
 }

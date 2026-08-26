@@ -43,8 +43,18 @@ export class I18nService {
   }
 
   /** Translates a shell string. */
-  translate(key: TranslationKey): string {
-    return TRANSLATIONS[this.current()][key] ?? TRANSLATIONS.en[key] ?? key;
+  translate(key: TranslationKey, values?: Readonly<Record<string, string | number>>): string {
+    const text = TRANSLATIONS[this.current()][key] ?? TRANSLATIONS.en[key] ?? key;
+
+    if (!values) {
+      return text;
+    }
+
+    // Same {Placeholder} shape the server catalogue uses, so a string can move between the two
+    // without being rewritten.
+    return text.replace(/\{(\w+)\}/g, (whole, name) =>
+      name in values ? String(values[name]) : whole,
+    );
   }
 
   /** Switches between the two languages. */

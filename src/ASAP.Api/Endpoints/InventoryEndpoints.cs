@@ -38,12 +38,15 @@ public sealed record ItemSummary(
 /// <summary>What is on hand for one item at one location.</summary>
 /// <param name="ItemNo">The item.</param>
 /// <param name="Description">What it is.</param>
+/// <param name="DescriptionArabic">What it is, in Arabic. Sent alongside rather than instead of,
+/// so switching language redraws the table without going back to the server.</param>
 /// <param name="LocationCode">Where.</param>
 /// <param name="Quantity">How much.</param>
 /// <param name="IsNegative">Whether the balance has gone below zero.</param>
 public sealed record StockOnHandRow(
     string ItemNo,
     string Description,
+    string? DescriptionArabic,
     string LocationCode,
     decimal Quantity,
     bool IsNegative);
@@ -53,11 +56,16 @@ public sealed record StockOnHandRow(
 /// <param name="PostingDate">The date to report them in. Defaults to today.</param>
 /// <param name="DocumentNo">The document behind them.</param>
 /// <param name="SourceCode">Where they came from.</param>
+/// <param name="OverrideReason">
+/// Why a protection is being pushed past, recorded with the override. Only read when the caller
+/// actually overrides something; it neither grants the right nor is required to hold it.
+/// </param>
 public sealed record PostStockRequest(
     IReadOnlyList<StockMovementRequest> Movements,
     DateOnly? PostingDate = null,
     string? DocumentNo = null,
-    string SourceCode = "INVJNL");
+    string SourceCode = "INVJNL",
+    string? OverrideReason = null);
 
 /// <summary>Items, locations, stock levels and movements.</summary>
 public static class InventoryEndpoints
@@ -164,7 +172,10 @@ public static class InventoryEndpoints
 
         var descriptions = await context.Set<Item>()
             .AsNoTracking()
-            .ToDictionaryAsync(static i => i.No, static i => i.Description, cancellationToken)
+            .ToDictionaryAsync(
+                static i => i.No,
+                static i => new { i.Description, i.DescriptionArabic },
+                cancellationToken)
             .ConfigureAwait(false);
 
         return Results.Ok(rows
@@ -172,7 +183,8 @@ public static class InventoryEndpoints
             .ThenBy(static r => r.LocationCode)
             .Select(r => new StockOnHandRow(
                 r.ItemNo,
-                descriptions.GetValueOrDefault(r.ItemNo, string.Empty),
+                descriptions.GetValueOrDefault(r.ItemNo)?.Description ?? string.Empty,
+                descriptions.GetValueOrDefault(r.ItemNo)?.DescriptionArabic,
                 r.LocationCode,
                 r.Quantity,
                 r.Quantity < 0)));
@@ -254,6 +266,7 @@ public static class InventoryEndpoints
                 request.DocumentNo,
                 allowsNegative,
                 overrides,
+                request.OverrideReason,
                 cancellationToken)
             .ConfigureAwait(false);
 
@@ -273,14 +286,7 @@ public static class InventoryEndpoints
 
             // Warnings travel back with the success. A sale that took stock below zero should say
             // so on the screen, not only in the log.
-            messages = result.Messages.Select(static m => new
-            {
-                code = m.Code.Value,
-                severity = m.Severity.ToString(),
-                title = m.Title,
-                detail = m.Detail,
-                resolution = m.Resolution,
-            }),
+            messages = MessagePayload.FromAll(result.Messages),
         });
     }
 
@@ -296,12 +302,7 @@ public static class InventoryEndpoints
             itemsExamined = result.Value.ItemsExamined,
             applicationsSettled = result.Value.ApplicationsSettled,
             totalCorrection = result.Value.TotalCorrection,
-            messages = result.Messages.Select(static m => new
-            {
-                code = m.Code.Value,
-                title = m.Title,
-                detail = m.Detail,
-            }),
+            messages = MessagePayload.FromAll(result.Messages),
         });
     }
 }

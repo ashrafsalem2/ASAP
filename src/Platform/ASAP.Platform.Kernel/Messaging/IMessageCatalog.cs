@@ -27,6 +27,22 @@ public interface IMessageCatalog
         IReadOnlyDictionary<string, object?>? arguments = null,
         MessageTarget target = default);
 
+    /// <summary>
+    /// Turns a block the caller is entitled to override into a warning that says so.
+    /// </summary>
+    /// <param name="blocked">The rendered message. Returned unchanged if it is not an overridable block.</param>
+    /// <returns>
+    /// The message downgraded to <see cref="MessageSeverity.Warning"/>, marked
+    /// <see cref="AsapMessage.WasOverridden"/>, and carrying a resolution that describes what
+    /// happened instead of how to avoid it.
+    /// </returns>
+    /// <remarks>
+    /// Every caller that honours override permissions has to come through here. Downgrading the
+    /// severity by hand is what left ASAP telling people to "reduce the quantity or ask an
+    /// administrator" about a sale that had already gone through.
+    /// </remarks>
+    AsapMessage AsOverridden(AsapMessage blocked);
+
     /// <summary>Looks up a definition without rendering it.</summary>
     /// <param name="code">The code to look up.</param>
     /// <returns>The definition, or null when the code is unknown.</returns>

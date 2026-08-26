@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { I18nService } from '../i18n/i18n.service';
-import { MessageService } from './message.service';
+import { ActiveMessage, MessageService } from './message.service';
 
 /**
  * Renders the messages ASAP has raised.
@@ -27,12 +27,14 @@ import { MessageService } from './message.service';
 
               @if (message.resolution) {
                 <p class="message__resolution">
-                  <span class="message__resolution-label">{{ t('common.whatToDo') }}</span>
+                  <span class="message__resolution-label">{{ resolutionLabel(message) }}</span>
                   {{ message.resolution }}
                 </p>
               }
 
-              <p class="message__code">{{ message.code }}</p>
+              @if (!isClientCode(message.code)) {
+                <p class="message__code">{{ message.code }}</p>
+              }
             </div>
 
             <button
@@ -56,5 +58,21 @@ export class MessageCentre {
 
   protected t(key: Parameters<I18nService['translate']>[0]): string {
     return this.i18n.translate(key);
+  }
+
+  /**
+   * "What to do" is wrong for an override: nothing is being asked of the reader, they are being
+   * told what was allowed on their behalf and that it was written down.
+   */
+  protected resolutionLabel(message: ActiveMessage): string {
+    return this.t(message.wasOverridden ? 'common.whatHappened' : 'common.whatToDo');
+  }
+
+  /**
+   * Codes the client invented for its own confirmations. Printing one gives the reader a
+   * reference that means nothing to anybody they might quote it to.
+   */
+  protected isClientCode(code: string): boolean {
+    return code.startsWith('CLIENT.');
   }
 }

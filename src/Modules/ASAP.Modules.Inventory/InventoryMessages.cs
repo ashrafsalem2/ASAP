@@ -152,13 +152,17 @@ public static class InventoryMessages
                 "Stock at that location cannot be sold",
                 "لا يمكن بيع المخزون في هذا الموقع"),
             Detail = new LocalizedText(
-                "{Location} holds stock that has not been released -- goods awaiting checking, or "
-                + "in transit. It is counted in the valuation but must not be promised to a customer.",
-                "يحتوي {Location} على مخزون لم يُفرج عنه، مثل بضائع قيد الفحص أو في الطريق. "
-                + "يُحتسب ضمن التقييم ولكن لا يجوز الالتزام به لعميل."),
+                "{Location} is not marked as sellable. Its stock is counted in the valuation but "
+                + "must not be promised to a customer -- which is how a warehouse, a quarantine "
+                + "bay and goods in transit are each kept out of the sales channel.",
+                "الموقع {Location} غير محدد كموقع بيع. يُحتسب مخزونه ضمن التقييم ولكن لا يجوز "
+                + "الالتزام به لعميل، وبهذا يبقى المستودع ومنطقة الحجر والبضائع في الطريق خارج "
+                + "دورة البيع."),
             Resolution = new LocalizedText(
-                "Move the goods to a sellable location first, or sell from one.",
-                "انقل البضاعة إلى موقع قابل للبيع أولاً، أو بِع من موقع كذلك."),
+                "Sell from a location that is marked sellable, transfer the goods to one, or mark "
+                + "{Location} sellable if it should have been.",
+                "بِع من موقع محدد كموقع بيع، أو انقل البضاعة إليه، أو حدِّد {Location} كموقع بيع "
+                + "إن كان يجب أن يكون كذلك."),
             OverridePermission = "Inventory.Stock.Override",
         },
         new()

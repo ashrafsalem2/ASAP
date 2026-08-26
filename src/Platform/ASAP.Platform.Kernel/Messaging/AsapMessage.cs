@@ -53,6 +53,19 @@ public sealed record AsapMessage
     /// </summary>
     public string? OverridePermission { get; init; }
 
+    /// <summary>
+    /// True when this began as a <see cref="MessageSeverity.Blocked"/> refusal and was downgraded
+    /// because the caller holds <see cref="OverridePermission"/>.
+    /// </summary>
+    /// <remarks>
+    /// Recorded explicitly rather than inferred from severity plus permission, because those two
+    /// together are also the shape of a message that was only ever a warning. The difference
+    /// matters twice over: the audit log has to record exactly which protections somebody pushed
+    /// past, and the text shown has to stop telling the user how to avoid a refusal that did not
+    /// happen.
+    /// </remarks>
+    public bool WasOverridden { get; init; }
+
     /// <summary>Anchor into the user documentation explaining this code in full.</summary>
     public string? HelpTopic { get; init; }
 

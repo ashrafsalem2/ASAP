@@ -145,14 +145,7 @@ export class Journal implements OnInit {
 
       // Everything the server said travels back, warnings included. A posting that went through on
       // an override should say so on the screen, not only in the audit log.
-      this.messages.showAll(
-        (receipt.messages ?? []).map((message) => ({
-          code: message.code,
-          severity: message.severity as never,
-          title: message.title,
-          detail: message.detail,
-        })),
-      );
+      this.messages.showAll(receipt.messages ?? []);
 
       this.reset();
     } catch (error) {

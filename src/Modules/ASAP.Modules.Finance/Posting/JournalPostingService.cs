@@ -276,9 +276,10 @@ public sealed class JournalPostingService(
     {
         foreach (var warning in validation.Messages.Concat(vetoed.Messages))
         {
-            // A warning carrying an override permission is one that was a block until this caller
-            // turned out to hold the permission for it.
-            if (warning.Severity is not MessageSeverity.Warning || warning.OverridePermission is null)
+            // Only messages that were actually downgraded. Severity plus permission used to be
+            // the test, but that shape also matches a message that was never more than a warning,
+            // and logging those as overrides would bury the real ones.
+            if (!warning.WasOverridden)
             {
                 continue;
             }

@@ -26,6 +26,14 @@ export interface AsapMessage {
   /** The permission that would let someone push past this block. */
   overridePermission?: string;
 
+  /**
+   * True when this was a refusal until the caller turned out to hold the permission for it.
+   *
+   * Changes how the resolution reads: on a live block it says how to proceed, on an overridden
+   * one it says what was allowed and that the override was recorded.
+   */
+  wasOverridden?: boolean;
+
   /** What the message is about, so the offending input can be marked up. */
   target?: {
     field?: string;

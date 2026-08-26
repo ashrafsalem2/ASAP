@@ -126,6 +126,45 @@ public sealed class StockAvailabilityTests
     }
 
     [Fact]
+    public void An_overridden_block_stops_telling_the_user_how_to_avoid_it()
+    {
+        // The refusal did not happen, so the advice written for somebody who was refused is no
+        // longer true. ASAP used to keep it, which left a sale that had already gone through
+        // telling the seller to reduce the quantity or go and ask an administrator.
+        var result = Availability().Check(
+            [Move(-30, onHand: 10)],
+            companyAllowsNegative: false,
+            heldOverridePermissions: new HashSet<string> { "Inventory.Stock.Override" });
+
+        var message = Find(result, "INV.STOCK.NEGATIVE_BLOCKED");
+
+        message.WasOverridden.ShouldBeTrue();
+        message.Severity.ShouldBe(MessageSeverity.Warning);
+        message.Resolution.ShouldNotBeNull();
+        message.Resolution.ShouldContain("Inventory.Stock.Override");
+        message.Resolution.ShouldNotContain("Reduce the quantity");
+
+        // The detail states the rule and the figures, both still true, so it is left alone.
+        message.Detail.ShouldNotBeNull();
+        message.Detail.ShouldContain("30");
+    }
+
+    [Fact]
+    public void A_block_nobody_can_override_keeps_its_resolution()
+    {
+        var result = Availability().Check(
+            [Move(-30, onHand: 10)],
+            companyAllowsNegative: false);
+
+        var message = Find(result, "INV.STOCK.NEGATIVE_BLOCKED");
+
+        message.WasOverridden.ShouldBeFalse();
+        message.Severity.ShouldBe(MessageSeverity.Blocked);
+        message.Resolution.ShouldNotBeNull();
+        message.Resolution.ShouldContain("Reduce the quantity");
+    }
+
+    [Fact]
     public void Stock_at_a_quarantine_location_cannot_be_sold()
     {
         // The goods exist and are counted in the valuation, but must not be promised to a customer

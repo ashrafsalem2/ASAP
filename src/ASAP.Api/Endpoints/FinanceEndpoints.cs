@@ -143,13 +143,7 @@ public static class FinanceEndpoints
 
             // Warnings ride along with the success. A posting that went through on an override
             // should say so on the screen, not only in the audit log.
-            messages = result.Messages.Select(static m => new
-            {
-                code = m.Code.Value,
-                severity = m.Severity.ToString(),
-                title = m.Title,
-                detail = m.Detail,
-            }),
+            messages = MessagePayload.FromAll(result.Messages),
         });
     }
 

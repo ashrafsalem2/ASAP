@@ -142,15 +142,6 @@ public static class AsapProblem
 
         // Everything, including warnings that accompanied the failure. A posting refused for one
         // reason while also warning about two others should say all three at once.
-        problem.Extensions["messages"] = messages.Select(static m => new
-        {
-            code = m.Code.Value,
-            severity = m.Severity.ToString(),
-            title = m.Title,
-            detail = m.Detail,
-            resolution = m.Resolution,
-            overridePermission = m.OverridePermission,
-            target = m.Target.IsEmpty ? null : new { field = m.Target.Field, displayNo = m.Target.DisplayNo },
-        }).ToList();
+        problem.Extensions["messages"] = MessagePayload.FromAll(messages);
     }
 }

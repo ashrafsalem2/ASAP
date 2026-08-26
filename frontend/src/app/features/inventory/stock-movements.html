@@ -1,0 +1,163 @@
+<div class="page">
+  <h1>{{ t('inventory.movements.title') }}</h1>
+
+  @if (canPost()) {
+    <section class="panel">
+      <div class="panel__header">
+        <h2>{{ t('inventory.movements.post') }}</h2>
+      </div>
+
+      <div class="panel__body post-form">
+        <div class="field">
+          <label class="field__label" for="entryType">{{ t('inventory.movements.entryType') }}</label>
+          <select id="entryType" class="select" [(ngModel)]="entryType" [disabled]="posting()">
+            @for (type of entryTypes; track type) {
+              <option [value]="type">{{ type }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="field post-form__item">
+          <label class="field__label" for="itemNo">{{ t('inventory.movements.item') }}</label>
+          <select id="itemNo" class="select" [(ngModel)]="itemNo" [disabled]="posting()">
+            <option value=""></option>
+            @for (item of items(); track item.no) {
+              <option [value]="item.no">{{ nameOf(item) }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="locationCode">{{ t('inventory.stock.location') }}</label>
+          <select id="locationCode" class="select" [(ngModel)]="locationCode" [disabled]="posting()">
+            <option value=""></option>
+            @for (location of locations(); track location.code) {
+              <option [value]="location.code">{{ location.code }} — {{ location.name }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="field post-form__number">
+          <label class="field__label" for="quantity">{{ t('inventory.stock.quantity') }}</label>
+          <input
+            id="quantity"
+            class="input input--number"
+            inputmode="decimal"
+            type="number"
+            [(ngModel)]="quantity"
+            [disabled]="posting()"
+          />
+        </div>
+
+        @if (needsUnitCost()) {
+          <div class="field post-form__number">
+            <label class="field__label" for="unitCost">{{ t('inventory.items.unitCost') }}</label>
+            <input
+              id="unitCost"
+              class="input input--number"
+              inputmode="decimal"
+              type="number"
+              [(ngModel)]="unitCost"
+              [disabled]="posting()"
+            />
+          </div>
+        }
+
+        <div class="field">
+          <label class="field__label" for="documentNo">
+            {{ t('inventory.movements.document') }}
+          </label>
+          <input id="documentNo" class="input" [(ngModel)]="documentNo" [disabled]="posting()" />
+        </div>
+
+        <button
+          type="button"
+          class="button button--primary post-form__submit"
+          [disabled]="posting() || !itemNo || !locationCode || !quantity"
+          (click)="post()"
+        >
+          @if (posting()) {
+            <span class="spinner"></span>
+            {{ t('inventory.movements.posting') }}
+          } @else {
+            {{ t('inventory.movements.post') }}
+          }
+        </button>
+      </div>
+
+      <p class="panel__body post-form__hint">{{ t('inventory.movements.quantityHint') }}</p>
+    </section>
+  }
+
+  <section class="panel">
+    <div class="panel__body controls">
+      <div class="field">
+        <label class="field__label" for="filterItemNo">
+          {{ t('inventory.movements.filterItem') }}
+        </label>
+        <input id="filterItemNo" class="input code" [(ngModel)]="filterItemNo" />
+      </div>
+
+      <button type="button" class="button" [disabled]="loading()" (click)="load()">
+        @if (loading()) {
+          <span class="spinner"></span>
+        }
+        {{ t('finance.trialBalance.run') }}
+      </button>
+    </div>
+
+    <div class="table-scroll">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ t('inventory.movements.date') }}</th>
+            <th class="numeric">{{ t('inventory.movements.transaction') }}</th>
+            <th>{{ t('inventory.items.no') }}</th>
+            <th>{{ t('inventory.stock.location') }}</th>
+            <th>{{ t('inventory.movements.type') }}</th>
+            <th class="numeric">{{ t('inventory.stock.quantity') }}</th>
+            <th class="numeric">{{ t('inventory.movements.remaining') }}</th>
+            <th>{{ t('inventory.movements.document') }}</th>
+            <th>{{ t('inventory.movements.source') }}</th>
+          </tr>
+        </thead>
+
+        <tbody>
+          @for (movement of movements(); track $index) {
+            <tr>
+              <td class="code">{{ movement.postingDate }}</td>
+              <td class="numeric">{{ movement.transactionNo }}</td>
+              <td class="code">{{ movement.itemNo }}</td>
+              <td class="code">{{ movement.locationCode }}</td>
+              <td>
+                <span class="tag">{{ movement.entryType }}</span>
+
+                <!-- The one flag worth carrying on a movement list: this is a movement whose cost
+                     is still an estimate waiting to be settled. -->
+                @if (movement.wentNegative) {
+                  <span class="tag tag--negative movement__flag">
+                    {{ t('inventory.movements.wentNegative') }}
+                  </span>
+                }
+              </td>
+              <td class="numeric" [class.movement__out]="movement.quantity < 0">
+                {{ quantityOf(movement.quantity) }}
+              </td>
+              <td class="numeric">
+                @if (movement.remainingQuantity > 0) {
+                  {{ quantityOf(movement.remainingQuantity) }}
+                }
+              </td>
+              <td class="code">{{ movement.documentNo }}</td>
+              <td><span class="tag tag--muted">{{ movement.sourceCode }}</span></td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="9" class="empty">{{ t('common.nothingHere') }}</td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

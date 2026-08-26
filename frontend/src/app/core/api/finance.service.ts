@@ -3,8 +3,10 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
+  BalanceSheet,
   GlAccount,
   GlEntry,
+  IncomeStatement,
   MenuNode,
   PostJournalLine,
   PostingReceipt,
@@ -81,6 +83,33 @@ export class FinanceService {
 
     return firstValueFrom(
       this.http.get<TrialBalance>(`${this.base}/finance/reports/trial-balance`, { params }),
+    );
+  }
+
+  /** What the company earned over a range, optionally beside the same range a year earlier. */
+  incomeStatement(
+    from: string,
+    to: string,
+    comparePreviousYear: boolean,
+    includeAll: boolean,
+  ): Promise<IncomeStatement> {
+    const params = new HttpParams()
+      .set('from', from)
+      .set('to', to)
+      .set('comparePreviousYear', comparePreviousYear)
+      .set('includeAll', includeAll);
+
+    return firstValueFrom(
+      this.http.get<IncomeStatement>(`${this.base}/finance/reports/income-statement`, { params }),
+    );
+  }
+
+  /** What the company owned and owed on a given day. */
+  balanceSheet(asAt: string, includeAll: boolean): Promise<BalanceSheet> {
+    const params = new HttpParams().set('asAt', asAt).set('includeAll', includeAll);
+
+    return firstValueFrom(
+      this.http.get<BalanceSheet>(`${this.base}/finance/reports/balance-sheet`, { params }),
     );
   }
 }

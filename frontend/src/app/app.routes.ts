@@ -55,6 +55,18 @@ export const routes: Routes = [
           import('./features/inventory/stock-movements').then((m) => m.StockMovements),
       },
       {
+        path: 'finance/reports/income-statement',
+        canActivate: [requirePermission('Finance.Report.Read')],
+        loadComponent: () =>
+          import('./features/finance/income-statement').then((m) => m.IncomeStatementReport),
+      },
+      {
+        path: 'finance/reports/balance-sheet',
+        canActivate: [requirePermission('Finance.Report.Read')],
+        loadComponent: () =>
+          import('./features/finance/balance-sheet').then((m) => m.BalanceSheetReport),
+      },
+      {
         path: 'inventory/transfers',
         canActivate: [requirePermission('Inventory.Transfer.Read')],
         loadComponent: () => import('./features/inventory/transfers').then((m) => m.Transfers),

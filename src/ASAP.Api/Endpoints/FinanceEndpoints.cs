@@ -87,6 +87,14 @@ public static class FinanceEndpoints
              .WithName("TrialBalance")
              .WithSummary("Reports opening balance, movement and closing balance per account.");
 
+        group.MapGet("/reports/income-statement", IncomeStatementAsync)
+             .WithName("IncomeStatement")
+             .WithSummary("Reports revenue, cost of sales and expenses over a range.");
+
+        group.MapGet("/reports/balance-sheet", BalanceSheetAsync)
+             .WithName("BalanceSheet")
+             .WithSummary("Reports what the company owned and owed on a given day.");
+
         return app;
     }
 
@@ -229,6 +237,46 @@ public static class FinanceEndpoints
             from ?? new DateOnly(today.Year, 1, 1),
             to ?? today,
             includeAll ?? false);
+
+        return Results.Ok(await dispatcher.SendAsync(query, cancellationToken).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> IncomeStatementAsync(
+        IDispatcher dispatcher,
+        [FromQuery] DateOnly? from,
+        [FromQuery] DateOnly? to,
+        [FromQuery] bool? comparePreviousYear,
+        [FromQuery] bool? includeAll,
+        IClock clock,
+        CancellationToken cancellationToken)
+    {
+        var today = clock.Today;
+        var start = from ?? new DateOnly(today.Year, 1, 1);
+        var end = to ?? today;
+
+        // The same span a year earlier, which is the comparison an income statement is almost
+        // always read against. Offered rather than assumed: a company in its first year has
+        // nothing to compare with, and an empty column invites the wrong conclusion.
+        var compare = comparePreviousYear == true;
+
+        var query = new IncomeStatementQuery(
+            start,
+            end,
+            compare ? start.AddYears(-1) : null,
+            compare ? end.AddYears(-1) : null,
+            includeAll ?? false);
+
+        return Results.Ok(await dispatcher.SendAsync(query, cancellationToken).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> BalanceSheetAsync(
+        IDispatcher dispatcher,
+        [FromQuery] DateOnly? asAt,
+        [FromQuery] bool? includeAll,
+        IClock clock,
+        CancellationToken cancellationToken)
+    {
+        var query = new BalanceSheetQuery(asAt ?? clock.Today, includeAll ?? false);
 
         return Results.Ok(await dispatcher.SendAsync(query, cancellationToken).ConfigureAwait(false));
     }

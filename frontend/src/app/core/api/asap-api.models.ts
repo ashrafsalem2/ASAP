@@ -196,6 +196,72 @@ export interface SettlementReceipt {
   messages?: AsapMessage[];
 }
 
+/** One account on the income statement. */
+export interface IncomeStatementRow {
+  accountNo: string;
+  name: string;
+  nameArabic?: string;
+  indentation: number;
+  amount: number;
+  comparative?: number;
+}
+
+/** One block of the income statement, with its own subtotal. */
+export interface IncomeStatementSection {
+  category: 'Income' | 'CostOfGoodsSold' | 'Expense';
+  rows: IncomeStatementRow[];
+  total: number;
+  comparativeTotal?: number;
+}
+
+/** What the company earned over a range. */
+export interface IncomeStatement {
+  from: string;
+  to: string;
+  comparativeFrom?: string;
+  comparativeTo?: string;
+  currencyCode: string;
+  sections: IncomeStatementSection[];
+  grossProfit: number;
+  comparativeGrossProfit?: number;
+  netProfit: number;
+  comparativeNetProfit?: number;
+}
+
+/** One line on the balance sheet. */
+export interface BalanceSheetRow {
+  /** Absent on a line ASAP worked out rather than read from an account. */
+  accountNo?: string;
+  name: string;
+  nameArabic?: string;
+  indentation: number;
+  amount: number;
+  isComputed: boolean;
+}
+
+/** One block of the balance sheet. */
+export interface BalanceSheetSection {
+  category: 'Assets' | 'Liabilities' | 'Equity';
+  rows: BalanceSheetRow[];
+  total: number;
+}
+
+/** What the company owned and owed on a given day. */
+export interface BalanceSheet {
+  asAt: string;
+  currencyCode: string;
+  sections: BalanceSheetSection[];
+  totalAssets: number;
+  totalLiabilitiesAndEquity: number;
+  isBalanced: boolean;
+
+  /** Profit since the year began, sitting in equity until the year-end transfer runs. */
+  resultForTheYear: number;
+
+  /** Profit from earlier years whose year-end transfer never ran. Normally zero. */
+  untransferredPriorResult: number;
+}
+
 /** Where a transfer stands. */
 export type TransferStatus =
   | 'Open'

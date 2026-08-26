@@ -1,0 +1,118 @@
+<div class="page">
+  <h1>{{ t('finance.statements.income') }}</h1>
+
+  <section class="panel">
+    <div class="panel__body controls">
+      <div class="field">
+        <label class="field__label" for="from">{{ t('finance.trialBalance.from') }}</label>
+        <input id="from" class="input" type="date" [(ngModel)]="from" />
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="to">{{ t('finance.trialBalance.to') }}</label>
+        <input id="to" class="input" type="date" [(ngModel)]="to" />
+      </div>
+
+      <label class="checkbox">
+        <input type="checkbox" [(ngModel)]="comparePrevious" />
+        {{ t('finance.statements.comparePrevious') }}
+      </label>
+
+      <label class="checkbox">
+        <input type="checkbox" [(ngModel)]="includeAll" />
+        {{ t('finance.trialBalance.showAll') }}
+      </label>
+
+      <button type="button" class="button button--primary" [disabled]="loading()" (click)="run()">
+        @if (loading()) {
+          <span class="spinner"></span>
+        }
+        {{ t('finance.trialBalance.run') }}
+      </button>
+    </div>
+  </section>
+
+  @if (statement(); as report) {
+    <section class="panel">
+      <div class="table-scroll">
+        <table class="table statement">
+          <thead>
+            <tr>
+              <th>{{ t('finance.accounts.no') }}</th>
+              <th>{{ t('finance.accounts.name') }}</th>
+              <th class="numeric">{{ report.currencyCode }}</th>
+              @if (report.comparativeNetProfit !== undefined && report.comparativeNetProfit !== null) {
+                <th class="numeric">{{ t('finance.statements.previousYear') }}</th>
+              }
+            </tr>
+          </thead>
+
+          <tbody>
+            @for (section of report.sections; track section.category) {
+              <tr class="statement__heading">
+                <td colspan="2">{{ sectionName(section) }}</td>
+                <td class="numeric"></td>
+                @if (report.comparativeNetProfit !== undefined && report.comparativeNetProfit !== null) {
+                  <td class="numeric"></td>
+                }
+              </tr>
+
+              @for (row of section.rows; track row.accountNo) {
+                <tr>
+                  <td class="code">{{ row.accountNo }}</td>
+                  <td [style.padding-inline-start.rem]="1 + row.indentation">{{ nameOf(row) }}</td>
+                  <td class="numeric">{{ i18n.amount(row.amount) }}</td>
+                  @if (row.comparative !== undefined && row.comparative !== null) {
+                    <td class="numeric statement__comparative">{{ i18n.amount(row.comparative) }}</td>
+                  }
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="2" class="empty">{{ t('common.nothingHere') }}</td>
+                  <td class="numeric"></td>
+                  @if (report.comparativeNetProfit !== undefined && report.comparativeNetProfit !== null) {
+                    <td class="numeric"></td>
+                  }
+                </tr>
+              }
+
+              <tr class="statement__subtotal">
+                <td colspan="2">{{ sectionName(section) }}</td>
+                <td class="numeric">{{ i18n.total(section.total) }}</td>
+                @if (section.comparativeTotal !== undefined && section.comparativeTotal !== null) {
+                  <td class="numeric statement__comparative">
+                    {{ i18n.total(section.comparativeTotal) }}
+                  </td>
+                }
+              </tr>
+
+              <!-- Gross profit belongs immediately after cost of sales, where an accountant
+                   reads for it, not at the bottom with the net result. -->
+              @if (section.category === 'CostOfGoodsSold') {
+                <tr class="statement__total">
+                  <td colspan="2">{{ t('finance.statements.grossProfit') }}</td>
+                  <td class="numeric">{{ i18n.total(report.grossProfit) }}</td>
+                  @if (report.comparativeGrossProfit !== undefined && report.comparativeGrossProfit !== null) {
+                    <td class="numeric statement__comparative">
+                      {{ i18n.total(report.comparativeGrossProfit) }}
+                    </td>
+                  }
+                </tr>
+              }
+            }
+
+            <tr class="statement__total statement__result" [class.statement__loss]="report.netProfit < 0">
+              <td colspan="2">{{ resultLabel(report.netProfit) }}</td>
+              <td class="numeric">{{ i18n.total(report.netProfit) }}</td>
+              @if (report.comparativeNetProfit !== undefined && report.comparativeNetProfit !== null) {
+                <td class="numeric statement__comparative">
+                  {{ i18n.total(report.comparativeNetProfit) }}
+                </td>
+              }
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+</div>

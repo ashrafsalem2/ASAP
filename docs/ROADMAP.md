@@ -52,7 +52,9 @@ Everything else posts here, so it goes first.
 - Bank accounts and reconciliation
 - Customer and vendor ledgers with application and settlement
 - VAT/tax setup, tax posting, and a return-ready tax entry table
-- *in progress* Financial reports: **trial balance done**; income statement, balance sheet, cash flow, aged analysis to come
+- *in progress* Financial reports: **trial balance, income statement and balance sheet done**;
+  cash flow and aged analysis to come. The balance sheet carries the result for the year as its
+  own computed line, so it balances before the year-end transfer exists
 - Account schedules — the report builder that lets a user define statements without code
 - Year-end closing and retained earnings transfer
 

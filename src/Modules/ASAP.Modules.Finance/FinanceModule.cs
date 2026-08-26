@@ -62,9 +62,16 @@ public sealed class FinanceModule : IAsapModule
                 Posting.ReverseTransactionCommand,
                 ASAP.Platform.Kernel.Results.Result<Posting.PostingReceipt>>,
             Posting.ReverseTransactionCommandHandler>();
+        services.AddScoped<Reporting.LedgerBalances>();
         services.AddScoped<
             ASAP.Platform.Kernel.Cqrs.IRequestHandler<Reporting.TrialBalanceQuery, Reporting.TrialBalance>,
             Reporting.TrialBalanceQueryHandler>();
+        services.AddScoped<
+            ASAP.Platform.Kernel.Cqrs.IRequestHandler<Reporting.IncomeStatementQuery, Reporting.IncomeStatement>,
+            Reporting.IncomeStatementQueryHandler>();
+        services.AddScoped<
+            ASAP.Platform.Kernel.Cqrs.IRequestHandler<Reporting.BalanceSheetQuery, Reporting.BalanceSheet>,
+            Reporting.BalanceSheetQueryHandler>();
 
         // Finance answers any module that asks for value to be posted to the ledger. Neither side
         // references the other; the contract is a kernel type they both already depend on.
@@ -275,6 +282,28 @@ public sealed class FinanceModule : IAsapModule
             Route = "/finance/reports/trial-balance",
             RequiresPermission = $"{Id}.Report.Read",
             Order = 50,
+        },
+        new()
+        {
+            Id = "Finance.IncomeStatement",
+            Module = Id,
+            ParentId = "Finance.Root",
+            DisplayName = new LocalizedText("Income statement", "قائمة الدخل"),
+            Kind = NavigationKind.Report,
+            Route = "/finance/reports/income-statement",
+            RequiresPermission = $"{Id}.Report.Read",
+            Order = 60,
+        },
+        new()
+        {
+            Id = "Finance.BalanceSheet",
+            Module = Id,
+            ParentId = "Finance.Root",
+            DisplayName = new LocalizedText("Balance sheet", "قائمة المركز المالي"),
+            Kind = NavigationKind.Report,
+            Route = "/finance/reports/balance-sheet",
+            RequiresPermission = $"{Id}.Report.Read",
+            Order = 70,
         },
     ];
 

@@ -1,0 +1,97 @@
+<div class="page">
+  <h1>{{ t('finance.statements.balance') }}</h1>
+
+  <section class="panel">
+    <div class="panel__body controls">
+      <div class="field">
+        <label class="field__label" for="asAt">{{ t('finance.statements.asAt') }}</label>
+        <input id="asAt" class="input" type="date" [(ngModel)]="asAt" />
+      </div>
+
+      <label class="checkbox">
+        <input type="checkbox" [(ngModel)]="includeAll" />
+        {{ t('finance.trialBalance.showAll') }}
+      </label>
+
+      <button type="button" class="button button--primary" [disabled]="loading()" (click)="run()">
+        @if (loading()) {
+          <span class="spinner"></span>
+        }
+        {{ t('finance.trialBalance.run') }}
+      </button>
+    </div>
+  </section>
+
+  @if (sheet(); as report) {
+    <p class="page__intro" [class.statement__warning]="!report.isBalanced">
+      {{ report.isBalanced ? t('finance.statements.balanced') : t('finance.statements.notBalanced') }}
+    </p>
+
+    <!-- Shown only where it applies. An explanation of a situation the reader is not in is
+         noise, and a company whose transfer has run should not be told about transfers. -->
+    @if (report.untransferredPriorResult !== 0) {
+      <p class="page__intro statement__warning">{{ t('finance.statements.priorResultNote') }}</p>
+    } @else if (report.resultForTheYear !== 0) {
+      <p class="page__intro statement__note">{{ t('finance.statements.resultNote') }}</p>
+    }
+
+    <section class="panel">
+      <div class="table-scroll">
+        <table class="table statement">
+          <thead>
+            <tr>
+              <th>{{ t('finance.accounts.no') }}</th>
+              <th>{{ t('finance.accounts.name') }}</th>
+              <th class="numeric">{{ report.currencyCode }}</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            @for (section of report.sections; track section.category) {
+              <tr class="statement__heading">
+                <td colspan="2">{{ sectionName(section) }}</td>
+                <td class="numeric"></td>
+              </tr>
+
+              @for (row of section.rows; track row.name) {
+                <tr [class.statement__computed]="row.isComputed">
+                  <td class="code">{{ row.accountNo }}</td>
+                  <td [style.padding-inline-start.rem]="1 + row.indentation">
+                    {{ nameOf(row) }}
+
+                    @if (row.isComputed) {
+                      <span class="tag tag--muted">{{ t('finance.statements.computed') }}</span>
+                    }
+                  </td>
+                  <td class="numeric">{{ row.isComputed ? i18n.total(row.amount) : i18n.amount(row.amount) }}</td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="2" class="empty">{{ t('common.nothingHere') }}</td>
+                  <td class="numeric"></td>
+                </tr>
+              }
+
+              <tr class="statement__subtotal">
+                <td colspan="2">{{ sectionName(section) }}</td>
+                <td class="numeric">{{ i18n.total(section.total) }}</td>
+              </tr>
+
+              @if (section.category === 'Assets') {
+                <tr class="statement__total">
+                  <td colspan="2">{{ t('finance.statements.totalAssets') }}</td>
+                  <td class="numeric">{{ i18n.total(report.totalAssets) }}</td>
+                </tr>
+              }
+            }
+
+            <tr class="statement__total" [class.statement__loss]="!report.isBalanced">
+              <td colspan="2">{{ t('finance.statements.totalLiabilitiesEquity') }}</td>
+              <td class="numeric">{{ i18n.total(report.totalLiabilitiesAndEquity) }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+</div>

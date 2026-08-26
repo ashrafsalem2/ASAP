@@ -1,0 +1,73 @@
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding-block-end: 0.5rem;
+}
+
+/* A statement is read down the page in blocks, so the blocks are what the styling marks: a
+   heading opens one, a subtotal closes it, and a total is a figure somebody will quote. */
+.statement__heading > td {
+  font-weight: 600;
+  padding-block-start: 1rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+}
+
+.statement__subtotal > td {
+  border-block-start: 1px solid var(--border);
+  font-weight: 600;
+}
+
+.statement__total > td {
+  border-block-start: 2px solid var(--border-strong, var(--border));
+  font-weight: 700;
+}
+
+.statement__result > td {
+  border-block-end: 3px double var(--border-strong, var(--border));
+}
+
+.statement__loss > td {
+  color: var(--negative);
+}
+
+.statement__comparative {
+  color: var(--text-muted);
+}
+
+/* Marked, because a figure sitting in equity with no account number behind it is exactly the
+   thing a reader stops on. */
+.statement__computed > td {
+  font-style: italic;
+}
+
+.statement__computed .tag {
+  margin-inline-start: 0.5rem;
+  font-style: normal;
+}
+
+.statement__note {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+  background: var(--surface-raised);
+  color: var(--text-muted);
+  max-width: none;
+}
+
+.statement__warning {
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+  background: var(--caution-soft);
+  color: var(--caution);
+  max-width: none;
+}

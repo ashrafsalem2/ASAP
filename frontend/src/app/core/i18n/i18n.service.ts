@@ -80,12 +80,30 @@ export class I18nService {
     }).format(value);
   }
 
-  /** Formats a plain number with two decimals, for table columns that repeat the currency in a header. */
+  /**
+   * Formats a plain number with two decimals, for table columns that repeat the currency in a
+   * header. Zero comes back blank, which keeps a wide grid readable.
+   */
   amount(value: number | null | undefined): string {
     if (value === null || value === undefined || value === 0) {
       return '';
     }
 
+    return this.decimals(value);
+  }
+
+  /**
+   * Formats a total, showing zero as a figure rather than a blank.
+   *
+   * A detail row at zero is noise and is better left empty. A total at zero is a statement that
+   * the block came to nothing, and blanking it reads as "not calculated" instead -- which on a
+   * balance sheet is the difference between nil and a report the reader stops trusting.
+   */
+  total(value: number | null | undefined): string {
+    return this.decimals(value ?? 0);
+  }
+
+  private decimals(value: number): string {
     return new Intl.NumberFormat(this.locale(), {
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,

@@ -1,3 +1,4 @@
+using ASAP.Api;
 using ASAP.Api.Endpoints;
 using ASAP.Api.Infrastructure;
 using ASAP.Api.Security;
@@ -6,6 +7,7 @@ using ASAP.Platform.Core;
 using ASAP.Platform.Core.Cqrs;
 using ASAP.Platform.Core.Modules;
 using ASAP.Platform.Core.Security;
+using ASAP.Platform.Core.Time;
 using ASAP.Platform.Kernel.Modules;
 using ASAP.Platform.Kernel.Security;
 using ASAP.Platform.Kernel.Tenancy;
@@ -73,10 +75,15 @@ builder.Services.AddScoped<DemoSeeder>();
 
 builder.Services.AddAsapPersistence(connectionString);
 
-// Modules. Built-in ones are listed; extensions are discovered from disk by the extension host,
-// which is wired in a later step.
-IReadOnlyList<IAsapModule> modules = [new PlatformModule()];
-var moduleCatalog = builder.Services.AddAsapCore(builder.Configuration, modules);
+// Modules. Built-in ones come from AsapModules, the single list the migration tooling also
+// reads, so a module cannot be present at runtime and missing from the schema. Extensions are
+// discovered from disk by the extension host, which is wired in a later step.
+foreach (var schema in AsapModules.Schemas)
+{
+    builder.Services.AddSingleton(schema);
+}
+
+var moduleCatalog = builder.Services.AddAsapCore(builder.Configuration, AsapModules.BuiltIn);
 
 builder.Services
     .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
@@ -153,6 +160,14 @@ internal static class StartupTasks
         var configuredPassword = app.Configuration["Asap:Seed:AdminPassword"];
         var seeder = services.GetRequiredService<DemoSeeder>();
         var generated = await seeder.SeedAsync(configuredPassword).ConfigureAwait(false);
+
+        // After the seed, so a fresh install gets its sets built once rather than built and then
+        // immediately reconciled. On every later start this is what grants a newly installed
+        // module its permissions to the shipped sets -- without it, a customer who buys Inventory
+        // gets the module and none of the screens, with no error to explain why.
+        await services.GetRequiredService<SystemPermissionSetSynchroniser>()
+            .SynchroniseAsync()
+            .ConfigureAwait(false);
 
         if (generated is not null)
         {

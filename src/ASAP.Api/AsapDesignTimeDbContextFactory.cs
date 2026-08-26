@@ -1,27 +1,36 @@
+using ASAP.Modules.Finance;
+using ASAP.Platform.Core.Time;
 using ASAP.Platform.Kernel.Security;
 using ASAP.Platform.Kernel.Tenancy;
-using ASAP.Platform.Kernel.Time;
+using ASAP.Platform.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Design;
 
-namespace ASAP.Platform.Persistence;
+namespace ASAP.Api;
 
 /// <summary>
 /// Builds a context for the EF Core command-line tools, which need one without a running host.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Used only by <c>dotnet ef</c> when adding migrations or producing a script. It never runs in
-/// the application, which builds its context from the container with the real tenant, user and
-/// clock behind it.
+/// This lives in the API host rather than in the persistence layer for a reason worth stating.
+/// Migrations must cover every table ASAP ships with, which means the model has to be built with
+/// every module's schema registered -- and only the host knows what those are. Persistence cannot
+/// reference Finance without inverting the dependency the whole architecture rests on.
 /// </para>
 /// <para>
-/// The context it builds carries no module schemas, so migrations generated here cover the
-/// platform tables alone. That is intentional: each module owns its own migrations, in its own
-/// assembly, so a customer who has not bought Payroll does not carry its tables.
+/// So migrations are generated against the host and written into the persistence assembly:
+/// </para>
+/// <code>
+/// dotnet ef migrations add Name --project src/Platform/ASAP.Platform.Persistence --startup-project src/ASAP.Api
+/// </code>
+/// <para>
+/// A third-party extension that brings its own tables is not covered by this, and cannot be: its
+/// assembly is not present when migrations are generated. That is a known gap, and the plan for
+/// it is a per-extension schema step run at install time rather than a shared migration history.
 /// </para>
 /// </remarks>
-public sealed class AsapDbContextFactory : IDesignTimeDbContextFactory<AsapDbContext>
+public sealed class AsapDesignTimeDbContextFactory : IDesignTimeDbContextFactory<AsapDbContext>
 {
     /// <summary>
     /// Connection used at design time only. Points at LocalDB, holds no credentials, and is
@@ -38,7 +47,11 @@ public sealed class AsapDbContextFactory : IDesignTimeDbContextFactory<AsapDbCon
                          ?? DesignTimeConnection;
 
         var options = new DbContextOptionsBuilder<AsapDbContext>()
-            .UseSqlServer(connection, sql => sql.MigrationsHistoryTable("__AsapMigrations", "asap"))
+            .UseSqlServer(connection, sql =>
+            {
+                sql.MigrationsHistoryTable("__AsapMigrations", "asap");
+                sql.MigrationsAssembly(typeof(AsapDbContext).Assembly.FullName);
+            })
             .Options;
 
         return new AsapDbContext(
@@ -46,12 +59,12 @@ public sealed class AsapDbContextFactory : IDesignTimeDbContextFactory<AsapDbCon
             new DesignTimeTenantContext(),
             new DesignTimeUserContext(),
             new SystemClock(),
-            moduleSchemas: []);
+            AsapModules.Schemas);
     }
 
     /// <summary>
     /// A tenant context for schema generation. Reports a cross-tenant operation so the query
-    /// filters do not narrow anything the tools inspect.
+    /// filters narrow nothing the tools inspect.
     /// </summary>
     private sealed class DesignTimeTenantContext : ITenantContext
     {
@@ -93,41 +106,24 @@ public sealed class AsapDbContextFactory : IDesignTimeDbContextFactory<AsapDbCon
 }
 
 /// <summary>
-/// The ordinary clock, reading the machine time.
+/// The modules this build of ASAP ships with.
 /// </summary>
-/// <param name="timeZoneId">
-/// IANA time zone that decides what "today" means. Defaults to Riyadh, which is where the first
-/// deployment runs; a tenant in another zone overrides it through its own setup.
-/// </param>
-public sealed class SystemClock(string timeZoneId = "Asia/Riyadh") : IClock
+/// <remarks>
+/// One list, read by both the running host and the migration tooling, so a module added here
+/// cannot be present at runtime and missing from the schema.
+/// </remarks>
+public static class AsapModules
 {
-    /// <inheritdoc />
-    public DateTime UtcNow => DateTime.UtcNow;
+    /// <summary>Every built-in module, in any order. The catalogue sorts them by dependency.</summary>
+    public static IReadOnlyList<Platform.Kernel.Modules.IAsapModule> BuiltIn { get; } =
+    [
+        new Platform.Core.Modules.PlatformModule(),
+        new FinanceModule(),
+    ];
 
-    /// <inheritdoc />
-    public DateOnly Today
-    {
-        get
-        {
-            // A posting date is a calendar date, not an instant. At 02:00 in Riyadh it is still
-            // yesterday in UTC, and defaulting a posting date from UTC would put the entry in the
-            // wrong day -- and at a month boundary, in the wrong period.
-            var zone = ResolveTimeZone(timeZoneId);
-            return DateOnly.FromDateTime(TimeZoneInfo.ConvertTimeFromUtc(DateTime.UtcNow, zone));
-        }
-    }
-
-    private static TimeZoneInfo ResolveTimeZone(string id)
-    {
-        try
-        {
-            return TimeZoneInfo.FindSystemTimeZoneById(id);
-        }
-        catch (Exception ex) when (ex is TimeZoneNotFoundException or InvalidTimeZoneException)
-        {
-            // A misconfigured zone must not take the system down; UTC is a defensible fallback
-            // and the misconfiguration will show up as an off-by-hours posting date.
-            return TimeZoneInfo.Utc;
-        }
-    }
+    /// <summary>Every built-in module that owns tables.</summary>
+    public static IReadOnlyList<IModuleSchema> Schemas { get; } =
+    [
+        new FinanceSchema(),
+    ];
 }

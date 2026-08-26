@@ -7,6 +7,7 @@ using ASAP.Platform.Kernel.Events;
 using ASAP.Platform.Kernel.Messaging;
 using ASAP.Platform.Kernel.Modules;
 using ASAP.Platform.Kernel.Security;
+using ASAP.Platform.Kernel.Setup;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -43,6 +44,7 @@ public static class AsapCoreServiceCollectionExtensions
 
         RegisterMessages(services, catalog);
         RegisterPermissions(services, catalog);
+        RegisterSetups(services, catalog);
 
         services.TryAddScoped<IDispatcher, Dispatcher>();
         services.TryAddScoped<IEventPublisher, EventPublisher>();
@@ -107,5 +109,46 @@ public static class AsapCoreServiceCollectionExtensions
 
         services.AddSingleton<IReadOnlyCollection<PermissionDescriptor>>(declared);
         services.TryAddSingleton(new Security.PermissionResolver(declared));
+    }
+
+    /// <summary>
+    /// Collects the settings every module declares, so the setup screen can offer them and the
+    /// setup service can resolve them.
+    /// </summary>
+    /// <remarks>
+    /// Two modules claiming one key is refused here rather than resolved by load order. Whichever
+    /// won would depend on the dependency graph, so the same installation could read a different
+    /// value after an unrelated module was installed.
+    /// </remarks>
+    private static void RegisterSetups(IServiceCollection services, IModuleCatalog catalog)
+    {
+        var declared = catalog.Modules.SelectMany(static m => m.Setups).ToList();
+
+        var duplicates = declared
+            .GroupBy(static s => s.Key, StringComparer.OrdinalIgnoreCase)
+            .Where(static g => g.Count() > 1)
+            .Select(static g => g.Key)
+            .ToList();
+
+        if (duplicates.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "Two modules declare the same setup key, so reading it would be ambiguous: "
+                + string.Join(", ", duplicates));
+        }
+
+        var invalid = declared
+            .Where(static s => s.ValueType is SetupValueType.Option && s.AllowedValues.Count == 0)
+            .Select(static s => s.Key)
+            .ToList();
+
+        if (invalid.Count > 0)
+        {
+            throw new InvalidOperationException(
+                "These settings are declared as Option but list no allowed values, so the setup "
+                + "screen would show an empty dropdown: " + string.Join(", ", invalid));
+        }
+
+        services.AddSingleton<IReadOnlyCollection<SetupDescriptor>>(declared);
     }
 }

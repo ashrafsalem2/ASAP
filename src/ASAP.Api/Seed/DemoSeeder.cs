@@ -161,69 +161,55 @@ public sealed class DemoSeeder(
     /// list goes stale the moment a module adds a permission, and the staleness shows up as an
     /// administrator quietly missing an ability nobody thought to add.
     /// </remarks>
+    /// <summary>
+    /// Creates the shipped permission sets from the rules in
+    /// <see cref="SystemPermissionSets"/>, resolved against what the loaded modules declare.
+    /// </summary>
+    /// <remarks>
+    /// The rules live there rather than here so the seeder and the synchroniser cannot drift.
+    /// The synchroniser keeps these current as modules are installed afterwards; this only has to
+    /// get the first installation right.
+    /// </remarks>
     private List<PermissionSet> SeedPermissionSets(Tenant tenant)
     {
         var declared = moduleCatalog.Modules.SelectMany(static m => m.Permissions).ToList();
+        var sets = new List<PermissionSet>();
 
-        var administrator = BuildSet(
-            tenant,
-            "ADMIN",
-            "Administrator",
-            "مسؤول النظام",
-            "Full access to every module and every setting.",
-            declared.Select(static p => p.Key));
-
-        var readOnly = BuildSet(
-            tenant,
-            "VIEWER",
-            "Read only",
-            "اطلاع فقط",
-            "Can see everything, and change nothing.",
-            declared.Where(static p => p.Action == PermissionAction.Read).Select(static p => p.Key));
-
-        var setupManager = BuildSet(
-            tenant,
-            "SETUP",
-            "Setup manager",
-            "مسؤول الإعدادات",
-            "Maintains dimensions, number series and system setup, without touching users or permissions.",
-            declared
-                .Where(static p => p.Resource is "Dimension" or "NumberSeries" or "Setup")
-                .Where(static p => p.Action != PermissionAction.Override)
-                .Select(static p => p.Key));
-
-        List<PermissionSet> sets = [administrator, readOnly, setupManager];
-        context.PermissionSets.AddRange(sets);
-        return sets;
-    }
-
-    private static PermissionSet BuildSet(
-        Tenant tenant,
-        string code,
-        string name,
-        string nameArabic,
-        string description,
-        IEnumerable<string> permissionKeys)
-    {
-        var set = new PermissionSet
+        foreach (var definition in SystemPermissionSets.All)
         {
-            TenantId = tenant.Id,
-            Code = code,
-            Name = name,
-            NameArabic = nameArabic,
-            Description = description,
+            var keys = SystemPermissionSets.Resolve(definition, declared);
 
-            // Shipped sets are read-only in the UI. An administrator copies one to change it, so
-            // an upgrade can refresh the original without discarding local edits.
-            IsSystemDefined = true,
-        };
+            // A set that resolves to nothing belongs to a module this installation does not have.
+            // An empty Accountant set on a tenant without Finance is a meaningless option on the
+            // assignment screen.
+            if (keys.Count == 0)
+            {
+                continue;
+            }
 
-        foreach (var key in permissionKeys.Distinct(StringComparer.OrdinalIgnoreCase).Order(StringComparer.Ordinal))
-        {
-            set.Entries.Add(new PermissionSetEntry { PermissionSetId = set.Id, PermissionKey = key });
+            var set = new PermissionSet
+            {
+                TenantId = tenant.Id,
+                Code = definition.Code,
+                Name = definition.Name,
+                NameArabic = definition.NameArabic,
+                Description = definition.Description,
+
+                // Shipped sets are read-only in the UI. An administrator copies one to change it,
+                // so an upgrade can refresh the original without discarding their edits.
+                IsSystemDefined = true,
+            };
+
+            foreach (var key in keys)
+            {
+                set.Entries.Add(new PermissionSetEntry { PermissionSetId = set.Id, PermissionKey = key });
+            }
+
+            sets.Add(set);
         }
 
-        return set;
+        context.PermissionSets.AddRange(sets);
+        return sets;
     }
 
     private void SeedAdministrator(

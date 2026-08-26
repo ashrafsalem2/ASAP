@@ -1,8 +1,11 @@
+using ASAP.Modules.Inventory.Items;
 using ASAP.Modules.Inventory.Ledger;
 using ASAP.Modules.Inventory.Locations;
 using ASAP.Modules.Inventory.Posting;
 using ASAP.Platform.Kernel.Messaging;
+using ASAP.Platform.Kernel.Numbering;
 using ASAP.Platform.Kernel.Results;
+using ASAP.Platform.Kernel.Tenancy;
 using ASAP.Platform.Kernel.Time;
 using ASAP.Platform.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -36,18 +39,218 @@ public readonly record struct TransferReceipt(
 /// moves is where the goods are, not what the company owns.
 /// </para>
 /// </remarks>
+/// <summary>One line asked for on a new transfer.</summary>
+/// <param name="ItemNo">The item to move.</param>
+/// <param name="Quantity">How much to move. Always positive; the direction is the transfer's.</param>
+public readonly record struct TransferLineRequest(string ItemNo, decimal Quantity);
+
 /// <param name="context">The unit of work.</param>
 /// <param name="posting">Moves the stock.</param>
 /// <param name="messages">Renders refusals.</param>
+/// <param name="numbers">Issues the transfer number.</param>
+/// <param name="tenantContext">Supplies the company the transfer belongs to.</param>
 /// <param name="clock">Supplies today.</param>
 /// <param name="logger">Records shipments and receipts.</param>
 public sealed class TransferService(
     AsapDbContext context,
     StockPostingService posting,
     IMessageCatalog messages,
+    INumberSeriesService numbers,
+    ITenantContext tenantContext,
     IClock clock,
     ILogger<TransferService> logger)
 {
+    /// <summary>The series transfer numbers come from.</summary>
+    private const string NumberSeriesCode = "TRANSFER";
+
+    /// <summary>
+    /// Creates a transfer, ready to be shipped.
+    /// </summary>
+    /// <param name="fromLocationCode">Where the goods leave.</param>
+    /// <param name="toLocationCode">Where they are going.</param>
+    /// <param name="lines">What is moving.</param>
+    /// <param name="description">A note for whoever handles it.</param>
+    /// <param name="expectedReceiptDate">When it should arrive.</param>
+    /// <param name="cancellationToken">Cancels the work.</param>
+    /// <returns>The created transfer, or every reason it was refused.</returns>
+    /// <remarks>
+    /// Nothing moves here. Creating a transfer records an intention; the stock stays exactly where
+    /// it is until somebody ships it. That separation is what lets a branch raise a request its
+    /// warehouse fulfils later, and what makes the paperwork survive goods that never leave.
+    /// </remarks>
+    public async Task<Result<TransferOrder>> CreateAsync(
+        string fromLocationCode,
+        string toLocationCode,
+        IReadOnlyList<TransferLineRequest> lines,
+        string? description = null,
+        DateOnly? expectedReceiptDate = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(lines);
+
+        var arguments = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["From"] = fromLocationCode,
+            ["To"] = toLocationCode,
+        };
+
+        var refusals = new List<AsapMessage>();
+
+        if (string.Equals(fromLocationCode, toLocationCode, StringComparison.OrdinalIgnoreCase))
+        {
+            refusals.Add(messages.Render(InventoryMessages.TransferToSameLocation, arguments));
+        }
+
+        var wanted = lines.Where(static l => l.Quantity > 0).ToList();
+
+        if (wanted.Count == 0)
+        {
+            refusals.Add(messages.Render(InventoryMessages.TransferNoLines, arguments));
+        }
+
+        var locations = await context.Set<Location>()
+            .Where(l => l.Code == fromLocationCode || l.Code == toLocationCode)
+            .ToDictionaryAsync(static l => l.Code, StringComparer.OrdinalIgnoreCase, cancellationToken)
+            .ConfigureAwait(false);
+
+        // Every reason at once. Sending them back one at a time turns a single correction into
+        // four round trips.
+        CheckLocation(fromLocationCode, locations, refusals);
+        CheckLocation(toLocationCode, locations, refusals);
+
+        var items = await ResolveLinesAsync(wanted, refusals, cancellationToken).ConfigureAwait(false);
+
+        if (refusals.Count > 0)
+        {
+            return Result<TransferOrder>.Failure(refusals);
+        }
+
+        var today = clock.Today;
+        var numbered = await numbers.NextAsync(NumberSeriesCode, today, cancellationToken).ConfigureAwait(false);
+
+        if (numbered.Failed)
+        {
+            return Result<TransferOrder>.FailureFrom(numbered);
+        }
+
+        var from = locations[fromLocationCode];
+        var to = locations[toLocationCode];
+
+        var transfer = new TransferOrder
+        {
+            TenantId = tenantContext.TenantId ?? Guid.Empty,
+            CompanyId = tenantContext.RequireCompanyId(),
+            No = numbered.Value,
+            FromLocationId = from.Id,
+            FromLocationCode = from.Code,
+            ToLocationId = to.Id,
+            ToLocationCode = to.Code,
+            Status = TransferStatus.Open,
+            ShipmentDate = today,
+            ExpectedReceiptDate = expectedReceiptDate,
+            Description = description,
+        };
+
+        var lineNo = 0;
+
+        foreach (var line in wanted)
+        {
+            var item = items[line.ItemNo];
+
+            transfer.Lines.Add(new TransferOrderLine
+            {
+                TenantId = transfer.TenantId,
+                CompanyId = transfer.CompanyId,
+                LineNo = ++lineNo * 10,
+                ItemId = item.Id,
+                ItemNo = item.No,
+                Description = item.Description,
+                Quantity = line.Quantity,
+            });
+        }
+
+        context.Set<TransferOrder>().Add(transfer);
+        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        logger.LogInformation(
+            "Created transfer {TransferNo} from {From} to {To} with {LineCount} line(s).",
+            transfer.No,
+            transfer.FromLocationCode,
+            transfer.ToLocationCode,
+            transfer.Lines.Count);
+
+        return Result<TransferOrder>.Success(transfer);
+    }
+
+    private void CheckLocation(
+        string code,
+        IReadOnlyDictionary<string, Location> locations,
+        List<AsapMessage> refusals)
+    {
+        var arguments = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Location"] = code,
+        };
+
+        if (!locations.TryGetValue(code, out var location))
+        {
+            refusals.Add(messages.Render(InventoryMessages.LocationNotFound, arguments));
+            return;
+        }
+
+        if (location.IsBlocked)
+        {
+            arguments["Location"] = location.Name;
+            refusals.Add(messages.Render(InventoryMessages.LocationBlocked, arguments));
+        }
+    }
+
+    private async Task<Dictionary<string, Item>> ResolveLinesAsync(
+        IReadOnlyList<TransferLineRequest> lines,
+        List<AsapMessage> refusals,
+        CancellationToken cancellationToken)
+    {
+        var itemNos = lines.Select(static l => l.ItemNo).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+
+        var items = await context.Set<Item>()
+            .Where(i => itemNos.Contains(i.No))
+            .ToDictionaryAsync(static i => i.No, StringComparer.OrdinalIgnoreCase, cancellationToken)
+            .ConfigureAwait(false);
+
+        for (var index = 0; index < lines.Count; index++)
+        {
+            var line = lines[index];
+            var target = MessageTarget.OnField($"Lines[{index + 1}]");
+
+            if (!items.TryGetValue(line.ItemNo, out var item))
+            {
+                refusals.Add(messages.Render(
+                    InventoryMessages.ItemNotFound,
+                    new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["ItemNo"] = line.ItemNo,
+                    },
+                    target));
+
+                continue;
+            }
+
+            if (item.IsBlocked)
+            {
+                refusals.Add(messages.Render(
+                    InventoryMessages.ItemBlocked,
+                    new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["ItemNo"] = item.No,
+                        ["ItemName"] = item.Description,
+                    },
+                    target));
+            }
+        }
+
+        return items;
+    }
+
     /// <summary>
     /// Ships a transfer: goods leave the source and go into transit.
     /// </summary>

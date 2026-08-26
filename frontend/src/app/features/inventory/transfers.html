@@ -1,0 +1,234 @@
+<div class="page">
+  <h1>{{ t('inventory.transfers.title') }}</h1>
+
+  @if (canPost()) {
+    <section class="panel">
+      <div class="panel__header">
+        <h2>{{ t('inventory.transfers.create') }}</h2>
+      </div>
+
+      <p class="panel__body page__intro">{{ t('inventory.transfers.intro') }}</p>
+
+      <div class="panel__body draft">
+        <div class="field">
+          <label class="field__label" for="fromLocation">{{ t('inventory.transfers.from') }}</label>
+          <select id="fromLocation" class="select" [(ngModel)]="fromLocationCode">
+            <option value=""></option>
+            @for (location of locations(); track location.code) {
+              <option [value]="location.code">{{ location.code }} — {{ location.name }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="toLocation">{{ t('inventory.transfers.to') }}</label>
+          <select id="toLocation" class="select" [(ngModel)]="toLocationCode">
+            <option value=""></option>
+            @for (location of locations(); track location.code) {
+              <option [value]="location.code">{{ location.code }} — {{ location.name }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="field draft__note">
+          <label class="field__label" for="description">
+            {{ t('inventory.transfers.description') }}
+          </label>
+          <input id="description" class="input" [(ngModel)]="description" />
+        </div>
+      </div>
+
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('inventory.movements.item') }}</th>
+              <th class="numeric">{{ t('inventory.stock.quantity') }}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (line of draft; track $index) {
+              <tr>
+                <td>
+                  <select class="select" [(ngModel)]="line.itemNo">
+                    <option value=""></option>
+                    @for (item of items(); track item.no) {
+                      <option [value]="item.no">{{ nameOf(item) }}</option>
+                    }
+                  </select>
+                </td>
+                <td class="numeric">
+                  <input
+                    class="input input--number"
+                    type="number"
+                    inputmode="decimal"
+                    min="0"
+                    [(ngModel)]="line.quantity"
+                  />
+                </td>
+                <td>
+                  @if (draft.length > 1) {
+                    <button type="button" class="button button--quiet" (click)="removeLine($index)">
+                      {{ t('inventory.transfers.removeLine') }}
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel__body draft__actions">
+        <button type="button" class="button" (click)="addLine()">
+          {{ t('inventory.transfers.addLine') }}
+        </button>
+
+        <button
+          type="button"
+          class="button button--primary"
+          [disabled]="!canCreate() || busy() === 'create'"
+          (click)="create()"
+        >
+          @if (busy() === 'create') {
+            <span class="spinner"></span>
+            {{ t('inventory.transfers.creating') }}
+          } @else {
+            {{ t('inventory.transfers.create') }}
+          }
+        </button>
+      </div>
+    </section>
+  }
+
+  <section class="panel">
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('inventory.transfers.no') }}</th>
+              <th>{{ t('inventory.transfers.from') }}</th>
+              <th>{{ t('inventory.transfers.to') }}</th>
+              <th>{{ t('inventory.transfers.status') }}</th>
+              <th>{{ t('inventory.transfers.raised') }}</th>
+              <th class="numeric">{{ t('inventory.transfers.inTransit') }}</th>
+              <th></th>
+            </tr>
+          </thead>
+
+          <tbody>
+            @for (transfer of transfers(); track transfer.no) {
+              <tr class="transfer" (click)="toggle(transfer.no)">
+                <td class="code">{{ transfer.no }}</td>
+                <td class="code">{{ transfer.fromLocationCode }}</td>
+                <td class="code">{{ transfer.toLocationCode }}</td>
+                <td><span class="tag">{{ transfer.status }}</span></td>
+                <td class="code">{{ transfer.shipmentDate }}</td>
+                <td class="numeric transfer__transit">
+                  @if (inTransitTotal(transfer) > 0) {
+                    {{ quantity(inTransitTotal(transfer)) }}
+                  }
+                </td>
+                <td class="transfer__actions">
+                  <!-- Only the step that is actually possible next. Offering "Receive" on
+                       something that has not shipped invites a click that can only be refused. -->
+                  @if (canShip(transfer)) {
+                    <button
+                      type="button"
+                      class="button"
+                      [disabled]="busy() !== null"
+                      (click)="ship(transfer); $event.stopPropagation()"
+                    >
+                      @if (busy() === 'ship:' + transfer.no) {
+                        <span class="spinner"></span>
+                        {{ t('inventory.transfers.shipping') }}
+                      } @else {
+                        {{ t('inventory.transfers.ship') }}
+                      }
+                    </button>
+                  }
+
+                  @if (canReceive(transfer)) {
+                    <button
+                      type="button"
+                      class="button button--primary"
+                      [disabled]="busy() !== null"
+                      (click)="receive(transfer); $event.stopPropagation()"
+                    >
+                      @if (busy() === 'receive:' + transfer.no) {
+                        <span class="spinner"></span>
+                        {{ t('inventory.transfers.receiving') }}
+                      } @else {
+                        {{ t('inventory.transfers.receive') }}
+                      }
+                    </button>
+                  }
+                </td>
+              </tr>
+
+              @if (expanded() === transfer.no) {
+                <tr class="transfer__detail">
+                  <td colspan="7">
+                    @if (canReceive(transfer)) {
+                      <p class="transfer__hint">{{ t('inventory.transfers.shortages') }}</p>
+                    }
+
+                    <table class="table table--nested">
+                      <thead>
+                        <tr>
+                          <th>{{ t('inventory.items.no') }}</th>
+                          <th>{{ t('inventory.items.description') }}</th>
+                          <th class="numeric">{{ t('inventory.transfers.ordered') }}</th>
+                          <th class="numeric">{{ t('inventory.transfers.shipped') }}</th>
+                          <th class="numeric">{{ t('inventory.transfers.inTransit') }}</th>
+                          <th class="numeric">{{ t('inventory.transfers.received') }}</th>
+                          @if (canReceive(transfer)) {
+                            <th class="numeric">{{ t('inventory.transfers.arrived') }}</th>
+                          }
+                        </tr>
+                      </thead>
+                      <tbody>
+                        @for (line of transfer.lines; track line.lineNo) {
+                          <tr>
+                            <td class="code">{{ line.itemNo }}</td>
+                            <td>{{ describe(line) }}</td>
+                            <td class="numeric">{{ quantity(line.quantity) }}</td>
+                            <td class="numeric">{{ quantity(line.quantityShipped) }}</td>
+                            <td class="numeric">{{ quantity(line.inTransit) }}</td>
+                            <td class="numeric">{{ quantity(line.quantityReceived) }}</td>
+                            @if (canReceive(transfer)) {
+                              <td class="numeric">
+                                <input
+                                  class="input input--number input--compact"
+                                  type="number"
+                                  inputmode="decimal"
+                                  min="0"
+                                  [max]="line.inTransit"
+                                  [placeholder]="quantity(line.inTransit)"
+                                  [ngModel]="arrivalOf(transfer, line)"
+                                  (ngModelChange)="setArrival(transfer, line, $event)"
+                                />
+                              </td>
+                            }
+                          </tr>
+                        }
+                      </tbody>
+                    </table>
+                  </td>
+                </tr>
+              }
+            } @empty {
+              <tr>
+                <td colspan="7" class="empty">{{ t('inventory.transfers.nothingOpen') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+</div>

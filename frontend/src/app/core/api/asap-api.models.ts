@@ -195,3 +195,64 @@ export interface SettlementReceipt {
   totalCorrection: number;
   messages?: AsapMessage[];
 }
+
+/** Where a transfer stands. */
+export type TransferStatus =
+  | 'Open'
+  | 'Released'
+  | 'Shipped'
+  | 'PartiallyReceived'
+  | 'Received'
+  | 'Cancelled';
+
+/** One line of a transfer. */
+export interface TransferLine {
+  lineNo: number;
+  itemNo: string;
+  description: string;
+  descriptionArabic?: string;
+  quantity: number;
+  quantityShipped: number;
+  quantityReceived: number;
+
+  /** Sent but not yet arrived: what the in-transit location is holding for this line. */
+  inTransit: number;
+}
+
+/** A movement of stock from one location to another. */
+export interface Transfer {
+  no: string;
+  fromLocationCode: string;
+  toLocationCode: string;
+  status: TransferStatus;
+  shipmentDate: string;
+  expectedReceiptDate?: string;
+  shippedOn?: string;
+  receivedOn?: string;
+  description?: string;
+  lines: TransferLine[];
+}
+
+/** What a client sends to raise a transfer. */
+export interface CreateTransferRequest {
+  fromLocationCode: string;
+  toLocationCode: string;
+  lines: { itemNo: string; quantity: number }[];
+  description?: string;
+  expectedReceiptDate?: string;
+}
+
+/** What raising a transfer produced. */
+export interface TransferCreated {
+  transfer: Transfer;
+  messages?: AsapMessage[];
+}
+
+/** What shipping or receiving produced. */
+export interface TransferMoveReceipt {
+  transferNo: string;
+  transactionNo: number;
+  lineCount: number;
+  status: TransferStatus;
+  messages?: AsapMessage[];
+}

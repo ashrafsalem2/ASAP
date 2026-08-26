@@ -25,6 +25,15 @@ public static class InventoryMessages
     /// <summary>The location is withdrawn from use.</summary>
     public static readonly MessageCode LocationBlocked = new("INV.LOCATION.BLOCKED");
 
+    /// <summary>No item carries that number.</summary>
+    public static readonly MessageCode ItemNotFound = new("INV.ITEM.NOT_FOUND");
+
+    /// <summary>No location carries that code.</summary>
+    public static readonly MessageCode LocationNotFound = new("INV.LOCATION.NOT_FOUND");
+
+    /// <summary>A transfer was submitted with nothing on it.</summary>
+    public static readonly MessageCode TransferNoLines = new("INV.TRANSFER.NO_LINES");
+
     /// <summary>Something tried to sell from a location that does not release stock.</summary>
     public static readonly MessageCode LocationNotSellable = new("INV.LOCATION.NOT_SELLABLE");
 
@@ -143,6 +152,42 @@ public static class InventoryMessages
             Resolution = new LocalizedText(
                 "Choose a different location, or unblock {Location} in location setup.",
                 "اختر موقعًا آخر، أو ألغِ حظر {Location} في إعداد المواقع."),
+        },
+        new()
+        {
+            Code = ItemNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such item", "لا يوجد صنف بهذا الرقم"),
+            Detail = new LocalizedText(
+                "Nothing in this company is numbered {ItemNo}.",
+                "لا يوجد في هذه الشركة أي صنف يحمل الرقم {ItemNo}."),
+            Resolution = new LocalizedText(
+                "Check the number against the item list, or create {ItemNo} first.",
+                "تحقق من الرقم في قائمة الأصناف، أو أنشئ {ItemNo} أولاً."),
+        },
+        new()
+        {
+            Code = LocationNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such location", "لا يوجد موقع بهذا الرمز"),
+            Detail = new LocalizedText(
+                "No location in this company is coded {Location}.",
+                "لا يوجد في هذه الشركة موقع يحمل الرمز {Location}."),
+            Resolution = new LocalizedText(
+                "Check the code against the location list, or create {Location} first.",
+                "تحقق من الرمز في قائمة المواقع، أو أنشئ {Location} أولاً."),
+        },
+        new()
+        {
+            Code = TransferNoLines,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("The transfer has no lines", "التحويل بدون سطور"),
+            Detail = new LocalizedText(
+                "A transfer from {From} to {To} was submitted with nothing on it.",
+                "تم إرسال تحويل من {From} إلى {To} بدون أي أصناف."),
+            Resolution = new LocalizedText(
+                "Add at least one item and quantity before saving the transfer.",
+                "أضف صنفًا واحدًا على الأقل مع الكمية قبل حفظ التحويل."),
         },
         new()
         {

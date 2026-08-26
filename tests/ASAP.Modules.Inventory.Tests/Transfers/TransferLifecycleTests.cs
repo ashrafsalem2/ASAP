@@ -134,6 +134,8 @@ public sealed class TransferLifecycleTests : IDisposable
             context,
             Posting(context),
             new MessageCatalog([.. PlatformMessages.All, .. InventoryMessages.All]),
+            new CountingSeries(),
+            _tenancy,
             _clock,
             NullLogger<TransferService>.Instance);
 
@@ -159,6 +161,73 @@ public sealed class TransferLifecycleTests : IDisposable
             .ToListAsync();
 
         return rows.ToDictionary(r => r.Location, r => r.Quantity);
+    }
+
+    [Fact]
+    public async Task Raising_a_transfer_moves_no_stock()
+    {
+        await StockAtRiyadhAsync(100);
+
+        var before = await OnHandAsync();
+
+        await using (var context = NewContext())
+        {
+            var created = await Transfers(context).CreateAsync(
+                "RUH",
+                "JED",
+                [new TransferLineRequest("ITEM-1001", 25)]);
+
+            created.Succeeded.ShouldBeTrue();
+            created.Value.Status.ShouldBe(TransferStatus.Open);
+            created.Value.No.ShouldNotBeNullOrWhiteSpace();
+            created.Value.Lines.ShouldHaveSingleItem().Quantity.ShouldBe(25);
+
+            // Taken from the line, not from whatever the caller typed. A transfer that describes
+            // the item differently from the item card is a transfer nobody can reconcile.
+            created.Value.Lines.Single().Description.ShouldBe("Desk lamp");
+        }
+
+        // A transfer is an intention. The goods do not move until somebody ships it, which is what
+        // lets a branch raise a request its warehouse fulfils tomorrow.
+        (await OnHandAsync()).ShouldBe(before);
+    }
+
+    [Fact]
+    public async Task A_transfer_to_the_same_place_with_nothing_on_it_reports_both_faults()
+    {
+        await using var context = NewContext();
+
+        var created = await Transfers(context).CreateAsync("RUH", "RUH", []);
+
+        created.Failed.ShouldBeTrue();
+
+        var codes = created.Messages.Select(m => m.Code.Value).ToList();
+
+        // Both at once. Returning them one at a time turns a single correction into two attempts.
+        codes.ShouldContain("INV.TRANSFER.SAME_LOCATION");
+        codes.ShouldContain("INV.TRANSFER.NO_LINES");
+    }
+
+    [Fact]
+    public async Task An_item_that_does_not_exist_is_not_reported_as_blocked()
+    {
+        // Not found and blocked need different answers: one is a typo, the other is a decision
+        // somebody made. ASAP used to report both as "withdrawn from use", which sent people off
+        // to an administrator to unblock an item that had never existed.
+        await using var context = NewContext();
+
+        var created = await Transfers(context).CreateAsync(
+            "RUH",
+            "JED",
+            [new TransferLineRequest("ITEM-9999", 5)]);
+
+        created.Failed.ShouldBeTrue();
+
+        var message = created.Messages.ShouldHaveSingleItem();
+
+        message.Code.Value.ShouldBe("INV.ITEM.NOT_FOUND");
+        message.Resolution.ShouldNotBeNull();
+        message.Resolution.ShouldContain("ITEM-9999");
     }
 
     [Fact]
@@ -340,6 +409,31 @@ public sealed class TransferLifecycleTests : IDisposable
 
         public Task<long> NextAsync(CancellationToken cancellationToken = default)
             => Task.FromResult(++_last);
+    }
+
+    private sealed class CountingSeries : INumberSeriesService
+    {
+        private int _last;
+
+        public Task<Result<string>> NextAsync(
+            string seriesCode,
+            DateOnly documentDate,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(Result<string>.Success(
+                $"{seriesCode}-{++_last:00000}"));
+
+        public Task<Result<string>> PeekAsync(
+            string seriesCode,
+            DateOnly documentDate,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(Result<string>.Success($"{seriesCode}-{_last + 1:00000}"));
+
+        public Task<Result> ValidateManualAsync(
+            string seriesCode,
+            string number,
+            DateOnly documentDate,
+            CancellationToken cancellationToken = default)
+            => Task.FromResult(Result.Success());
     }
 
     private sealed class NullPublisher : IEventPublisher

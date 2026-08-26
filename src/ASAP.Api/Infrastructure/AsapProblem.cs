@@ -1,5 +1,6 @@
 using ASAP.Platform.Kernel.Messaging;
 using ASAP.Platform.Kernel.Results;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ASAP.Api.Infrastructure;
@@ -23,6 +24,27 @@ public static class AsapProblem
 {
     /// <summary>The problem type ASAP uses for its own refusals.</summary>
     public const string TypeUri = "https://asap-erp.com/problems/message";
+
+    /// <summary>
+    /// Builds the refusal for a caller who lacks a permission.
+    /// </summary>
+    /// <param name="permission">The permission that was required.</param>
+    /// <param name="doing">What they were trying to do, phrased to follow "permission to".</param>
+    /// <param name="instance">The request path.</param>
+    /// <returns>A 403 problem naming the permission needed.</returns>
+    /// <remarks>
+    /// Names the permission rather than saying "forbidden". The person reading it usually cannot
+    /// grant it to themselves, and the first thing whoever can will ask is which one.
+    /// </remarks>
+    public static ProblemDetails Forbidden(string permission, string doing, string? instance = null)
+        => new()
+        {
+            Type = TypeUri,
+            Title = $"You do not have permission to {doing}",
+            Detail = $"{permission} is required.",
+            Status = StatusCodes.Status403Forbidden,
+            Instance = instance,
+        };
 
     /// <summary>
     /// Builds a problem response from one message.

@@ -453,14 +453,16 @@ public sealed partial class StockPostingService(
         {
             var request = requests[index];
 
+            // Not found and blocked are different problems with different answers. Reporting a
+            // typo as "withdrawn from use" sends the user to an administrator to unblock
+            // something that was never there.
             if (!items.TryGetValue(request.ItemNo, out var item))
             {
                 missing.Add(messages.Render(
-                    InventoryMessages.ItemBlocked,
+                    InventoryMessages.ItemNotFound,
                     new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
                     {
                         ["ItemNo"] = request.ItemNo,
-                        ["ItemName"] = "(not found)",
                     },
                     MessageTarget.OnField($"Lines[{index + 1}]")));
 
@@ -470,7 +472,7 @@ public sealed partial class StockPostingService(
             if (!locations.TryGetValue(request.LocationCode, out var location))
             {
                 missing.Add(messages.Render(
-                    InventoryMessages.LocationBlocked,
+                    InventoryMessages.LocationNotFound,
                     new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
                     {
                         ["Location"] = request.LocationCode,

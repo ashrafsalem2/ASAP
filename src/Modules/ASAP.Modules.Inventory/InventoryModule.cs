@@ -226,6 +226,12 @@ public sealed class InventoryModule : IAsapModule
             "/inventory/movements",
             $"{Id}.Stock.Read",
             30),
+        Page(
+            "Transfers",
+            new LocalizedText("Transfers", "التحويلات"),
+            "/inventory/transfers",
+            $"{Id}.Transfer.Read",
+            35),
         new()
         {
             Id = "Inventory.StockOnHand",

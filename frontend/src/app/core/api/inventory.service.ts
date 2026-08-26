@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
+  CreateTransferRequest,
   Item,
   SettlementReceipt,
   StockLocation,
@@ -10,6 +11,9 @@ import {
   StockMovementRequest,
   StockOnHandRow,
   StockPostingReceipt,
+  Transfer,
+  TransferMoveReceipt,
+  TransferCreated,
 } from './asap-api.models';
 
 /** Talks to the Inventory endpoints. */
@@ -58,6 +62,46 @@ export class InventoryService {
 
     return firstValueFrom(
       this.http.post<SettlementReceipt>(`${this.base}/stock/settle`, {}, { params }),
+    );
+  }
+
+  /** Transfers, most recently raised first. */
+  transfers(status?: string): Promise<Transfer[]> {
+    const params = status ? new HttpParams().set('status', status) : undefined;
+
+    return firstValueFrom(this.http.get<Transfer[]>(`${this.base}/transfers`, { params }));
+  }
+
+  /** Raises a transfer. Nothing moves until it is shipped. */
+  createTransfer(request: CreateTransferRequest): Promise<TransferCreated> {
+    return firstValueFrom(this.http.post<TransferCreated>(`${this.base}/transfers`, request));
+  }
+
+  /** Sends the goods: out of the source and into transit. */
+  shipTransfer(transferNo: string): Promise<TransferMoveReceipt> {
+    return firstValueFrom(
+      this.http.post<TransferMoveReceipt>(
+        `${this.base}/transfers/${encodeURIComponent(transferNo)}/ship`,
+        {},
+      ),
+    );
+  }
+
+  /**
+   * Lands the goods: out of transit and into the destination.
+   *
+   * Shortages are keyed by item and hold what actually arrived. Anything left out is taken as
+   * having arrived in full, which is the ordinary case and should not need typing.
+   */
+  receiveTransfer(
+    transferNo: string,
+    shortages?: Record<string, number>,
+  ): Promise<TransferMoveReceipt> {
+    return firstValueFrom(
+      this.http.post<TransferMoveReceipt>(
+        `${this.base}/transfers/${encodeURIComponent(transferNo)}/receive`,
+        { shortages },
+      ),
     );
   }
 }

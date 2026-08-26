@@ -30,6 +30,19 @@ public static class PlatformMessages
     /// <summary>No number series line covers the document date.</summary>
     public static readonly MessageCode NumberSeriesNoLine = new("PLAT.NUMBERSERIES.NO_LINE_FOR_DATE");
 
+    /// <summary>The series named does not exist here, or has been switched off.</summary>
+    public static readonly MessageCode NumberSeriesUnavailable = new("PLAT.NUMBERSERIES.UNAVAILABLE");
+
+    /// <summary>A series is close to the end of its range.</summary>
+    public static readonly MessageCode NumberSeriesRunningLow = new("PLAT.NUMBERSERIES.RUNNING_LOW");
+
+    /// <summary>Someone typed a number into a series that issues its own.</summary>
+    public static readonly MessageCode NumberSeriesManualNotAllowed
+        = new("PLAT.NUMBERSERIES.MANUAL_NOT_ALLOWED");
+
+    /// <summary>A typed number falls at or below one the series has already issued.</summary>
+    public static readonly MessageCode NumberSeriesNumberInUse = new("PLAT.NUMBERSERIES.NUMBER_IN_USE");
+
     /// <summary>A document date runs backwards against a series that forbids it.</summary>
     public static readonly MessageCode NumberSeriesDateOrder = new("PLAT.NUMBERSERIES.DATE_OUT_OF_ORDER");
 
@@ -112,6 +125,64 @@ public static class PlatformMessages
             Resolution = new LocalizedText(
                 "Widen the range on the current line, or add a new line to series {Series}.",
                 "وسّع النطاق في السطر الحالي، أو أضف سطرًا جديدًا للمسلسل {Series}."),
+            HelpTopic = "setup/number-series",
+        },
+        new()
+        {
+            Code = NumberSeriesUnavailable,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("That number series is not available", "المسلسل غير متاح"),
+            Detail = new LocalizedText(
+                "No active series in this company is coded {Series}.",
+                "لا يوجد مسلسل فعّال في هذه الشركة بالرمز {Series}."),
+            Resolution = new LocalizedText(
+                "Create series {Series} in number series setup, or switch it back on if it was "
+                + "deactivated. Documents that need a number cannot be raised until it exists.",
+                "أنشئ المسلسل {Series} في إعداد المسلسلات، أو أعد تفعيله إن كان معطّلاً. "
+                + "لا يمكن إنشاء المستندات التي تحتاج رقمًا قبل وجوده."),
+            HelpTopic = "setup/number-series",
+        },
+        new()
+        {
+            Code = NumberSeriesRunningLow,
+            Severity = MessageSeverity.Warning,
+            Title = new LocalizedText("Number series is running low", "أوشك المسلسل على النفاد"),
+            Detail = new LocalizedText(
+                "Series {Series} has {Remaining} number(s) left.",
+                "تبقّى في المسلسل {Series} {Remaining} رقم."),
+            Resolution = new LocalizedText(
+                "Widen the range or add a new line to series {Series} before it runs out. Said now "
+                + "rather than at the moment it stops, which is usually mid-trading.",
+                "وسّع النطاق أو أضف سطرًا جديدًا للمسلسل {Series} قبل نفاده. يُقال هذا الآن بدلاً "
+                + "من لحظة التوقف التي تأتي عادة في وقت العمل."),
+            HelpTopic = "setup/number-series",
+        },
+        new()
+        {
+            Code = NumberSeriesManualNotAllowed,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("This number cannot be typed", "لا يمكن كتابة هذا الرقم"),
+            Detail = new LocalizedText(
+                "Series {Series} issues its own numbers, so {Number} cannot be entered by hand.",
+                "المسلسل {Series} يصدر أرقامه بنفسه، لذا لا يمكن إدخال {Number} يدويًا."),
+            Resolution = new LocalizedText(
+                "Leave the number blank and let ASAP issue the next one, or allow manual entry on "
+                + "series {Series}. A statutory sequence should stay closed to typing.",
+                "اترك الرقم فارغًا ليصدره النظام، أو اسمح بالإدخال اليدوي في المسلسل {Series}. "
+                + "يُفضّل إبقاء التسلسل النظامي مغلقًا أمام الإدخال اليدوي."),
+            HelpTopic = "setup/number-series",
+        },
+        new()
+        {
+            Code = NumberSeriesNumberInUse,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("That number has already been issued", "هذا الرقم صدر من قبل"),
+            Detail = new LocalizedText(
+                "Series {Series} has already reached {LastNumber}, so {Number} is behind it.",
+                "وصل المسلسل {Series} إلى {LastNumber}، لذا فإن {Number} يسبقه."),
+            Resolution = new LocalizedText(
+                "Use a number after {LastNumber}, or leave it blank and let ASAP issue the next one.",
+                "استخدم رقمًا بعد {LastNumber}، أو اتركه فارغًا ليصدره النظام."),
             HelpTopic = "setup/number-series",
         },
         new()

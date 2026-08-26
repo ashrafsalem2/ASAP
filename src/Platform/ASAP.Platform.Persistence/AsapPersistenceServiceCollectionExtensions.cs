@@ -38,6 +38,8 @@ public static class AsapPersistenceServiceCollectionExtensions
         });
 
         services.TryAddScoped<IOutboxWriter, OutboxWriter>();
+        services.TryAddScoped<ASAP.Platform.Kernel.Setup.ISetupService, SetupService>();
+        services.TryAddScoped<ASAP.Platform.Core.Security.IUserPermissionSource, UserPermissionSource>();
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(TransactionBehavior<,>));
 
         return services;

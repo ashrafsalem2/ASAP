@@ -2,6 +2,9 @@ using ASAP.Api.Infrastructure;
 using ASAP.Modules.Finance.Accounts;
 using ASAP.Modules.Finance.Journals;
 using ASAP.Modules.Finance.Ledger;
+using ASAP.Modules.Finance.Posting;
+using ASAP.Modules.Finance.Reporting;
+using ASAP.Platform.Kernel.Time;
 using ASAP.Platform.Kernel.Cqrs;
 using ASAP.Platform.Persistence;
 using Microsoft.AspNetCore.Mvc;
@@ -76,6 +79,14 @@ public static class FinanceEndpoints
              .WithName("LedgerEntries")
              .WithSummary("Lists posted general ledger entries, most recent first.");
 
+        group.MapPost("/journals/reverse", ReverseAsync)
+             .WithName("ReverseTransaction")
+             .WithSummary("Reverses a posted transaction by posting its mirror image.");
+
+        group.MapGet("/reports/trial-balance", TrialBalanceAsync)
+             .WithName("TrialBalance")
+             .WithSummary("Reports opening balance, movement and closing balance per account.");
+
         return app;
     }
 
@@ -146,7 +157,7 @@ public static class FinanceEndpoints
         AsapDbContext context,
         [FromQuery] string? accountNo,
         [FromQuery] long? transactionNo,
-        [FromQuery] int take,
+        [FromQuery] int? take,
         CancellationToken cancellationToken)
     {
         var query = context.Set<GlEntry>().AsNoTracking();
@@ -167,7 +178,7 @@ public static class FinanceEndpoints
 
             // Capped, and capped here rather than trusting the caller. A ledger grows to millions
             // of rows, and an unbounded list endpoint is a way to take the server down by accident.
-            .Take(Math.Clamp(take is 0 ? 100 : take, 1, 500))
+            .Take(Math.Clamp(take ?? 100, 1, 500))
             .Select(e => new GlEntrySummary(
                 e.Id,
                 e.PostingDate,
@@ -182,5 +193,49 @@ public static class FinanceEndpoints
             .ConfigureAwait(false);
 
         return Results.Ok(entries);
+    }
+
+    private static async Task<IResult> ReverseAsync(
+        ReverseTransactionCommand command,
+        IDispatcher dispatcher,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        var result = await dispatcher.SendAsync(command, cancellationToken).ConfigureAwait(false);
+
+        if (result.Failed)
+        {
+            return Results.Json(
+                AsapProblem.From(result, AsapProblem.StatusFor(result.Messages), http.Request.Path),
+                statusCode: AsapProblem.StatusFor(result.Messages));
+        }
+
+        return Results.Ok(new
+        {
+            reversedTransactionNo = command.TransactionNo,
+            transactionNo = result.Value.TransactionNo,
+            entryCount = result.Value.EntryCount,
+            totalAmount = result.Value.TotalAmount,
+        });
+    }
+
+    private static async Task<IResult> TrialBalanceAsync(
+        IDispatcher dispatcher,
+        [FromQuery] DateOnly? from,
+        [FromQuery] DateOnly? to,
+        [FromQuery] bool? includeAll,
+        IClock clock,
+        CancellationToken cancellationToken)
+    {
+        // Defaults to the current year, which is what someone opening the report almost always
+        // wants, and saves them constructing a date range to see anything at all.
+        var today = clock.Today;
+
+        var query = new TrialBalanceQuery(
+            from ?? new DateOnly(today.Year, 1, 1),
+            to ?? today,
+            includeAll ?? false);
+
+        return Results.Ok(await dispatcher.SendAsync(query, cancellationToken).ConfigureAwait(false));
     }
 }

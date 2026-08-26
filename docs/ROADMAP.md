@@ -44,14 +44,14 @@ Everything else posts here, so it goes first.
 - **done** Chart of accounts with account categories, types and totalling ranges
 - **done** Fiscal years, periods, and the posting window that governs what may still be posted
 - Dimensions applied to accounts and enforced by dimension posting rules
-- General journals: templates, batches, lines, recurring and reversing journals
+- *in progress* General journals: batches and lines done, **reversal done**; recurring journals to come
 - **done** The posting engine: balance validation, period checks, dimension checks, audit trail
 - **done** General ledger entries, transaction grouping, running account balances
 - Currencies and exchange rates, with realised and unrealised gain/loss
 - Bank accounts and reconciliation
 - Customer and vendor ledgers with application and settlement
 - VAT/tax setup, tax posting, and a return-ready tax entry table
-- Financial reports: trial balance, income statement, balance sheet, cash flow, aged analysis
+- *in progress* Financial reports: **trial balance done**; income statement, balance sheet, cash flow, aged analysis to come
 - Account schedules — the report builder that lets a user define statements without code
 - Year-end closing and retained earnings transfer
 

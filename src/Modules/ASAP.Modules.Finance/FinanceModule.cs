@@ -57,6 +57,14 @@ public sealed class FinanceModule : IAsapModule
                 Journals.PostJournalCommand,
                 ASAP.Platform.Kernel.Results.Result<Posting.PostingReceipt>>,
             Journals.PostJournalCommandHandler>();
+        services.AddScoped<
+            ASAP.Platform.Kernel.Cqrs.IRequestHandler<
+                Posting.ReverseTransactionCommand,
+                ASAP.Platform.Kernel.Results.Result<Posting.PostingReceipt>>,
+            Posting.ReverseTransactionCommandHandler>();
+        services.AddScoped<
+            ASAP.Platform.Kernel.Cqrs.IRequestHandler<Reporting.TrialBalanceQuery, Reporting.TrialBalance>,
+            Reporting.TrialBalanceQueryHandler>();
     }
 
     /// <inheritdoc />

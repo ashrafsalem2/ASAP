@@ -27,7 +27,10 @@ The part every module stands on. No business logic lives here.
 | Number series | Gapless or gap-tolerant per series, dated ranges, per-branch numbering | **done** |
 | Dimensions | Canonical combinations, shared dimension sets, shortcut dimensions | **done** |
 | Persistence | DbContext, company query filters, module schema registration, migrations | **done** |
-| Extension host | Isolated plugin loading, event binding, metadata field extensions | planned |
+| Module runtime | Dependency ordering, cycle detection, per-tenant licence gating | **done** |
+| Event bus | Handler dispatch and ordering, vetoable events, transactional outbox | **done** |
+| Extension host | Isolated plugin loading, manifest gate, signature check | **done** |
+| Metadata extensions | Adding fields to core tables from an extension | planned |
 | API host | Authentication, pipeline behaviours, problem details carrying ASAP messages | planned |
 | Angular shell | Layout, auth, company switcher, generated menu, bilingual AR/EN with RTL | planned |
 

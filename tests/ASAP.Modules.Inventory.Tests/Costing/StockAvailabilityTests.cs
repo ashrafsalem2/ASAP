@@ -139,6 +139,27 @@ public sealed class StockAvailabilityTests
     }
 
     [Fact]
+    public void Stock_can_still_be_transferred_out_of_a_quarantine_location()
+    {
+        // The rule is about selling, not about stock leaving. Transferring goods out of quarantine
+        // is exactly how they legitimately leave it, and refusing that would strand every transfer
+        // half way through its journey.
+        var result = Availability().Check(
+            [
+                new MovementView(
+                    1,
+                    Item(),
+                    Where(sellable: false),
+                    -5,
+                    100,
+                    ASAP.Modules.Inventory.Ledger.ItemLedgerEntryType.TransferOut),
+            ],
+            companyAllowsNegative: false);
+
+        result.Succeeded.ShouldBeTrue();
+    }
+
+    [Fact]
     public void A_blocked_item_is_refused()
     {
         var result = Availability().Check([Move(-5, onHand: 100, item: Item(blocked: true))], false);

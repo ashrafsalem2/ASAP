@@ -38,12 +38,18 @@ public sealed record LocationView(string Code, string Name, bool IsBlocked, bool
 /// <param name="Location">Where it is moving at.</param>
 /// <param name="Quantity">Signed. Positive is stock coming in, negative going out.</param>
 /// <param name="QuantityOnHand">What is on hand at that location before this movement.</param>
+/// <param name="EntryType">
+/// What caused the movement. Needed because some rules are about selling in particular rather than
+/// about stock leaving: goods may not be sold out of a quarantine bay, but transferring them out
+/// of one is exactly how they legitimately leave it.
+/// </param>
 public sealed record MovementView(
     int LineNo,
     ItemView Item,
     LocationView Location,
     decimal Quantity,
-    decimal QuantityOnHand);
+    decimal QuantityOnHand,
+    Ledger.ItemLedgerEntryType EntryType = Ledger.ItemLedgerEntryType.Sale);
 
 /// <summary>
 /// Decides whether stock may move, and says what it means when it goes below zero.
@@ -143,8 +149,13 @@ public sealed class StockAvailability(IMessageCatalog messages)
         }
 
         // Stock at a quarantine or in-transit location is counted in the valuation but must not be
-        // promised to a customer, so taking it out is refused separately from the quantity check.
-        if (!movement.Location.IsSellable)
+        // promised to a customer. The rule is about selling, not about stock leaving: a transfer
+        // out of an in-transit location is how goods complete their journey, and refusing it would
+        // strand every transfer half way.
+        var isSale = movement.EntryType is Ledger.ItemLedgerEntryType.Sale
+                     or Ledger.ItemLedgerEntryType.PurchaseReturn;
+
+        if (isSale && !movement.Location.IsSellable)
         {
             found.Add(Raise(InventoryMessages.LocationNotSellable, arguments, target, held));
         }

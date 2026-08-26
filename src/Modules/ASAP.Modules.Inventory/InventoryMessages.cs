@@ -37,6 +37,24 @@ public static class InventoryMessages
     /// <summary>A transfer names one location as both source and destination.</summary>
     public static readonly MessageCode TransferToSameLocation = new("INV.TRANSFER.SAME_LOCATION");
 
+    /// <summary>The transfer named does not exist.</summary>
+    public static readonly MessageCode TransferNotFound = new("INV.TRANSFER.NOT_FOUND");
+
+    /// <summary>Something tried to ship a transfer that has already gone.</summary>
+    public static readonly MessageCode TransferAlreadyShipped = new("INV.TRANSFER.ALREADY_SHIPPED");
+
+    /// <summary>Something tried to receive a transfer that has not shipped.</summary>
+    public static readonly MessageCode TransferNotShipped = new("INV.TRANSFER.NOT_SHIPPED");
+
+    /// <summary>There is nothing left on the transfer to move.</summary>
+    public static readonly MessageCode TransferNothingToMove = new("INV.TRANSFER.NOTHING_TO_MOVE");
+
+    /// <summary>Less arrived than was sent.</summary>
+    public static readonly MessageCode TransferShortReceipt = new("INV.TRANSFER.SHORT_RECEIPT");
+
+    /// <summary>The company has nowhere to hold goods while they travel.</summary>
+    public static readonly MessageCode NoInTransitLocation = new("INV.TRANSFER.NO_TRANSIT_LOCATION");
+
     /// <summary>Every message the module declares.</summary>
     public static IReadOnlyCollection<MessageDefinition> All { get; } =
     [
@@ -173,6 +191,89 @@ public static class InventoryMessages
                 + "ASAP partner about a revaluation.",
                 "أنشئ صنفًا جديدًا بالطريقة المطلوبة واسحب هذا الصنف، أو استشر شريك ASAP بشأن إعادة التقييم."),
             HelpTopic = "inventory/costing-methods",
+        },
+        new()
+        {
+            Code = TransferNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("That transfer does not exist", "هذا التحويل غير موجود"),
+            Detail = new LocalizedText(
+                "No transfer numbered {TransferNo} was found in this company.",
+                "لا يوجد تحويل برقم {TransferNo} في هذه الشركة."),
+            Resolution = new LocalizedText(
+                "Check the number, or look for it in another company.",
+                "تحقق من الرقم، أو ابحث عنه في شركة أخرى."),
+        },
+        new()
+        {
+            Code = TransferAlreadyShipped,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("That transfer has already shipped", "تم شحن هذا التحويل بالفعل"),
+            Detail = new LocalizedText(
+                "Transfer {TransferNo} from {From} is {Status}. Shipping again would send the goods twice.",
+                "التحويل {TransferNo} من {From} حالته {Status}. إعادة الشحن سترسل البضاعة مرتين."),
+            Resolution = new LocalizedText(
+                "Receive it at {To}, or raise a new transfer for anything still to send.",
+                "استلمه في {To}، أو أنشئ تحويلاً جديدًا لما تبقى إرساله."),
+        },
+        new()
+        {
+            Code = TransferNotShipped,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("That transfer has not shipped yet", "لم يتم شحن هذا التحويل بعد"),
+            Detail = new LocalizedText(
+                "Transfer {TransferNo} is {Status}, so nothing has left {From} to arrive at {To}.",
+                "التحويل {TransferNo} حالته {Status}، فلم تغادر أي بضاعة {From} لتصل إلى {To}."),
+            Resolution = new LocalizedText(
+                "Ship it from {From} first.",
+                "قم بشحنه من {From} أولاً."),
+        },
+        new()
+        {
+            Code = TransferNothingToMove,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Nothing left to move", "لا يوجد ما يمكن نقله"),
+            Detail = new LocalizedText(
+                "Every line on transfer {TransferNo} has already been dealt with.",
+                "تمت معالجة جميع سطور التحويل {TransferNo}."),
+            Resolution = new LocalizedText(
+                "Add lines, or raise a new transfer.",
+                "أضف سطورًا، أو أنشئ تحويلاً جديدًا."),
+        },
+        new()
+        {
+            Code = TransferShortReceipt,
+
+            // A warning, not a refusal. The goods that did arrive are received; what did not is
+            // left in transit for somebody to investigate rather than written off by default.
+            Severity = MessageSeverity.Warning,
+            Title = new LocalizedText("Less arrived than was sent", "الكمية الواصلة أقل من المرسلة"),
+            Detail = new LocalizedText(
+                "{Shortfall:0.#####} unit(s) from transfer {TransferNo} are still at {Location}.",
+                "لا تزال {Shortfall:0.#####} وحدة من التحويل {TransferNo} في {Location}."),
+            Resolution = new LocalizedText(
+                "Receive them when they turn up. If they are lost, write them off with a negative "
+                + "adjustment so the loss is recorded rather than assumed.",
+                "استلمها عند ظهورها. وإذا فُقدت، اشطبها بتسوية سالبة ليُسجَّل الفقد بدلاً من افتراضه."),
+            HelpTopic = "inventory/transfers",
+        },
+        new()
+        {
+            Code = NoInTransitLocation,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText(
+                "There is nowhere to hold goods in transit",
+                "لا يوجد موقع لحفظ البضاعة أثناء النقل"),
+            Detail = new LocalizedText(
+                "Transfer {TransferNo} moves goods from {From} to {To}, and this company has no "
+                + "in-transit location for them to travel through.",
+                "ينقل التحويل {TransferNo} بضاعة من {From} إلى {To}، ولا يوجد في هذه الشركة موقع "
+                + "للنقل تمر عبره."),
+            Resolution = new LocalizedText(
+                "Create a location marked as in transit. Without one the goods would vanish from "
+                + "the valuation for the length of the journey.",
+                "أنشئ موقعًا محددًا كموقع نقل. بدونه ستختفي البضاعة من التقييم طوال مدة الرحلة."),
+            HelpTopic = "inventory/transfers",
         },
         new()
         {

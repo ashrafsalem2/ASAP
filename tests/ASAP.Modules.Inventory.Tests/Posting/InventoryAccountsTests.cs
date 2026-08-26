@@ -74,6 +74,8 @@ public sealed class InventoryAccountsTests
         {
             var lines = InventoryAccounts.ForMovement(entryType, 99.99m, Accounts(), "Test");
 
+            // Some movements deliberately post nothing. What must never happen is a movement that
+            // posts something which does not balance.
             lines.Sum(static l => l.Amount).ShouldBe(0m, $"{entryType} does not balance");
         }
     }
@@ -116,18 +118,15 @@ public sealed class InventoryAccountsTests
         InventoryAccounts.ForSettlement(0m, Accounts(), "Estimate was right").ShouldBeEmpty();
     }
 
-    [Fact]
-    public void A_transfer_keeps_the_value_inside_inventory()
+    [Theory]
+    [InlineData(ItemLedgerEntryType.TransferOut)]
+    [InlineData(ItemLedgerEntryType.TransferIn)]
+    public void A_transfer_posts_nothing_at_all(ItemLedgerEntryType entryType)
     {
-        // Moving goods between locations does not change what the company owns, so both halves
-        // land on inventory and cancel.
-        var lines = InventoryAccounts.ForMovement(
-            ItemLedgerEntryType.TransferOut,
-            costAmount: -50.00m,
-            Accounts(),
-            "Transfer to Jeddah");
-
-        lines.ShouldAllBe(l => l.AccountNo == "1400");
-        lines.Sum(static l => l.Amount).ShouldBe(0m);
+        // Moving goods between locations changes where they are, not what the company owns.
+        // Booking it as inventory against inventory would balance perfectly and add two rows to
+        // the account saying that nothing happened.
+        InventoryAccounts.ForMovement(entryType, -50.00m, Accounts(), "Transfer to Jeddah")
+            .ShouldBeEmpty();
     }
 }

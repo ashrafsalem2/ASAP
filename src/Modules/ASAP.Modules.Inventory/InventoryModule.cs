@@ -56,6 +56,7 @@ public sealed class InventoryModule : IAsapModule
         services.AddScoped<Posting.StockPostingService>();
         services.AddScoped<CostSettlementService>();
         services.AddScoped<Seed.InventorySeeder>();
+        services.AddScoped<Transfers.TransferService>();
     }
 
     /// <inheritdoc />

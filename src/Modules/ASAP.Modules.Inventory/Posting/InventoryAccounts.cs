@@ -147,10 +147,11 @@ public static class InventoryAccounts
             ItemLedgerEntryType.PositiveAdjustment or ItemLedgerEntryType.NegativeAdjustment
                 => accounts.VarianceAccountNo,
 
-            // A transfer moves goods between locations without changing what the company owns, so
-            // the two halves cancel and neither needs a contra account of its own.
+            // A transfer changes where goods are, not what the company owns, so there is nothing
+            // to post. Booking it as inventory against inventory would balance perfectly and add
+            // two rows to the account saying that nothing happened.
             ItemLedgerEntryType.TransferOut or ItemLedgerEntryType.TransferIn
-                => accounts.InventoryAccountNo,
+                => null,
 
             _ => accounts.VarianceAccountNo,
         };

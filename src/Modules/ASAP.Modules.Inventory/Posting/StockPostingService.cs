@@ -483,7 +483,8 @@ public sealed partial class StockPostingService(
                     item.ReorderPoint),
                 new LocationView(location.Code, location.Name, location.IsBlocked, location.IsSellable),
                 request.Quantity,
-                onHand));
+                onHand,
+                request.EntryType));
         }
 
         return missing.Count > 0

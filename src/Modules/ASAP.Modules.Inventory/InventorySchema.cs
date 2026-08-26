@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore;
 namespace ASAP.Modules.Inventory;
 
 /// <summary>Registers the Inventory tables, under the <c>inv</c> schema.</summary>
-public sealed class InventorySchema : IModuleSchema
+public sealed partial class InventorySchema : IModuleSchema
 {
     /// <inheritdoc />
     public string SchemaName => "inv";
@@ -160,5 +160,7 @@ public sealed class InventorySchema : IModuleSchema
                    .HasFilter("[IsOutstanding] = 1")
                    .HasDatabaseName("IX_ItemApplications_Outstanding");
         });
+
+        ConfigureTransfers(modelBuilder);
     }
 }

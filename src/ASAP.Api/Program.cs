@@ -3,6 +3,7 @@ using ASAP.Api.Endpoints;
 using ASAP.Api.Infrastructure;
 using ASAP.Api.Security;
 using ASAP.Api.Seed;
+using ASAP.Modules.Finance.Seed;
 using ASAP.Platform.Core;
 using ASAP.Platform.Core.Cqrs;
 using ASAP.Platform.Core.Modules;
@@ -123,6 +124,7 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
    .WithSummary("Reports that the host is running.");
 
 app.MapAuthEndpoints();
+app.MapFinanceEndpoints();
 
 await StartupTasks.RunAsync(app, moduleCatalog).ConfigureAwait(false);
 
@@ -169,6 +171,8 @@ internal static class StartupTasks
             .SynchroniseAsync()
             .ConfigureAwait(false);
 
+        await SeedModulesAsync(services, context, logger).ConfigureAwait(false);
+
         if (generated is not null)
         {
             // Written to the log once, on first run only. There is nowhere else it can go: the
@@ -178,6 +182,41 @@ internal static class StartupTasks
                 "Seeded administrator 'admin' with generated password: {Password} "
                 + "-- change it on first sign-in. This is shown once and cannot be recovered.",
                 generated);
+        }
+    }
+
+    /// <summary>
+    /// Lets each module set itself up in any company that has not had it yet.
+    /// </summary>
+    /// <remarks>
+    /// Runs per company rather than once, because a module can be installed long after companies
+    /// exist. A company created before Finance arrived needs its chart of accounts on the first
+    /// start after the module appears, not never.
+    /// </remarks>
+    private static async Task SeedModulesAsync(
+        IServiceProvider services,
+        AsapDbContext context,
+        ILogger logger)
+    {
+        var companies = await context.Companies
+            .Where(c => c.IsActive)
+            .Select(static c => new { c.Id, c.TenantId, c.Code })
+            .ToListAsync()
+            .ConfigureAwait(false);
+
+        var financeSeeder = services.GetRequiredService<FinanceSeeder>();
+        var year = services.GetRequiredService<IClock>().Today.Year;
+
+        foreach (var company in companies)
+        {
+            var seeded = await financeSeeder
+                .SeedAsync(company.TenantId, company.Id, year)
+                .ConfigureAwait(false);
+
+            if (seeded)
+            {
+                logger.LogInformation("Set up Finance for company {Company}.", company.Code);
+            }
         }
     }
 

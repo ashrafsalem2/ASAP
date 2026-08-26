@@ -51,6 +51,12 @@ public sealed class FinanceModule : IAsapModule
 
         services.AddScoped<JournalPostingValidator>();
         services.AddScoped<JournalPostingService>();
+        services.AddScoped<Seed.FinanceSeeder>();
+        services.AddScoped<
+            ASAP.Platform.Kernel.Cqrs.IRequestHandler<
+                Journals.PostJournalCommand,
+                ASAP.Platform.Kernel.Results.Result<Posting.PostingReceipt>>,
+            Journals.PostJournalCommandHandler>();
     }
 
     /// <inheritdoc />

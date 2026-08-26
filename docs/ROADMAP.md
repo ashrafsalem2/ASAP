@@ -41,12 +41,12 @@ The part every module stands on. No business logic lives here.
 
 Everything else posts here, so it goes first.
 
-- Chart of accounts with account categories and account types
-- Fiscal years, periods, and the posting window that governs what may still be posted
+- **done** Chart of accounts with account categories, types and totalling ranges
+- **done** Fiscal years, periods, and the posting window that governs what may still be posted
 - Dimensions applied to accounts and enforced by dimension posting rules
 - General journals: templates, batches, lines, recurring and reversing journals
-- The posting engine: balance validation, period checks, dimension checks, audit trail
-- General ledger entries and the entry-to-document trail back to the source
+- **done** The posting engine: balance validation, period checks, dimension checks, audit trail
+- **done** General ledger entries, transaction grouping, running account balances
 - Currencies and exchange rates, with realised and unrealised gain/loss
 - Bank accounts and reconciliation
 - Customer and vendor ledgers with application and settlement

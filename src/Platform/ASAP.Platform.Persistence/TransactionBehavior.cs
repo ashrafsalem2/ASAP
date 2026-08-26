@@ -66,49 +66,62 @@ public sealed class TransactionBehavior<TRequest, TResponse>(
             return await next().ConfigureAwait(false);
         }
 
-        await using var transaction = await context.Database
-            .BeginTransactionAsync(cancellationToken)
-            .ConfigureAwait(false);
+        // The connection retries transient failures, which is what keeps a branch on a consumer
+        // link working. A retrying strategy refuses to sit inside a transaction somebody else
+        // opened, because on retry it has no way to replay the part that already ran. Handing it
+        // the whole transaction makes it the retriable unit, so a dropped connection replays the
+        // entire command rather than committing half of it.
+        var strategy = context.Database.CreateExecutionStrategy();
 
-        try
+        return await strategy.ExecuteAsync(RunInTransactionAsync).ConfigureAwait(false);
+
+        async Task<TResponse> RunInTransactionAsync()
         {
-            var response = await next().ConfigureAwait(false);
+            await using var transaction = await context.Database
+                .BeginTransactionAsync(cancellationToken)
+                .ConfigureAwait(false);
 
-            if (response is Result { Failed: true } failure)
+            try
             {
-                logger.LogInformation(
-                    "{Request} was rolled back: {Codes}",
-                    typeof(TRequest).Name,
-                    string.Join(", ", failure.Failures.Select(static m => m.Code.Value)));
+                var response = await next().ConfigureAwait(false);
 
-                await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+                if (response is Result { Failed: true } failure)
+                {
+                    logger.LogInformation(
+                        "{Request} was rolled back: {Codes}",
+                        typeof(TRequest).Name,
+                        string.Join(", ", failure.Failures.Select(static m => m.Code.Value)));
+
+                    await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+                    return response;
+                }
+
+                await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+
                 return response;
             }
+            catch (DbUpdateConcurrencyException ex)
+            {
+                await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
 
-            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-            await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                // Two users editing one record is an ordinary Tuesday, not a fault. Turning it
+                // into a message tells the second user what happened rather than showing them a
+                // stack trace.
+                logger.LogInformation(ex, "{Request} hit a concurrency conflict.", typeof(TRequest).Name);
 
-            return response;
-        }
-        catch (DbUpdateConcurrencyException ex)
-        {
-            await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
-
-            // Two users editing one record is an ordinary Tuesday, not a fault. Turning it into
-            // a message tells the second user what happened rather than showing them a stack trace.
-            logger.LogInformation(ex, "{Request} hit a concurrency conflict.", typeof(TRequest).Name);
-
-            throw new Core.Cqrs.AsapMessageException(messages.Render(
-                PlatformMessages.ConcurrencyConflict,
-                new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
-                {
-                    ["User"] = "Another user",
-                }));
-        }
-        catch
-        {
-            await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
-            throw;
+                throw new Core.Cqrs.AsapMessageException(messages.Render(
+                    PlatformMessages.ConcurrencyConflict,
+                    new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["User"] = "Another user",
+                    }));
+            }
+            catch
+            {
+                await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
+                throw;
+            }
         }
     }
 }

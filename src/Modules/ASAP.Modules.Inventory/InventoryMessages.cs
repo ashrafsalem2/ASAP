@@ -46,14 +46,14 @@ public static class InventoryMessages
             Severity = MessageSeverity.Blocked,
             Title = new LocalizedText("Not enough stock", "الكمية غير كافية"),
             Detail = new LocalizedText(
-                "{Requested} of {ItemNo} {ItemName} was requested at {Location}, and {Available} "
+                "{Requested:0.#####} of {ItemNo} {ItemName} was requested at {Location}, and {Available:0.#####} "
                 + "is on hand. This company does not allow stock to go below zero.",
-                "تم طلب {Requested} من {ItemNo} {ItemName} في {Location}، والمتوفر {Available}. "
+                "تم طلب {Requested:0.#####} من {ItemNo} {ItemName} في {Location}، والمتوفر {Available:0.#####}. "
                 + "لا تسمح هذه الشركة بأن يقل المخزون عن الصفر."),
             Resolution = new LocalizedText(
-                "Reduce the quantity to {Available}, receive the goods first, or ask an "
+                "Reduce the quantity to {Available:0.#####}, receive the goods first, or ask an "
                 + "administrator to allow negative stock for this item.",
-                "قلّل الكمية إلى {Available}، أو استلم البضاعة أولاً، أو اطلب من المسؤول السماح "
+                "قلّل الكمية إلى {Available:0.#####}، أو استلم البضاعة أولاً، أو اطلب من المسؤول السماح "
                 + "بالمخزون السالب لهذا الصنف."),
             OverridePermission = "Inventory.Stock.Override",
             HelpTopic = "inventory/negative-stock",
@@ -68,9 +68,9 @@ public static class InventoryMessages
             Severity = MessageSeverity.Warning,
             Title = new LocalizedText("Stock has gone below zero", "أصبح المخزون بالسالب"),
             Detail = new LocalizedText(
-                "{ItemNo} {ItemName} is now {Balance} at {Location}. {Shortfall} unit(s) were "
+                "{ItemNo} {ItemName} is now {Balance:0.#####} at {Location}. {Shortfall:0.#####} unit(s) were "
                 + "valued at an estimated {EstimatedUnitCost:N2} each.",
-                "أصبح {ItemNo} {ItemName} الآن {Balance} في {Location}. تم تقييم {Shortfall} وحدة "
+                "أصبح {ItemNo} {ItemName} الآن {Balance:0.#####} في {Location}. تم تقييم {Shortfall:0.#####} وحدة "
                 + "بتكلفة تقديرية {EstimatedUnitCost:N2} للوحدة."),
             Resolution = new LocalizedText(
                 "Receive the goods as soon as the paperwork allows. ASAP will settle the estimate "
@@ -85,9 +85,9 @@ public static class InventoryMessages
             Severity = MessageSeverity.Information,
             Title = new LocalizedText("Estimated cost settled", "تمت تسوية التكلفة التقديرية"),
             Detail = new LocalizedText(
-                "{Quantity} unit(s) of {ItemNo} estimated at {EstimatedUnitCost:N2} actually cost "
+                "{Quantity:0.#####} unit(s) of {ItemNo} estimated at {EstimatedUnitCost:N2} actually cost "
                 + "{ActualUnitCost:N2}. A correction of {Difference:N2} was posted.",
-                "{Quantity} وحدة من {ItemNo} قُدّرت بـ {EstimatedUnitCost:N2} وتكلفتها الفعلية "
+                "{Quantity:0.#####} وحدة من {ItemNo} قُدّرت بـ {EstimatedUnitCost:N2} وتكلفتها الفعلية "
                 + "{ActualUnitCost:N2}. تم ترحيل تسوية بقيمة {Difference:N2}."),
             HelpTopic = "inventory/cost-adjustment",
         },
@@ -97,10 +97,10 @@ public static class InventoryMessages
             Severity = MessageSeverity.Warning,
             Title = new LocalizedText("Item is below its reorder point", "الصنف تحت حد إعادة الطلب"),
             Detail = new LocalizedText(
-                "{ItemNo} {ItemName} is down to {Balance} at {Location}, against a reorder point "
-                + "of {ReorderPoint}.",
-                "انخفض {ItemNo} {ItemName} إلى {Balance} في {Location}، مقابل حد إعادة طلب "
-                + "قدره {ReorderPoint}."),
+                "{ItemNo} {ItemName} is down to {Balance:0.#####} at {Location}, against a reorder point "
+                + "of {ReorderPoint:0.#####}.",
+                "انخفض {ItemNo} {ItemName} إلى {Balance:0.#####} في {Location}، مقابل حد إعادة طلب "
+                + "قدره {ReorderPoint:0.#####}."),
         },
         new()
         {

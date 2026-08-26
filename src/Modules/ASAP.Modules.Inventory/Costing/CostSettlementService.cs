@@ -44,7 +44,7 @@ public readonly record struct SettlementReceipt(
 /// <param name="transactionNumbers">Issues the number grouping the correction entries.</param>
 /// <param name="clock">Supplies the time.</param>
 /// <param name="logger">Records settlements.</param>
-public sealed class CostSettlementService(
+public sealed partial class CostSettlementService(
     AsapDbContext context,
     IEventPublisher events,
     IMessageCatalog messages,
@@ -70,6 +70,7 @@ public sealed class CostSettlementService(
         }
 
         var confirmations = new List<AsapMessage>();
+        var corrections = new List<(Guid ItemId, string ItemNo, decimal Correction)>();
         var settled = 0;
         var correction = 0m;
         long? transactionNo = null;
@@ -105,6 +106,13 @@ public sealed class CostSettlementService(
                 settled++;
                 correction += result.Correction;
 
+                // The estimate was held back from the ledger until now, so what posts here is the
+                // whole true cost: the figure released plus the correction to it.
+                if (result.Correction != 0m || result.ReleasedEstimate != 0m)
+                {
+                    corrections.Add((item.Id, item.No, result.Correction + result.ReleasedEstimate));
+                }
+
                 if (result.Message is { } message)
                 {
                     confirmations.Add(message);
@@ -119,6 +127,9 @@ public sealed class CostSettlementService(
                 0,
                 0m));
         }
+
+        await RequestLedgerCorrectionAsync(corrections, transactionNo!.Value, cancellationToken)
+            .ConfigureAwait(false);
 
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
@@ -138,7 +149,7 @@ public sealed class CostSettlementService(
     /// <summary>
     /// Matches one outstanding issue to a receipt and posts the difference.
     /// </summary>
-    private async Task<(decimal Correction, AsapMessage? Message)> SettleOneAsync(
+    private async Task<(decimal Correction, decimal ReleasedEstimate, AsapMessage? Message)> SettleOneAsync(
         Item item,
         ItemApplicationEntry application,
         ItemLedgerEntry layer,
@@ -224,7 +235,7 @@ public sealed class CostSettlementService(
                     ["Difference"] = correction,
                 });
 
-        return (correction, message);
+        return (correction, estimates.Sum(static e => e.CostAmount), message);
     }
 
     private async Task<List<ItemApplicationEntry>> LoadOutstandingAsync(

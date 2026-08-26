@@ -117,7 +117,9 @@ public sealed class JournalPostingService(
             return Result<PostingReceipt>.FailureFrom(vetoed);
         }
 
-        var transactionNo = await NextTransactionNoAsync(cancellationToken).ConfigureAwait(false);
+        var transactionNo = request.TransactionNo
+                            ?? await NextTransactionNoAsync(cancellationToken).ConfigureAwait(false);
+
         var entries = BuildEntries(lines, request, transactionNo, environment);
 
         context.Set<GlEntry>().AddRange(entries);
@@ -322,6 +324,11 @@ public sealed class JournalPostingService(
 /// <param name="ShortcutDimension1Id">An explicit shortcut 1 value, overriding what the line carries.</param>
 /// <param name="ShortcutDimension2Id">An explicit shortcut 2 value.</param>
 /// <param name="OverrideReason">Why the user pushed past a block, recorded in the audit log.</param>
+/// <param name="TransactionNo">
+/// The transaction to write under, when the entries belong to one another module already opened.
+/// Null allocates a fresh number. Supplying it is what makes a stock movement and the ledger
+/// entries it caused read as a single transaction rather than as two that happen to be adjacent.
+/// </param>
 public sealed record PostingRequest(
     string SourceCode,
     GlDocumentType DocumentType = GlDocumentType.None,
@@ -332,4 +339,5 @@ public sealed record PostingRequest(
     Guid? ShortcutDimension2DefinitionId = null,
     Guid? ShortcutDimension1Id = null,
     Guid? ShortcutDimension2Id = null,
-    string? OverrideReason = null);
+    string? OverrideReason = null,
+    long? TransactionNo = null);

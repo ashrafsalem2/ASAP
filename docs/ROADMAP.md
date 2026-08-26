@@ -66,7 +66,7 @@ Everything else posts here, so it goes first.
 - Adjustments, revaluation, physical count
 - Transfer requests, transfer orders, in-transit tracking, receipt and shipment
 - Reorder policy, reservations, item availability
-- Inventory-to-finance posting: inventory, COGS, variance accounts
+- **done** Inventory-to-finance posting through a kernel event, with expected cost held back
 - Reports: stock on hand by location, valuation, velocity, ageing, movement history
 
 ## Phase 3 — Purchasing

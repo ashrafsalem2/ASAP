@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using ASAP.Api;
 using ASAP.Api.Endpoints;
 using ASAP.Api.Infrastructure;
@@ -47,6 +48,12 @@ builder.Services.AddHttpContextAccessor();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<AsapExceptionHandler>();
 builder.Services.AddOpenApi();
+
+// Enums travel as names, not numbers. A client reading "Sale" can be written against the API by
+// someone reading the documentation; a client reading 1 has to keep a copy of the enum in step
+// with ours, and will not notice when a value is inserted in the middle.
+builder.Services.ConfigureHttpJsonOptions(options =>
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter()));
 
 builder.Services.AddOptions<JwtOptions>()
     .Bind(builder.Configuration.GetSection(JwtOptions.SectionName))
@@ -144,6 +151,7 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
 
 app.MapAuthEndpoints();
 app.MapFinanceEndpoints();
+app.MapInventoryEndpoints();
 app.MapNavigationEndpoints();
 
 await StartupTasks.RunAsync(app, moduleCatalog).ConfigureAwait(false);

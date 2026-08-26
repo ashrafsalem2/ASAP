@@ -65,6 +65,12 @@ public sealed class FinanceModule : IAsapModule
         services.AddScoped<
             ASAP.Platform.Kernel.Cqrs.IRequestHandler<Reporting.TrialBalanceQuery, Reporting.TrialBalance>,
             Reporting.TrialBalanceQueryHandler>();
+
+        // Finance answers any module that asks for value to be posted to the ledger. Neither side
+        // references the other; the contract is a kernel type they both already depend on.
+        services.AddScoped<
+            ASAP.Platform.Kernel.Events.IEventHandler<ASAP.Platform.Kernel.Accounting.LedgerPostingRequested>,
+            Posting.LedgerPostingRequestHandler>();
     }
 
     /// <inheritdoc />

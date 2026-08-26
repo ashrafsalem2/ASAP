@@ -60,7 +60,7 @@ public readonly record struct StockPostingReceipt(
 /// <param name="clock">Supplies the time.</param>
 /// <param name="transactionNumbers">Issues the number that groups the entries.</param>
 /// <param name="logger">Records postings.</param>
-public sealed class StockPostingService(
+public sealed partial class StockPostingService(
     AsapDbContext context,
     StockAvailability availability,
     IEventPublisher events,
@@ -126,6 +126,12 @@ public sealed class StockPostingService(
         var costAmount = 0m;
         var estimatedAmount = 0m;
 
+        // What each movement is worth is carried forward from here rather than read back from the
+        // database afterwards. The value entries are still sitting in the change tracker at this
+        // point, unsaved, so a query would find nothing and the ledger posting would silently be
+        // for zero -- a posting that never happens and never complains.
+        var settledByEntry = new List<(ItemLedgerEntry Entry, decimal SettledCost)>();
+
         foreach (var (request, movement) in requests.Zip(movements))
         {
             var outcome = await WriteMovementAsync(
@@ -141,7 +147,20 @@ public sealed class StockPostingService(
             written.Add(outcome.Entry);
             costAmount += outcome.CostAmount;
             estimatedAmount += outcome.EstimatedCostAmount;
+
+            // Estimated cost is excluded: a figure nobody has confirmed must not reach the
+            // inventory account, or the ledger drifts from the valuation by the amount in doubt.
+            settledByEntry.Add((outcome.Entry, outcome.CostAmount - outcome.EstimatedCostAmount));
         }
+
+        await RequestLedgerPostingAsync(
+                settledByEntry,
+                postingDate,
+                sourceCode,
+                documentNo,
+                transactionNo,
+                cancellationToken)
+            .ConfigureAwait(false);
 
         events.Enqueue(new StockPosted
         {

@@ -18,7 +18,7 @@ namespace ASAP.Modules.Inventory.Seed;
 /// </remarks>
 /// <param name="context">The unit of work.</param>
 /// <param name="logger">Reports what was created.</param>
-public sealed class InventorySeeder(AsapDbContext context, ILogger<InventorySeeder> logger)
+public sealed partial class InventorySeeder(AsapDbContext context, ILogger<InventorySeeder> logger)
 {
     /// <summary>Seeds Inventory for one company, if it has nothing yet.</summary>
     /// <param name="tenantId">The owning tenant.</param>
@@ -88,6 +88,8 @@ public sealed class InventorySeeder(AsapDbContext context, ILogger<InventorySeed
         };
 
         context.Set<ItemCategory>().Add(category);
+
+        SeedItems(tenantId, companyId, category);
 
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 

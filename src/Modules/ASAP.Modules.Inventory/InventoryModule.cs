@@ -53,6 +53,9 @@ public sealed class InventoryModule : IAsapModule
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddScoped<StockAvailability>();
+        services.AddScoped<Posting.StockPostingService>();
+        services.AddScoped<CostSettlementService>();
+        services.AddScoped<Seed.InventorySeeder>();
     }
 
     /// <inheritdoc />

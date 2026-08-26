@@ -165,13 +165,5 @@ public sealed class FinanceSchema : IModuleSchema
                    .HasForeignKey(e => e.AccountId)
                    .OnDelete(DeleteBehavior.Restrict);
         });
-
-        modelBuilder.Entity<TransactionCounter>(builder =>
-        {
-            builder.ToTable("TransactionCounters", SchemaName);
-
-            // One row per company, and the allocator finds it by company rather than by key.
-            builder.HasIndex(c => c.CompanyId).IsUnique();
-        });
     }
 }

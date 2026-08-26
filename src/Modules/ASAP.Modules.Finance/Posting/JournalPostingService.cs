@@ -4,6 +4,7 @@ using ASAP.Platform.Core.Auditing;
 using ASAP.Platform.Core.Dimensions;
 using ASAP.Platform.Kernel.Events;
 using ASAP.Platform.Kernel.Messaging;
+using ASAP.Platform.Kernel.Numbering;
 using ASAP.Platform.Kernel.Results;
 using ASAP.Platform.Kernel.Security;
 using ASAP.Platform.Kernel.Tenancy;
@@ -47,6 +48,7 @@ public readonly record struct PostingReceipt(
 /// <param name="tenantContext">Supplies the company and branch being posted in.</param>
 /// <param name="userContext">Supplies who is posting, for the audit trail.</param>
 /// <param name="clock">Supplies the time.</param>
+/// <param name="transactionNumbers">Issues the number that groups the entries.</param>
 /// <param name="logger">Records postings and refusals.</param>
 public sealed class JournalPostingService(
     AsapDbContext context,
@@ -56,6 +58,7 @@ public sealed class JournalPostingService(
     ITenantContext tenantContext,
     IUserContext userContext,
     IClock clock,
+    ITransactionNumberAllocator transactionNumbers,
     ILogger<JournalPostingService> logger)
 {
     /// <summary>
@@ -297,46 +300,15 @@ public sealed class JournalPostingService(
     }
 
     /// <summary>
-    /// Takes the next transaction number for the company.
+    /// Takes the next transaction number.
     /// </summary>
     /// <remarks>
-    /// A single atomic statement rather than a read followed by a write. Two tills posting at the
-    /// same moment would otherwise both read the same last number and both claim the next one,
-    /// producing two transactions sharing an identifier -- which nothing downstream could untangle,
-    /// because the whole point of the number is that it groups one posting.
+    /// A platform service rather than a Finance one, because a transaction number spans modules:
+    /// one sale writes item ledger entries and general ledger entries that all carry the same
+    /// number. Owning the counter here would have meant Inventory reading a Finance table.
     /// </remarks>
-    private async Task<long> NextTransactionNoAsync(CancellationToken cancellationToken)
-    {
-        var companyId = tenantContext.RequireCompanyId();
-
-        var allocated = await context.Database
-            .SqlQuery<long>(
-                $@"UPDATE fin.TransactionCounters
-                   SET LastTransactionNo = LastTransactionNo + 1
-                   OUTPUT inserted.LastTransactionNo AS Value
-                   WHERE CompanyId = {companyId}")
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
-
-        if (allocated.Count > 0)
-        {
-            return allocated[0];
-        }
-
-        // First posting in this company. Creating the row here rather than at company setup keeps
-        // the counter an implementation detail of posting instead of something company creation
-        // has to know about.
-        context.Set<TransactionCounter>().Add(new TransactionCounter
-        {
-            TenantId = tenantContext.TenantId ?? Guid.Empty,
-            CompanyId = companyId,
-            LastTransactionNo = 1,
-        });
-
-        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-
-        return 1;
-    }
+    private Task<long> NextTransactionNoAsync(CancellationToken cancellationToken)
+        => transactionNumbers.NextAsync(cancellationToken);
 }
 
 /// <summary>What the entries of a posting should say about themselves.</summary>

@@ -41,6 +41,7 @@ public static class AsapPersistenceServiceCollectionExtensions
         services.TryAddScoped<ASAP.Platform.Kernel.Setup.ISetupService, SetupService>();
         services.TryAddScoped<ASAP.Platform.Core.Security.IUserPermissionSource, UserPermissionSource>();
         services.TryAddScoped<SystemPermissionSetSynchroniser>();
+        services.TryAddScoped<ASAP.Platform.Kernel.Numbering.ITransactionNumberAllocator, TransactionNumberAllocator>();
         services.AddTransient(typeof(IPipelineBehavior<,>), typeof(TransactionBehavior<,>));
 
         return services;

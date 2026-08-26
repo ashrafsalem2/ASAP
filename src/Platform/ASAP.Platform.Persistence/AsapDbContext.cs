@@ -112,6 +112,9 @@ public sealed class AsapDbContext(
     /// <summary>The append-only record of what was done.</summary>
     public DbSet<AuditLogEntry> AuditLog => Set<AuditLogEntry>();
 
+    /// <summary>Per-company transaction numbering.</summary>
+    public DbSet<Core.Numbering.TransactionCounter> TransactionCounters => Set<Core.Numbering.TransactionCounter>();
+
     /// <summary>Integration events waiting to be delivered.</summary>
     public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
 

@@ -58,11 +58,11 @@ Everything else posts here, so it goes first.
 ## Phase 2 — Inventory
 
 - Items, variants, units of measure, item categories, barcodes
-- Locations, warehouses, bins
-- Item ledger entries and value entries — quantity and cost tracked separately
-- Costing methods: FIFO, average, standard, specific
+- *in progress* Locations done; warehouses and bins to come
+- **done** Item ledger entries and value entries, quantity and cost tracked separately
+- **done** Costing methods: FIFO, average, standard (specific to come)
 - **Negative inventory**, allowed or blocked per company, with cost settled on later receipt so
-  the cost layer never corrupts
+  the cost layer never corrupts — **done**
 - Adjustments, revaluation, physical count
 - Transfer requests, transfer orders, in-transit tracking, receipt and shipment
 - Reorder policy, reservations, item availability

@@ -4,6 +4,7 @@ using ASAP.Modules.Finance.Periods;
 using ASAP.Platform.Core.Auditing;
 using ASAP.Platform.Kernel.Cqrs;
 using ASAP.Platform.Kernel.Messaging;
+using ASAP.Platform.Kernel.Numbering;
 using ASAP.Platform.Kernel.Results;
 using ASAP.Platform.Kernel.Security;
 using ASAP.Platform.Kernel.Tenancy;
@@ -41,6 +42,7 @@ public sealed record ReverseTransactionCommand(
 /// <param name="tenantContext">Supplies the company being posted in.</param>
 /// <param name="userContext">Supplies who is reversing, for the audit trail.</param>
 /// <param name="clock">Supplies the time.</param>
+/// <param name="transactionNumbers">Issues the number that groups the entries.</param>
 /// <param name="logger">Records reversals.</param>
 public sealed class ReverseTransactionCommandHandler(
     AsapDbContext context,
@@ -48,6 +50,7 @@ public sealed class ReverseTransactionCommandHandler(
     ITenantContext tenantContext,
     IUserContext userContext,
     IClock clock,
+    ITransactionNumberAllocator transactionNumbers,
     ILogger<ReverseTransactionCommandHandler> logger)
     : IRequestHandler<ReverseTransactionCommand, Result<PostingReceipt>>
 {
@@ -232,33 +235,6 @@ public sealed class ReverseTransactionCommandHandler(
         }
     }
 
-    private async Task<long> NextTransactionNoAsync(CancellationToken cancellationToken)
-    {
-        var companyId = tenantContext.RequireCompanyId();
-
-        var allocated = await context.Database
-            .SqlQuery<long>(
-                $@"UPDATE fin.TransactionCounters
-                   SET LastTransactionNo = LastTransactionNo + 1
-                   OUTPUT inserted.LastTransactionNo AS Value
-                   WHERE CompanyId = {companyId}")
-            .ToListAsync(cancellationToken)
-            .ConfigureAwait(false);
-
-        if (allocated.Count > 0)
-        {
-            return allocated[0];
-        }
-
-        context.Set<TransactionCounter>().Add(new TransactionCounter
-        {
-            TenantId = tenantContext.TenantId ?? Guid.Empty,
-            CompanyId = companyId,
-            LastTransactionNo = 1,
-        });
-
-        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-
-        return 1;
-    }
+    private Task<long> NextTransactionNoAsync(CancellationToken cancellationToken)
+        => transactionNumbers.NextAsync(cancellationToken);
 }

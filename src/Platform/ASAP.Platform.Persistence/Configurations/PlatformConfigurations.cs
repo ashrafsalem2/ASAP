@@ -231,3 +231,19 @@ public sealed class OutboxMessageConfiguration : IEntityTypeConfiguration<Outbox
                .HasFilter("[ProcessedAtUtc] IS NULL AND [IsDeadLettered] = 0");
     }
 }
+
+/// <summary>Maps <see cref="Core.Numbering.TransactionCounter"/>.</summary>
+public sealed class TransactionCounterConfiguration
+    : IEntityTypeConfiguration<Core.Numbering.TransactionCounter>
+{
+    /// <inheritdoc />
+    public void Configure(EntityTypeBuilder<Core.Numbering.TransactionCounter> builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.ToTable("TransactionCounters");
+
+        // One row per company, found by company rather than by key on every posting.
+        builder.HasIndex(c => c.CompanyId).IsUnique();
+    }
+}

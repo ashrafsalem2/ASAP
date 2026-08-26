@@ -225,6 +225,7 @@ internal static class StartupTasks
             .ConfigureAwait(false);
 
         var financeSeeder = services.GetRequiredService<FinanceSeeder>();
+        var inventorySeeder = services.GetRequiredService<ASAP.Modules.Inventory.Seed.InventorySeeder>();
         var year = services.GetRequiredService<IClock>().Today.Year;
 
         foreach (var company in companies)
@@ -236,6 +237,11 @@ internal static class StartupTasks
             if (seeded)
             {
                 logger.LogInformation("Set up Finance for company {Company}.", company.Code);
+            }
+
+            if (await inventorySeeder.SeedAsync(company.TenantId, company.Id).ConfigureAwait(false))
+            {
+                logger.LogInformation("Set up Inventory for company {Company}.", company.Code);
             }
         }
     }

@@ -108,11 +108,20 @@ Everything else posts here, so it goes first.
 
 ## Phase 5 — Point of sale and branch operations
 
-- Till sessions, opening float, X and Z readings, cash declaration and variance
-- Sales, returns, exchanges, park and recall, split and mixed tender
+- **done** Till sessions with an opening float, X and Z readings, cash declaration and the
+  variance posted rather than argued about. Card takings are excluded from the drawer, which is
+  the mistake that otherwise leaves every till short by the day's card sales
+- *in progress* **Sales and split tender done** — several tenders on one receipt, change from
+  cash only, cash totals rounded to a coin that exists. Returns are modelled (a negative
+  quantity, so an exchange is representable) and not yet driven from a screen; park and recall
+  are modelled and not yet wired
+- **done** A receipt posts exactly as a sales invoice does: revenue at list with the discount as
+  a contra, tax on both, stock out at what the goods cost. The P&L cannot tell which door a sale
+  came through
 - Offline-first till that queues and reconciles when the link returns
 - **Two-way branch synchronisation** over an explicit contract: master data down from head
   office, transactions up from the branch, with conflict rules stated rather than implied
+- **done** Client screens: the till, and every session with what its drawer came to
 - Branch performance reporting, consolidated at head office
 
 ## Phase 6 — Promotions

@@ -1440,3 +1440,79 @@ export interface PrintPreview {
   /** Which receipt it was rendered against, or null where the shop has never sold anything. */
   receiptNo: string | null;
 }
+
+/** One module as the reference sees it. */
+export interface ReferenceModule {
+  moduleId: string;
+  displayName: string;
+  description: string;
+  version: string;
+  dependsOn: string[];
+  messages: number;
+  permissions: number;
+  settings: number;
+  menuEntries: number;
+}
+
+/** What the installation declares, in total. */
+export interface ReferenceSummary {
+  modules: ReferenceModule[];
+  platform: {
+    messages: number;
+    totalMessages: number;
+    byPrefix: { prefix: string; count: number }[];
+  };
+}
+
+/** Everything one module declares. */
+export interface ModuleReference {
+  moduleId: string;
+  displayName: string;
+  description: string;
+  version: string;
+  dependsOn: string[];
+  permissions: {
+    key: string;
+    displayName: string;
+    description: string | null;
+    isSensitive: boolean;
+    implies: string[];
+  }[];
+  settings: {
+    key: string;
+    displayName: string;
+    description: string;
+    valueType: string;
+    scope: string;
+    defaultValue: string | null;
+    requiresPermission: string | null;
+    helpTopic: string | null;
+  }[];
+  messages: {
+    code: string;
+    severity: string;
+    title: string;
+
+    /** The contract between a message and whatever raises it. */
+    placeholders: string[];
+    overridePermission: string | null;
+    helpTopic: string | null;
+  }[];
+  menu: {
+    id: string;
+    displayName: string;
+    kind: string;
+    route: string | null;
+    requiresPermission: string | null;
+  }[];
+}
+
+/** One domain event an extension can subscribe to. */
+export interface ReferenceEvent {
+  type: string;
+  assembly: string;
+
+  /** Whether an extension can stop it, or is only being told it happened. */
+  isVetoable: boolean;
+  properties: { name: string; type: string }[];
+}

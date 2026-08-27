@@ -1,0 +1,29 @@
+@use './admin.scss';
+
+.reference__name {
+  color: var(--text-muted);
+  margin-inline-start: 0.5rem;
+}
+
+.reference__depends {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.reference__description {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  max-width: 60ch;
+}
+
+/* Wrapped rather than truncated. A message with eight placeholders is exactly the message
+   somebody came here to read the placeholders of. */
+.reference__placeholder {
+  display: inline-block;
+  font-size: 0.78rem;
+  margin: 0 0.3rem 0.2rem 0;
+  padding: 0.05rem 0.3rem;
+  border-radius: 0.2rem;
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}

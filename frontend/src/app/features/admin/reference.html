@@ -1,0 +1,225 @@
+<div class="page">
+  <h1>{{ t('reference.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('reference.intro') }}</p>
+
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else if (summary(); as s) {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('reference.module') }}</th>
+              <th>{{ t('reference.version') }}</th>
+              <th>{{ t('reference.dependsOn') }}</th>
+              <th class="numeric">{{ t('reference.tab.messages') }}</th>
+              <th class="numeric">{{ t('reference.tab.permissions') }}</th>
+              <th class="numeric">{{ t('reference.tab.settings') }}</th>
+              <th class="numeric">{{ t('reference.tab.menu') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (m of s.modules; track m.moduleId) {
+              <tr
+                class="admin__row"
+                [class.admin__row--selected]="module()?.moduleId === m.moduleId"
+                (click)="open(m.moduleId)"
+              >
+                <td>
+                  <span class="code">{{ m.moduleId }}</span>
+                  <span class="reference__name">{{ m.displayName }}</span>
+                </td>
+                <td class="code">{{ m.version }}</td>
+                <td class="code reference__depends">{{ m.dependsOn.join(', ') }}</td>
+                <td class="numeric">{{ m.messages }}</td>
+                <td class="numeric">{{ m.permissions }}</td>
+                <td class="numeric">{{ m.settings }}</td>
+                <td class="numeric">{{ m.menuEntries }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <!-- The platform declares its messages directly rather than through a module, so it has no
+           row above and would otherwise be invisible. -->
+      <p class="panel__body admin__note">
+        {{ t('reference.platformNote', { platform: s.platform.messages, total: s.platform.totalMessages }) }}
+      </p>
+    }
+  </section>
+
+  @if (module(); as m) {
+    <section class="panel">
+      <div class="panel__header">
+        <h2>{{ m.moduleId }} — {{ m.displayName }}</h2>
+      </div>
+
+      <p class="panel__body admin__note">{{ m.description }}</p>
+
+      <div class="panel__body draft">
+        @for (option of tabs; track option) {
+          <button
+            type="button"
+            class="button"
+            [class.button--primary]="tab() === option"
+            (click)="tab.set(option)"
+          >
+            {{ tabLabel(option) }}
+          </button>
+        }
+      </div>
+
+      <div class="table-scroll">
+        @switch (tab()) {
+          @case ('messages') {
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>{{ t('reference.code') }}</th>
+                  <th>{{ t('reference.severity') }}</th>
+                  <th>{{ t('reference.says') }}</th>
+                  <th>{{ t('reference.placeholders') }}</th>
+                  <th>{{ t('reference.override') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (message of m.messages; track message.code) {
+                  <tr>
+                    <td class="code">{{ message.code }}</td>
+                    <td><span class="tag">{{ message.severity }}</span></td>
+                    <td>{{ message.title }}</td>
+
+                    <!-- The contract between a message and whatever raises it, and the only part
+                         of a message that is not free to change. -->
+                    <td>
+                      @for (name of message.placeholders; track name) {
+                        <span class="code reference__placeholder">{{ braced(name) }}</span>
+                      }
+                    </td>
+                    <td class="code">{{ message.overridePermission }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+
+          @case ('permissions') {
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>{{ t('reference.key') }}</th>
+                  <th>{{ t('reference.says') }}</th>
+                  <th>{{ t('reference.implies') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (permission of m.permissions; track permission.key) {
+                  <tr [class.admin__override]="permission.isSensitive">
+                    <td class="code">{{ permission.key }}</td>
+                    <td>
+                      {{ permission.displayName }}
+                      @if (permission.description) {
+                        <span class="reference__description">{{ permission.description }}</span>
+                      }
+                    </td>
+                    <td class="code">{{ permission.implies.join(', ') }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+
+          @case ('settings') {
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>{{ t('reference.key') }}</th>
+                  <th>{{ t('reference.type') }}</th>
+                  <th>{{ t('reference.default') }}</th>
+                  <th>{{ t('reference.says') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (setting of m.settings; track setting.key) {
+                  <tr>
+                    <td class="code">{{ setting.key }}</td>
+                    <td>{{ setting.valueType }}</td>
+                    <td class="code">{{ setting.defaultValue }}</td>
+                    <td>{{ setting.displayName }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+
+          @default {
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>{{ t('reference.key') }}</th>
+                  <th>{{ t('reference.says') }}</th>
+                  <th>{{ t('reference.route') }}</th>
+                  <th>{{ t('reference.needs') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (entry of m.menu; track entry.id) {
+                  <tr>
+                    <td class="code">{{ entry.id }}</td>
+                    <td>{{ entry.displayName }}</td>
+                    <td class="code">{{ entry.route }}</td>
+                    <td class="code">{{ entry.requiresPermission }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          }
+        }
+      </div>
+    </section>
+  }
+
+  <section class="panel">
+    <div class="panel__header">
+      <h2>{{ t('reference.events') }}</h2>
+    </div>
+
+    <p class="panel__body admin__note">{{ t('reference.eventsNote') }}</p>
+
+    <div class="table-scroll">
+      <table class="table">
+        <thead>
+          <tr>
+            <th>{{ t('reference.event') }}</th>
+            <th>{{ t('reference.assembly') }}</th>
+            <th>{{ t('reference.vetoable') }}</th>
+            <th>{{ t('reference.properties') }}</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (event of events(); track event.type) {
+            <tr>
+              <td class="code">{{ event.type }}</td>
+              <td class="code">{{ event.assembly }}</td>
+              <td>
+                @if (event.isVetoable) {
+                  <span class="tag">{{ t('reference.canBeStopped') }}</span>
+                }
+              </td>
+              <td>
+                @for (property of event.properties; track property.name) {
+                  <span class="code reference__placeholder">
+                    {{ property.name }}: {{ property.type }}
+                  </span>
+                }
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+</div>

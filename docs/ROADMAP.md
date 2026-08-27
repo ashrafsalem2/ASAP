@@ -219,7 +219,10 @@ Everything else posts here, so it goes first.
 
 - The extension SDK published as a NuGet package
 - A worked sample extension, built end to end
-- Generated developer reference: every event, message code, permission and setting ASAP declares
+- **done** Generated developer reference: every event, message code, permission and setting ASAP
+  declares, read from the same registries the running system uses rather than transcribed from
+  them. It describes the installation in front of you, extensions included, which is the answer to
+  "what can I integrate with" for somebody holding a deployment rather than a source tree
 - **done** End-user guides per module, bilingual. Forty-one topics, one for every help topic a
   message or a setting points at, served in the reader's language and linked from the refusal
   itself. A conformance test refuses to let a message point at a topic that is missing, too short

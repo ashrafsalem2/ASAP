@@ -284,6 +284,20 @@ public sealed class PlatformModule : IAsapModule
         },
         new()
         {
+            Id = "Platform.Reference",
+            Module = Id,
+            ParentId = "Platform.Administration",
+            DisplayName = new LocalizedText("Developer reference", "المرجع التقني"),
+            Kind = NavigationKind.Report,
+            Route = "/admin/reference",
+            Icon = "code",
+
+            // No permission. It describes what the installation declares, which is the same
+            // information the menu, the setup screen and every refusal already disclose.
+            Order = 96,
+        },
+        new()
+        {
             Id = "Platform.Extensions",
             Module = Id,
             ParentId = "Platform.Administration",

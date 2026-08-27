@@ -220,6 +220,10 @@ export const routes: Routes = [
         loadComponent: () => import('./features/admin/organisation').then((m) => m.Organisation),
       },
       {
+        path: 'admin/reference',
+        loadComponent: () => import('./features/admin/reference').then((m) => m.Reference),
+      },
+      {
         path: 'admin/audit-log',
         canActivate: [requirePermission('Platform.AuditLog.Read')],
         loadComponent: () => import('./features/admin/audit-log').then((m) => m.AuditLog),

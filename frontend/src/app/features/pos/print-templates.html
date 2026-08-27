@@ -1,0 +1,135 @@
+<div class="page">
+  <h1>{{ t('pos.templates.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('pos.templates.intro') }}</p>
+
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else {
+      <div class="panel__body draft">
+        @for (template of templates(); track template.code) {
+          <button
+            type="button"
+            class="button"
+            [class.button--primary]="code === template.code"
+            (click)="select(template)"
+          >
+            {{ template.name }}
+          </button>
+        }
+      </div>
+    }
+  </section>
+
+  <div class="templates">
+    <section class="panel templates__edit">
+      <div class="panel__header">
+        <h2>{{ t('pos.templates.layout') }}</h2>
+      </div>
+
+      <div class="panel__body draft">
+        <div class="field">
+          <label class="field__label" for="code">{{ t('pos.templates.code') }}</label>
+          <input id="code" class="input code" [disabled]="!canWrite()" [(ngModel)]="code" />
+        </div>
+
+        <div class="field templates__wide">
+          <label class="field__label" for="name">{{ t('pos.templates.name') }}</label>
+          <input id="name" class="input" [disabled]="!canWrite()" [(ngModel)]="name" />
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="width">{{ t('pos.templates.width') }}</label>
+          <input
+            id="width"
+            class="input input--number"
+            type="number"
+            min="20"
+            max="120"
+            [disabled]="!canWrite()"
+            [(ngModel)]="width"
+            (ngModelChange)="render()"
+          />
+        </div>
+      </div>
+
+      <div class="panel__body">
+        <!-- The ruler sits over the editor at the paper's width. Somebody writing a column of
+             figures needs to see where the edge is, not count characters. -->
+        <pre class="templates__ruler">{{ ruler() }}</pre>
+
+        <textarea
+          class="templates__editor"
+          rows="24"
+          spellcheck="false"
+          [disabled]="!canWrite()"
+          [(ngModel)]="content"
+          (ngModelChange)="render()"
+        ></textarea>
+      </div>
+
+      @if (canWrite()) {
+        <div class="panel__body draft__actions">
+          <button
+            type="button"
+            class="button button--primary"
+            [disabled]="!code.trim() || !name.trim() || !content || busy()"
+            (click)="save()"
+          >
+            {{ t('pos.templates.save') }}
+          </button>
+        </div>
+      }
+
+      <div class="panel__body">
+        <span class="field__label">{{ t('pos.templates.fields') }}</span>
+
+        @for (group of groups(); track group.region) {
+          <p class="templates__fields">
+            <span class="templates__region code">
+              @if (group.region === 'document') {
+                {{ t('pos.templates.wholeReceipt') }}
+              } @else {
+                [[{{ group.region }}]]
+              }
+            </span>
+
+            @for (field of group.fields; track field) {
+              <span class="code templates__field">{{ braced(field) }}</span>
+            }
+          </p>
+        }
+
+        <p class="templates__note">{{ t('pos.templates.help') }}</p>
+      </div>
+    </section>
+
+    <section class="panel templates__preview">
+      <div class="panel__header">
+        <h2>{{ t('pos.templates.preview') }}</h2>
+
+        <button
+          type="button"
+          class="button"
+          [disabled]="!preview()"
+          (click)="printPreview()"
+        >
+          {{ t('pos.templates.print') }}
+        </button>
+      </div>
+
+      @if (previewOf(); as receiptNo) {
+        <!-- Against a real receipt, and it says which. A layout that looks right beside made-up
+             figures is how a total column ships too narrow for four digits. -->
+        <p class="panel__body templates__note">
+          {{ t('pos.templates.previewOf', { receiptNo }) }}
+        </p>
+      }
+
+      <div class="panel__body">
+        <pre class="templates__paper" [style.width.ch]="width">{{ preview() }}</pre>
+      </div>
+    </section>
+  </div>
+</div>

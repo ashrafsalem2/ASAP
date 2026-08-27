@@ -207,7 +207,12 @@ Everything else posts here, so it goes first.
 
 - A station is a named set of devices bound to a branch and a till
 - Receipt and label printers, barcode scanners, cash drawers, customer displays, scales
-- Print templates that a user can edit without a developer
+- **done** Print templates a user can edit without a developer. Three things in the language: a
+  placeholder, a repeated region, and everything else printed exactly as written — spaces
+  included, because a receipt is a fixed-width document and the spacing is the layout. Alignment
+  is the same composite syntax .NET uses, so a column of figures can be made to line up. The
+  editor previews against a real posted receipt rather than an invented one, and prints through
+  the browser’s own dialog with no agent, no driver and no install
 - A local bridge agent so the browser can drive devices it otherwise cannot reach
 
 ## Phase 9 — Extensibility and documentation

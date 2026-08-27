@@ -1396,3 +1396,47 @@ export interface StockCountPosted {
   count: StockCount;
   messages: AsapMessage[];
 }
+
+/** A layout a shop manager can edit without a developer. */
+export interface PrintTemplate {
+  code: string;
+  name: string;
+  nameArabic: string | null;
+  kind: string;
+  content: string;
+
+  /** How many characters wide the paper is. Forty-two is the usual eighty-millimetre roll. */
+  widthInCharacters: number;
+  branchId: string | null;
+  isDefault: boolean;
+  isActive: boolean;
+}
+
+/** One field a template may refer to, and the region it belongs to. */
+export interface PrintTemplateField {
+  /** Empty for a field of the whole document. */
+  region: string;
+  field: string;
+}
+
+/** The templates, and what they may refer to. */
+export interface PrintTemplates {
+  templates: PrintTemplate[];
+  fields: PrintTemplateField[];
+}
+
+/** A rendered document, ready to go to paper. */
+export interface PrintedDocument {
+  templateCode: string;
+  widthInCharacters: number;
+  text: string;
+}
+
+/** An unsaved template rendered against a real receipt. */
+export interface PrintPreview {
+  text: string;
+  widthInCharacters: number;
+
+  /** Which receipt it was rendered against, or null where the shop has never sold anything. */
+  receiptNo: string | null;
+}

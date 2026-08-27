@@ -71,6 +71,7 @@ public sealed class PosModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISyncCont
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddScoped<Stations.StationBranchLookup>();
+        services.AddScoped<Printing.ReceiptPrintService>();
         services.AddScoped<Seed.PosSeeder>();
         services.AddScoped<Sessions.PosSessionService>();
         services.AddScoped<Receipts.PosReceiptService>();
@@ -377,6 +378,17 @@ public sealed class PosModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISyncCont
             Route = "/pos/promotions",
             RequiresPermission = $"{Id}.Report.Read",
             Order = 25,
+        },
+        new()
+        {
+            Id = "Pos.PrintTemplates",
+            Module = Id,
+            ParentId = "Pos.Root",
+            DisplayName = new LocalizedText("Print templates", "قوالب الطباعة"),
+            Kind = NavigationKind.Setup,
+            Route = "/pos/print-templates",
+            RequiresPermission = $"{Id}.Station.Read",
+            Order = 45,
         },
         new()
         {

@@ -1,0 +1,78 @@
+/* Editor and paper side by side. Anything else means scrolling between a change and its
+   effect, which is the whole reason the preview exists. */
+.templates {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 70rem) {
+  .templates {
+    grid-template-columns: 1fr;
+  }
+}
+
+.templates__wide {
+  flex: 1 1 14rem;
+}
+
+.templates__editor {
+  width: 100%;
+  font: 13px/1.4 ui-monospace, Menlo, Consolas, monospace;
+  border: 1px solid var(--border);
+  border-radius: 0 0 0.25rem 0.25rem;
+  padding: 0.5rem;
+  background: var(--surface);
+  color: var(--text);
+  resize: vertical;
+  tab-size: 2;
+}
+
+/* Sits directly over the editor at the paper's width. Somebody writing a column of figures
+   needs to see where the edge is, not count characters. */
+.templates__ruler {
+  font: 13px/1.4 ui-monospace, Menlo, Consolas, monospace;
+  color: var(--text-muted);
+  margin: 0;
+  padding: 0.25rem 0.5rem 0;
+  border: 1px solid var(--border);
+  border-bottom: none;
+  border-radius: 0.25rem 0.25rem 0 0;
+  overflow: hidden;
+  white-space: pre;
+}
+
+/* The paper. A fixed measure in characters, so what is on screen is what comes out. */
+.templates__paper {
+  font: 13px/1.35 ui-monospace, Menlo, Consolas, monospace;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 0.25rem;
+  padding: 0.75rem;
+  margin: 0;
+  white-space: pre;
+  overflow-x: auto;
+  min-height: 12rem;
+}
+
+.templates__fields {
+  margin: 0.4rem 0;
+  line-height: 1.9;
+}
+
+.templates__region {
+  color: var(--text-muted);
+  margin-inline-end: 0.5rem;
+}
+
+.templates__field {
+  margin-inline-end: 0.4rem;
+  font-size: 0.8rem;
+}
+
+.templates__note {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  max-width: 70ch;
+}

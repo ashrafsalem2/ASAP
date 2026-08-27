@@ -14,7 +14,7 @@ namespace ASAP.Modules.Pos;
 /// Everything lands in the <c>pos</c> schema, so it is obvious in the database which module owns
 /// what once a dozen are installed.
 /// </remarks>
-public sealed class PosSchema : IModuleSchema
+public sealed partial class PosSchema : IModuleSchema
 {
     /// <inheritdoc />
     public string SchemaName => "pos";
@@ -22,6 +22,8 @@ public sealed class PosSchema : IModuleSchema
     /// <inheritdoc />
     public void Configure(ModelBuilder modelBuilder)
     {
+        ConfigurePrinting(modelBuilder);
+
         ArgumentNullException.ThrowIfNull(modelBuilder);
 
         modelBuilder.Entity<PosStation>(builder =>

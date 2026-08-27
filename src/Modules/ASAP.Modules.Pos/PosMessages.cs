@@ -37,6 +37,9 @@ public static class PosMessages
     /// <summary>The receipt named does not exist.</summary>
     public static readonly MessageCode ReceiptNotFound = new("POS.RECEIPT.NOT_FOUND");
 
+    /// <summary>Nothing is set up to print this kind of document.</summary>
+    public static readonly MessageCode NoPrintTemplate = new("POS.PRINT.NO_TEMPLATE");
+
     /// <summary>Something tried to change a receipt that has already posted.</summary>
     public static readonly MessageCode ReceiptNotEditable = new("POS.RECEIPT.NOT_EDITABLE");
 
@@ -188,6 +191,20 @@ public static class PosMessages
                 + "again before accepting it if the amount is large.",
                 "رُحّل الفارق ليتطابق حساب النقدية مع الدرج. أعد الجرد قبل اعتماده إن كان المبلغ كبيرًا."),
             HelpTopic = "pos/sessions",
+        },
+        new()
+        {
+            Code = NoPrintTemplate,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Nothing to print it with", "لا يوجد قالب للطباعة"),
+            Detail = new LocalizedText(
+                "No active {Kind} template is set up, for this branch or for the company.",
+                "لا يوجد قالب نشط من نوع {Kind} لا لهذا الفرع ولا للشركة."),
+            Resolution = new LocalizedText(
+                "Add one on the print templates screen. A branch's own template is used where it "
+                + "has one, and the company's where it does not.",
+                "أضف قالبًا في شاشة قوالب الطباعة. ويُستخدم قالب الفرع إن وُجد، وإلا فقالب الشركة."),
+            HelpTopic = "pos/printing",
         },
         new()
         {

@@ -131,6 +131,12 @@ export const routes: Routes = [
         loadComponent: () => import('./features/pos/till').then((m) => m.Till),
       },
       {
+        path: 'pos/print-templates',
+        canActivate: [requirePermission('Pos.Station.Read')],
+        loadComponent: () =>
+          import('./features/pos/print-templates').then((m) => m.PrintTemplates),
+      },
+      {
         path: 'pos/sessions',
         canActivate: [requirePermission('Pos.Session.Read')],
         loadComponent: () => import('./features/pos/sessions').then((m) => m.PosSessions),

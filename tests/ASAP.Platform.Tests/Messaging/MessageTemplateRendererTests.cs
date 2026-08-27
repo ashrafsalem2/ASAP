@@ -150,4 +150,46 @@ public sealed class MessageTemplateRendererTests
 
         rendered.ShouldBe("2026-08-01 14:05 — 582.80");
     }
+
+    [Fact]
+    public void A_width_pads_the_value_the_way_composite_formatting_does()
+    {
+        // A receipt is columns of characters. Without padding the only way to line a column up is
+        // to hope every value is the same length as the one it was designed against.
+        var arguments = new Dictionary<string, object?>
+        {
+            ["Amount"] = 48m,
+            ["Description"] = "Desk lamp",
+        };
+
+        MessageTemplateRenderer
+            .Render("[{Amount,10:N2}]", arguments, CultureInfo.InvariantCulture)
+            .ShouldBe("[     48.00]");
+
+        MessageTemplateRenderer
+            .Render("[{Description,-15}]", arguments, CultureInfo.InvariantCulture)
+            .ShouldBe("[Desk lamp      ]");
+    }
+
+    [Fact]
+    public void A_value_wider_than_its_field_is_not_cut_short()
+    {
+        // Truncating hides a figure, and a receipt missing a digit off a total is worse than one
+        // out of line.
+        var arguments = new Dictionary<string, object?> { ["Amount"] = 1_234_567.89m };
+
+        MessageTemplateRenderer
+            .Render("{Amount,4:N2}", arguments, CultureInfo.InvariantCulture)
+            .ShouldBe("1,234,567.89");
+    }
+
+    [Fact]
+    public void A_width_without_a_format_still_pads()
+    {
+        var arguments = new Dictionary<string, object?> { ["Code"] = "AB" };
+
+        MessageTemplateRenderer
+            .Render("[{Code,5}]", arguments, CultureInfo.InvariantCulture)
+            .ShouldBe("[   AB]");
+    }
 }

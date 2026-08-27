@@ -4,13 +4,16 @@ import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   ParkedSale,
-  PromotionUptake,
   PosReading,
   PosReceiptPosted,
   PosSession,
   PosSessionClosed,
   PosSessionDetail,
   PosStation,
+  PrintedDocument,
+  PrintPreview,
+  PrintTemplates,
+  PromotionUptake,
   TenderKind,
 } from './asap-api.models';
 
@@ -62,6 +65,48 @@ export class PosService {
   session(sessionNo: string): Promise<PosSessionDetail> {
     return firstValueFrom(
       this.http.get<PosSessionDetail>(`${this.base}/sessions/${encodeURIComponent(sessionNo)}`),
+    );
+  }
+
+  /** The print templates, and the fields each kind may use. */
+  printTemplates(): Promise<PrintTemplates> {
+    return firstValueFrom(this.http.get<PrintTemplates>(`${this.base}/print-templates`));
+  }
+
+  /** Writes a template, or changes one that exists. */
+  saveTemplate(request: {
+    code: string;
+    name: string;
+    content: string;
+    nameArabic?: string | null;
+    widthInCharacters?: number;
+    branchId?: string | null;
+    isDefault?: boolean;
+    isActive?: boolean;
+  }): Promise<unknown> {
+    return firstValueFrom(this.http.post(`${this.base}/print-templates`, request));
+  }
+
+  /** Renders a template that has not been saved, against a real receipt. */
+  previewTemplate(content: string, widthInCharacters = 42, receiptNo?: string): Promise<PrintPreview> {
+    return firstValueFrom(
+      this.http.post<PrintPreview>(`${this.base}/print-templates/preview`, {
+        content,
+        widthInCharacters,
+        receiptNo: receiptNo ?? null,
+      }),
+    );
+  }
+
+  /** Renders a posted receipt through the template its till would use. */
+  printReceipt(receiptNo: string, template?: string): Promise<PrintedDocument> {
+    const params = template ? new HttpParams().set('template', template) : new HttpParams();
+
+    return firstValueFrom(
+      this.http.get<PrintedDocument>(
+        `${this.base}/receipts/${encodeURIComponent(receiptNo)}/print`,
+        { params },
+      ),
     );
   }
 

@@ -50,22 +50,60 @@ public static partial class MessageTemplateRenderer
                 return match.Value;
             }
 
-            if (value is null)
-            {
-                return string.Empty;
-            }
+            var text = Text(value, match, effectiveCulture);
 
-            if (Iso(value) is { } isoDate)
-            {
-                return isoDate;
-            }
-
-            var format = match.Groups["format"].Success ? match.Groups["format"].Value : null;
-
-            return format is not null && value is IFormattable formattable
-                ? formattable.ToString(format, effectiveCulture)
-                : Convert.ToString(value, effectiveCulture) ?? string.Empty;
+            return Align(text, match);
         });
+    }
+
+    /// <summary>Turns one value into its text, before any padding.</summary>
+    private static string Text(object? value, Match match, CultureInfo culture)
+    {
+        if (value is null)
+        {
+            return string.Empty;
+        }
+
+        if (Iso(value) is { } isoDate)
+        {
+            return isoDate;
+        }
+
+        var format = match.Groups["format"].Success ? match.Groups["format"].Value : null;
+
+        return format is not null && value is IFormattable formattable
+            ? formattable.ToString(format, culture)
+            : Convert.ToString(value, culture) ?? string.Empty;
+    }
+
+    /// <summary>
+    /// Pads a rendered value to a width, the way .NET composite formatting does.
+    /// </summary>
+    /// <remarks>
+    /// <c>{Total,10:N2}</c> right-aligns in ten characters and <c>{Description,-20}</c> left-
+    /// aligns in twenty. Messages have no use for it; a receipt has nothing but. A fixed-width
+    /// document is columns of characters, and without padding the only way to line a column up
+    /// is to hope every value is the same length as the one it was designed against.
+    /// </remarks>
+    private static string Align(string text, Match match)
+    {
+        if (!match.Groups["align"].Success)
+        {
+            return text;
+        }
+
+        if (!int.TryParse(
+                match.Groups["align"].Value,
+                NumberStyles.AllowLeadingSign,
+                CultureInfo.InvariantCulture,
+                out var width))
+        {
+            return text;
+        }
+
+        // Wider than the field is the field's problem, not the value's. Truncating would hide a
+        // figure, and a receipt missing a digit off a total is worse than one out of line.
+        return width < 0 ? text.PadRight(-width) : text.PadLeft(width);
     }
 
     /// <summary>
@@ -115,8 +153,12 @@ public static partial class MessageTemplateRenderer
         return names;
     }
 
-    // {Name} or {Name:format}. The name is a plain identifier; the format runs to the closing
-    // brace, which covers every standard and custom .NET format string in practice.
-    [GeneratedRegex(@"\{(?<name>[A-Za-z_][A-Za-z0-9_]*)(?::(?<format>[^}]+))?\}", RegexOptions.CultureInvariant)]
+    // {Name}, {Name:format}, {Name,width} or {Name,width:format}. The name is a plain
+    // identifier; the width is a signed integer, negative for left-aligned, exactly as .NET
+    // composite formatting reads it; the format runs to the closing brace, which covers every
+    // standard and custom format string in practice.
+    [GeneratedRegex(
+        @"\{(?<name>[A-Za-z_][A-Za-z0-9_]*)(?:,(?<align>-?\d+))?(?::(?<format>[^}]+))?\}",
+        RegexOptions.CultureInvariant)]
     private static partial Regex PlaceholderPattern();
 }

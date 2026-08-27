@@ -1,9 +1,11 @@
 using ASAP.Api.Infrastructure;
+using ASAP.Modules.Pos.Printing;
 using ASAP.Modules.Pos.Receipts;
 using ASAP.Modules.Pos.Reporting;
 using ASAP.Modules.Pos.Sessions;
 using ASAP.Modules.Pos.Stations;
 using ASAP.Platform.Kernel.Security;
+using ASAP.Platform.Kernel.Tenancy;
 using ASAP.Platform.Persistence;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -99,7 +101,37 @@ public sealed record PosStationView(
     bool IsBlocked,
     string? OpenSessionNo);
 
-/// <summary>Tills, sessions and receipts.</summary>
+/// <summary>What a client sends to write a print template.</summary>
+/// <param name="Code">Its code.</param>
+/// <param name="Name">What it is called.</param>
+/// <param name="Content">The layout.</param>
+/// <param name="NameArabic">What it is called in Arabic.</param>
+/// <param name="Kind">What it is for.</param>
+/// <param name="WidthInCharacters">How wide the paper is.</param>
+/// <param name="BranchId">One branch's own, or null for the company's.</param>
+/// <param name="IsDefault">Whether it is used when nothing names another.</param>
+/// <param name="IsActive">Whether it is still in use.</param>
+public sealed record SavePrintTemplateRequest(
+    string Code,
+    string Name,
+    string Content,
+    string? NameArabic = null,
+    PrintTemplateKind Kind = PrintTemplateKind.Receipt,
+    int WidthInCharacters = 42,
+    Guid? BranchId = null,
+    bool IsDefault = false,
+    bool IsActive = true);
+
+/// <summary>What a client sends to see what an unsaved template would print.</summary>
+/// <param name="Content">The layout as it stands in the editor.</param>
+/// <param name="WidthInCharacters">How wide the paper is.</param>
+/// <param name="ReceiptNo">A receipt to render, or null for the most recent one posted.</param>
+public sealed record PreviewPrintTemplateRequest(
+    string Content,
+    int WidthInCharacters = 42,
+    string? ReceiptNo = null);
+
+/// <summary>Point of sale: tills, sessions and receipts.</summary>
 public static class PosEndpoints
 {
     private const string StationReadPermission = "Pos.Station.Read";
@@ -162,6 +194,22 @@ public static class PosEndpoints
         group.MapDelete("/parked/{receiptNo}", VoidAsync)
              .WithName("VoidPosSale")
              .WithSummary("Throws a parked sale away. Voided rather than deleted.");
+
+        group.MapGet("/receipts/{receiptNo}/print", PrintReceiptAsync)
+             .WithName("PrintReceipt")
+             .WithSummary("Renders a receipt through a print template.");
+
+        group.MapGet("/print-templates", TemplatesAsync)
+             .WithName("PrintTemplates")
+             .WithSummary("Lists the print templates, and the fields each kind may use.");
+
+        group.MapPost("/print-templates", SaveTemplateAsync)
+             .WithName("SavePrintTemplate")
+             .WithSummary("Writes a template, or changes one that exists.");
+
+        group.MapPost("/print-templates/preview", PreviewTemplateAsync)
+             .WithName("PreviewPrintTemplate")
+             .WithSummary("Renders a template that has not been saved against a real receipt.");
 
         group.MapGet("/reports/promotions", PromotionsReportAsync)
              .WithName("PosPromotionUptake")
@@ -602,6 +650,190 @@ public static class PosEndpoints
     /// A receipt runs through Inventory's posting engine and Finance's, so a sale at a till can
     /// meet rules belonging to three modules besides this one.
     /// </remarks>
+    private static async Task<IResult> PrintReceiptAsync(
+        string receiptNo,
+        ReceiptPrintService printing,
+        IUserContext user,
+        HttpContext http,
+        [FromQuery] string? template,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, "Pos.Receipt.Read"))
+        {
+            return Forbidden("Pos.Receipt.Read", "print a receipt", http);
+        }
+
+        var result = await printing
+            .ReceiptAsync(receiptNo, template, cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.Ok(result.Value);
+    }
+
+    private static async Task<IResult> TemplatesAsync(
+        AsapDbContext context,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, "Pos.Station.Read"))
+        {
+            return Forbidden("Pos.Station.Read", "see print templates", http);
+        }
+
+        var templates = await context.Set<PrintTemplate>()
+            .AsNoTracking()
+            .OrderBy(static t => t.Kind)
+            .ThenBy(static t => t.Code)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return Results.Ok(new
+        {
+            templates = templates.Select(static t => new
+            {
+                code = t.Code,
+                name = t.Name,
+                nameArabic = t.NameArabic,
+                kind = t.Kind.ToString(),
+                content = t.Content,
+                widthInCharacters = t.WidthInCharacters,
+                branchId = t.BranchId,
+                isDefault = t.IsDefault,
+                isActive = t.IsActive,
+            }),
+
+            // Sent with the list so the editor can show what a template may refer to. A template
+            // language whose fields have to be guessed at is one nobody writes against.
+            fields = ReceiptPrintService.FieldsFor(PrintTemplateKind.Receipt)
+                .Select(static f => new { region = f.Region, field = f.Field }),
+        });
+    }
+
+    private static async Task<IResult> SaveTemplateAsync(
+        SavePrintTemplateRequest request,
+        AsapDbContext context,
+        ITenantContext tenant,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, "Pos.Station.Update"))
+        {
+            return Forbidden("Pos.Station.Update", "change print templates", http);
+        }
+
+        var existing = await context.Set<PrintTemplate>()
+            .FirstOrDefaultAsync(t => t.Code == request.Code, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (existing is null)
+        {
+            context.Set<PrintTemplate>().Add(new PrintTemplate
+            {
+                TenantId = tenant.TenantId ?? Guid.Empty,
+                CompanyId = tenant.RequireCompanyId(),
+                Code = request.Code,
+                Name = request.Name,
+                NameArabic = request.NameArabic,
+                Kind = request.Kind,
+                Content = request.Content,
+                WidthInCharacters = request.WidthInCharacters,
+                BranchId = request.BranchId,
+                IsDefault = request.IsDefault,
+                IsActive = request.IsActive,
+            });
+        }
+        else
+        {
+            existing.Name = request.Name;
+            existing.NameArabic = request.NameArabic;
+            existing.Kind = request.Kind;
+            existing.Content = request.Content;
+            existing.WidthInCharacters = request.WidthInCharacters;
+            existing.BranchId = request.BranchId;
+            existing.IsDefault = request.IsDefault;
+            existing.IsActive = request.IsActive;
+        }
+
+        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(new { code = request.Code, created = existing is null });
+    }
+
+    /// <summary>
+    /// Renders an unsaved template against a real receipt.
+    /// </summary>
+    /// <remarks>
+    /// Against a real one rather than an invented one. A layout that looks right beside made-up
+    /// figures is how a receipt ships with a total column too narrow for four digits.
+    /// </remarks>
+    private static async Task<IResult> PreviewTemplateAsync(
+        PreviewPrintTemplateRequest request,
+        AsapDbContext context,
+        ReceiptPrintService printing,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, "Pos.Station.Read"))
+        {
+            return Forbidden("Pos.Station.Read", "preview a print template", http);
+        }
+
+        var receiptNo = request.ReceiptNo;
+
+        if (string.IsNullOrWhiteSpace(receiptNo))
+        {
+            receiptNo = await context.Set<PosReceipt>()
+                .AsNoTracking()
+                .Where(static r => r.Status == PosReceiptStatus.Posted)
+                .OrderByDescending(static r => r.TakenAtUtc)
+                .Select(static r => r.No)
+                .FirstOrDefaultAsync(cancellationToken)
+                .ConfigureAwait(false);
+        }
+
+        if (string.IsNullOrWhiteSpace(receiptNo))
+        {
+            return Results.Ok(new
+            {
+                text = string.Empty,
+                widthInCharacters = request.WidthInCharacters,
+                receiptNo = (string?)null,
+            });
+        }
+
+        // Saved into nothing: the content on the wire is rendered directly, so somebody can see
+        // what an edit does before committing the shop to it.
+        var scratch = new PrintTemplate
+        {
+            TenantId = Guid.Empty,
+            CompanyId = Guid.Empty,
+            Code = "PREVIEW",
+            Name = "Preview",
+            Content = request.Content,
+            WidthInCharacters = request.WidthInCharacters,
+        };
+
+        var rendered = await printing
+            .PreviewAsync(receiptNo, scratch, cancellationToken)
+            .ConfigureAwait(false);
+
+        return rendered.Failed
+            ? Refused(rendered, http)
+            : Results.Ok(new
+            {
+                text = rendered.Value.Text,
+                widthInCharacters = rendered.Value.WidthInCharacters,
+                receiptNo,
+            });
+    }
+
     private static IReadOnlySet<string> Overrides(IUserContext user)
         => new[]
            {

@@ -39,6 +39,11 @@ public sealed class PosSeeder(AsapDbContext context, ILogger<PosSeeder> logger)
         Guid companyId,
         CancellationToken cancellationToken = default)
     {
+        // Before the till check, and on its own terms. A company upgraded to a version that
+        // has print templates has tills already and no template, and would otherwise be a shop
+        // whose receipts cannot print because the seeder decided it had nothing to do.
+        await SeedReceiptTemplateAsync(tenantId, companyId, cancellationToken).ConfigureAwait(false);
+
         var alreadySet = await context.Set<PosStation>()
             .IgnoreQueryFilters()
             .AnyAsync(s => s.CompanyId == companyId, cancellationToken)
@@ -107,6 +112,72 @@ public sealed class PosSeeder(AsapDbContext context, ILogger<PosSeeder> logger)
         logger.LogInformation("Created {Count} till(s) for company {CompanyId}.", created, companyId);
 
         return created > 0;
+    }
+
+    /// <summary>
+    /// The receipt layout a company starts with.
+    /// </summary>
+    /// <remarks>
+    /// Shipped so a till can print on its first day, and editable so it does not have to stay
+    /// this. Forty-two characters is the usual eighty-millimetre roll.
+    /// </remarks>
+    private async Task SeedReceiptTemplateAsync(
+        Guid tenantId,
+        Guid companyId,
+        CancellationToken cancellationToken)
+    {
+        var already = await context.Set<Printing.PrintTemplate>()
+            .IgnoreQueryFilters()
+            .AnyAsync(
+                t => t.CompanyId == companyId && t.Kind == Printing.PrintTemplateKind.Receipt,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        if (already)
+        {
+            return;
+        }
+
+        const string content = """
+            {StationName,-42}
+            ------------------------------------------
+            Receipt {ReceiptNo}
+            {TakenAtUtc}
+
+            [[lines]]{Description,-42}
+              {Quantity,-6:0.##} x {UnitPrice,-9:N2}{LineAmount,22:N2}
+            [[/lines]]------------------------------------------
+            Net{NetAmount,39:N2}
+            Discount{DiscountAmount,34:N2}
+            Tax{TaxAmount,39:N2}
+            Rounding{RoundingAmount,34:N2}
+            TOTAL{TotalAmount,37:N2}
+
+            [[tenders]]{Kind,-22}{Amount,20:N2}
+            [[/tenders]]Change{ChangeGiven,36:N2}
+
+            ------------------------------------------
+                     Thank you for shopping
+                      Keep your receipt
+
+            """;
+
+        context.Set<Printing.PrintTemplate>().Add(new Printing.PrintTemplate
+        {
+            TenantId = tenantId,
+            CompanyId = companyId,
+            Code = "RECEIPT",
+            Name = "Till receipt",
+            NameArabic = "إيصال الصندوق",
+            Kind = Printing.PrintTemplateKind.Receipt,
+            WidthInCharacters = 42,
+            IsDefault = true,
+            Content = content,
+        });
+
+        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        logger.LogInformation("Seeded the receipt template for company {CompanyId}.", companyId);
     }
 
     /// <summary>

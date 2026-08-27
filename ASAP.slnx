@@ -14,6 +14,7 @@
     <Project Path="src/Modules/ASAP.Modules.Purchasing/ASAP.Modules.Purchasing.csproj" />
     <Project Path="src/Modules/ASAP.Modules.Sales/ASAP.Modules.Sales.csproj" />
     <Project Path="src/Modules/ASAP.Modules.Promotions/ASAP.Modules.Promotions.csproj" />
+    <Project Path="src/Modules/ASAP.Modules.Hr/ASAP.Modules.Hr.csproj" />
     <Project Path="src/Modules/ASAP.Modules.Pos/ASAP.Modules.Pos.csproj" />
   </Folder>
   <Folder Name="/src/Sdk/">
@@ -27,6 +28,7 @@
     <Project Path="tests/ASAP.Modules.Sales.Tests/ASAP.Modules.Sales.Tests.csproj" />
     <Project Path="tests/ASAP.Modules.Pos.Tests/ASAP.Modules.Pos.Tests.csproj" />
     <Project Path="tests/ASAP.Modules.Promotions.Tests/ASAP.Modules.Promotions.Tests.csproj" />
+    <Project Path="tests/ASAP.Modules.Hr.Tests/ASAP.Modules.Hr.Tests.csproj" />
     <Project Path="tests/ASAP.Conformance.Tests/ASAP.Conformance.Tests.csproj" />
   </Folder>
 </Solution>

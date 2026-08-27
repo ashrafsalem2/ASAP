@@ -122,6 +122,7 @@ public static class AsapModules
         new Modules.Inventory.InventoryModule(),
         new Modules.Purchasing.PurchasingModule(),
         new Modules.Promotions.PromotionsModule(),
+        new Modules.Hr.HrModule(),
         new Modules.Sales.SalesModule(),
         new Modules.Pos.PosModule(),
     ];
@@ -133,6 +134,7 @@ public static class AsapModules
         new Modules.Inventory.InventorySchema(),
         new Modules.Purchasing.PurchasingSchema(),
         new Modules.Promotions.PromotionsSchema(),
+        new Modules.Hr.HrSchema(),
         new Modules.Sales.SalesSchema(),
         new Modules.Pos.PosSchema(),
     ];

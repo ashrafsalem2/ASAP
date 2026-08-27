@@ -154,11 +154,17 @@ Everything else posts here, so it goes first.
 
 ## Phase 7 — Human resources
 
-- Employees, contracts, positions, org structure
-- Branch assignment and transfer between branches, with the effective date driving payroll split
+- **done** Employees and positions. Contracts as a separate versioned document still to come
+- **done** Branch assignment as an effective-dated history rather than a column, so payroll can
+  split a month between two branches on the day somebody transferred. A column would charge the
+  whole month wherever they happened to be on payday, and the branch they left would look cheaper
+  than it was every time anybody moved
 - Head-office hiring, onboarding and offboarding
-- Attendance, shifts, leave types, balances and accrual
-- Payroll: earnings, deductions, end-of-service, and posting into finance
+- *in progress* **Leave accrual done** — twenty-one days a year rising to thirty after five, accrued by the day rather than granted in a lump, with the rate changing partway through the year it changes in. Attendance, shifts and a leave register still to come
+- *in progress* **End of service done** — half a month a year for the first five and a full month
+  thereafter, cumulative like tax bands rather than revalued at the final rate, and reduced by
+  tenure on resignation. The bands are data, so another jurisdiction is a policy and not a fork.
+  Earnings, deductions and posting into finance still to come
 - Employee self-service
 - Reports: headcount, turnover, cost per branch, leave liability
 

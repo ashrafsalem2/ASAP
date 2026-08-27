@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>ASAP.Modules.Hr</RootNamespace>
+    <Description>ASAP ERP human resources module: employees, effective-dated branch assignment, and the statutory leave and end-of-service entitlements.</Description>
+  </PropertyGroup>
+
+  <!--
+    HR posts payroll and carries an end-of-service provision, both of which are Finance's tables.
+    It does not touch stock. See docs/architecture/module-dependencies.md.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\ASAP.Modules.Finance\ASAP.Modules.Finance.csproj" />
+  </ItemGroup>
+</Project>

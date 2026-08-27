@@ -86,6 +86,7 @@ Everything else posts here, so it goes first.
 - Landed cost applied across an item charge
 - **done** Posting into inventory and the vendor ledger, through a goods-received-not-invoiced
   accrual so the company owes for stock from the day it lands rather than the day the post does
+- **done** Client screens: purchase orders, goods receipt and vendor invoice
 - Reports: purchase analysis, vendor performance, open orders
 
 ## Phase 4 — Sales

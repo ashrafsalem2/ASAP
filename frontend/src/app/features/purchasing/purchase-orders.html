@@ -1,0 +1,190 @@
+<div class="page">
+  <h1>{{ t('purchasing.orders.title') }}</h1>
+
+  @if (canCreate()) {
+    <section class="panel">
+      <div class="panel__header">
+        <h2>{{ t('purchasing.orders.create') }}</h2>
+      </div>
+
+      <p class="panel__body page__intro">{{ t('purchasing.orders.intro') }}</p>
+
+      <div class="panel__body draft">
+        <div class="field draft__vendor">
+          <label class="field__label" for="vendorNo">{{ t('purchasing.orders.vendor') }}</label>
+          <select id="vendorNo" class="select" [(ngModel)]="vendorNo" [disabled]="creating()">
+            <option value=""></option>
+            @for (vendor of vendors(); track vendor.no) {
+              <option [value]="vendor.no">{{ nameOf(vendor) }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="locationCode">{{ t('purchasing.orders.location') }}</label>
+          <select id="locationCode" class="select" [(ngModel)]="locationCode" [disabled]="creating()">
+            <option value=""></option>
+            @for (location of locations(); track location.code) {
+              <option [value]="location.code">{{ location.code }} — {{ location.name }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="field draft__note">
+          <label class="field__label" for="description">{{ t('purchasing.orders.note') }}</label>
+          <input id="description" class="input" [(ngModel)]="description" [disabled]="creating()" />
+        </div>
+      </div>
+
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th class="draft__col-type">{{ t('purchasing.orders.buying') }}</th>
+              <th>{{ t('purchasing.orders.item') }}</th>
+              <th class="numeric draft__col-number">{{ t('purchasing.orders.ordered') }}</th>
+              <th class="numeric draft__col-number">{{ t('purchasing.orders.unitCost') }}</th>
+              <th class="draft__col-tax">{{ t('finance.journal.tax') }}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (line of draft; track $index) {
+              <tr>
+                <td>
+                  <select
+                    class="select"
+                    [value]="line.type"
+                    [disabled]="creating()"
+                    (change)="changeType($index, $any($event.target).value)"
+                  >
+                    <option value="Item">{{ t('purchasing.orders.item') }}</option>
+                    <option value="GlAccount">{{ t('purchasing.orders.costAccount') }}</option>
+                  </select>
+                </td>
+
+                <td>
+                  <!-- The choices follow the type, so an account number can never sit in a row
+                       buying stock. -->
+                  <select class="select" [(ngModel)]="line.no" [disabled]="creating()">
+                    <option value=""></option>
+                    @for (choice of choicesFor(line); track choice.value) {
+                      <option [value]="choice.value">{{ choice.label }}</option>
+                    }
+                  </select>
+                </td>
+
+                <td class="numeric">
+                  <input
+                    class="input input--number"
+                    type="number"
+                    inputmode="decimal"
+                    min="0"
+                    [(ngModel)]="line.quantity"
+                    [disabled]="creating()"
+                  />
+                </td>
+
+                <td class="numeric">
+                  <input
+                    class="input input--number"
+                    type="number"
+                    inputmode="decimal"
+                    min="0"
+                    [(ngModel)]="line.directUnitCost"
+                    [disabled]="creating()"
+                  />
+                </td>
+
+                <td>
+                  <select class="select" [(ngModel)]="line.taxCode" [disabled]="creating()">
+                    <option value=""></option>
+                    @for (code of taxCodes(); track code.code) {
+                      <option [value]="code.code">{{ taxLabel(code) }}</option>
+                    }
+                  </select>
+                </td>
+
+                <td>
+                  @if (draft.length > 1) {
+                    <button
+                      type="button"
+                      class="button button--quiet"
+                      [disabled]="creating()"
+                      (click)="removeLine($index)"
+                    >
+                      {{ t('purchasing.orders.removeLine') }}
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel__body draft__actions">
+        <button type="button" class="button" [disabled]="creating()" (click)="addLine()">
+          + {{ t('purchasing.orders.addLine') }}
+        </button>
+
+        <button
+          type="button"
+          class="button button--primary"
+          [disabled]="!isReady() || creating()"
+          (click)="create()"
+        >
+          @if (creating()) {
+            <span class="spinner"></span>
+            {{ t('purchasing.orders.creating') }}
+          } @else {
+            {{ t('purchasing.orders.create') }}
+          }
+        </button>
+      </div>
+    </section>
+  }
+
+  <section class="panel">
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('purchasing.orders.no') }}</th>
+              <th>{{ t('purchasing.orders.vendor') }}</th>
+              <th>{{ t('purchasing.orders.status') }}</th>
+              <th>{{ t('purchasing.orders.orderDate') }}</th>
+              <th>{{ t('purchasing.orders.location') }}</th>
+              <th class="numeric">{{ t('purchasing.orders.total') }}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (order of orders(); track order.no) {
+              <tr>
+                <td class="code">{{ order.no }}</td>
+                <td>{{ order.vendorName }}</td>
+                <td><span class="tag">{{ order.status }}</span></td>
+                <td class="code">{{ order.orderDate }}</td>
+                <td class="code">{{ order.locationCode }}</td>
+                <td class="numeric">{{ i18n.total(order.totalAmount) }}</td>
+                <td>
+                  <a class="button button--quiet" [routerLink]="['./', order.no]">
+                    {{ t('purchasing.orders.openOrder') }}
+                  </a>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="7" class="empty">{{ t('purchasing.orders.nothingYet') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+</div>

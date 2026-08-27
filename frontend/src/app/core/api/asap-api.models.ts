@@ -319,6 +319,98 @@ export interface TaxReturn {
   entriesAlreadyFiled: number;
 }
 
+/** Where a purchase order stands. */
+export type PurchaseOrderStatus =
+  | 'Open'
+  | 'Released'
+  | 'PartiallyReceived'
+  | 'Received'
+  | 'Invoiced'
+  | 'Cancelled';
+
+/** One line of a purchase order. */
+export interface PurchaseOrderLine {
+  lineNo: number;
+  type: 'Item' | 'GlAccount';
+  no?: string;
+  description: string;
+  locationCode?: string;
+  quantity: number;
+  directUnitCost: number;
+  taxCode?: string;
+  lineAmount: number;
+  quantityReceived: number;
+  quantityInvoiced: number;
+
+  /** How much is still to arrive. */
+  outstandingToReceive: number;
+
+  /** Arrived and still awaiting an invoice. What the accrual is built from. */
+  receivedNotInvoiced: number;
+}
+
+/** An order placed with a vendor. */
+export interface PurchaseOrder {
+  no: string;
+  vendorNo: string;
+  vendorName: string;
+  status: PurchaseOrderStatus;
+  orderDate: string;
+  expectedReceiptDate?: string;
+  locationCode?: string;
+  vendorOrderNo?: string;
+  description?: string;
+  totalAmount: number;
+  isEditable: boolean;
+  lines: PurchaseOrderLine[];
+}
+
+/** What a client sends to raise a purchase order. */
+export interface CreatePurchaseOrderRequest {
+  vendorNo: string;
+  lines: {
+    type: 'Item' | 'GlAccount';
+    no: string;
+    quantity: number;
+    directUnitCost: number;
+    description?: string;
+    taxCode?: string;
+    locationCode?: string;
+  }[];
+  locationCode?: string;
+  expectedReceiptDate?: string;
+  description?: string;
+  vendorOrderNo?: string;
+}
+
+/** What raising an order produced. */
+export interface PurchaseOrderCreated {
+  order: PurchaseOrder;
+  messages?: AsapMessage[];
+}
+
+/** What a goods receipt moved. */
+export interface GoodsReceiptResult {
+  orderNo: string;
+  transactionNo: number;
+  lineCount: number;
+  value: number;
+  status: PurchaseOrderStatus;
+  messages?: AsapMessage[];
+}
+
+/** What a vendor invoice posted. */
+export interface PurchaseInvoiceResult {
+  orderNo: string;
+  transactionNo: number;
+  documentNo: string;
+  netAmount: number;
+  taxAmount: number;
+  totalAmount: number;
+  status: PurchaseOrderStatus;
+  messages?: AsapMessage[];
+}
+
 /** Which subsidiary ledger something belongs to. */
 export type PartyKind = 'Customer' | 'Vendor';
 

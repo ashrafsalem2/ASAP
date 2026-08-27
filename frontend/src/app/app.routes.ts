@@ -103,6 +103,18 @@ export const routes: Routes = [
           import('./features/finance/balance-sheet').then((m) => m.BalanceSheetReport),
       },
       {
+        path: 'purchasing/orders',
+        canActivate: [requirePermission('Purchasing.Order.Read')],
+        loadComponent: () =>
+          import('./features/purchasing/purchase-orders').then((m) => m.PurchaseOrders),
+      },
+      {
+        path: 'purchasing/orders/:orderNo',
+        canActivate: [requirePermission('Purchasing.Order.Read')],
+        loadComponent: () =>
+          import('./features/purchasing/purchase-order').then((m) => m.PurchaseOrderDetail),
+      },
+      {
         path: 'inventory/transfers',
         canActivate: [requirePermission('Inventory.Transfer.Read')],
         loadComponent: () => import('./features/inventory/transfers').then((m) => m.Transfers),

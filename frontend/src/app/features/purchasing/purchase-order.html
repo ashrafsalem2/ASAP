@@ -1,0 +1,225 @@
+<div class="page">
+  <div class="header">
+    <h1><span class="code">{{ orderNo }}</span></h1>
+
+    <div class="header__actions">
+      @if (canRelease()) {
+        <button
+          type="button"
+          class="button"
+          [disabled]="busy() !== null"
+          (click)="release()"
+        >
+          {{ t('purchasing.orders.release') }}
+        </button>
+      }
+
+      <a class="button button--quiet" routerLink="/purchasing/orders">
+        {{ t('purchasing.orders.back') }}
+      </a>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+  } @else if (order(); as po) {
+    <p class="page__intro">
+      <span class="tag">{{ po.status }}</span>
+      {{ po.vendorName }}
+      @if (po.locationCode) {
+        · {{ t('purchasing.orders.location') }} <span class="code">{{ po.locationCode }}</span>
+      }
+      · <strong class="numeric">{{ i18n.total(po.totalAmount) }}</strong>
+    </p>
+
+    <section class="panel">
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('purchasing.orders.item') }}</th>
+              <th>{{ t('finance.journal.description') }}</th>
+              <th class="numeric">{{ t('purchasing.orders.ordered') }}</th>
+              <th class="numeric">{{ t('purchasing.orders.unitCost') }}</th>
+              <th class="numeric">{{ t('purchasing.orders.received') }}</th>
+              <th class="numeric">{{ t('purchasing.orders.invoiced') }}</th>
+              <th class="numeric">{{ t('purchasing.orders.toReceive') }}</th>
+              <th class="numeric">{{ t('purchasing.orders.toInvoice') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (line of po.lines; track line.lineNo) {
+              <tr>
+                <td class="code">{{ line.no }}</td>
+                <td>{{ line.description }}</td>
+                <td class="numeric">{{ quantity(line.quantity) }}</td>
+                <td class="numeric">{{ i18n.total(line.directUnitCost) }}</td>
+                <td class="numeric">{{ quantity(line.quantityReceived) }}</td>
+                <td class="numeric">{{ quantity(line.quantityInvoiced) }}</td>
+                <td class="numeric" [class.order__waiting]="line.outstandingToReceive > 0">
+                  {{ quantity(line.outstandingToReceive) }}
+                </td>
+
+                <!-- What has arrived and is still awaiting an invoice: the figure the accrual is
+                     built from, and the one somebody chasing paperwork actually wants. -->
+                <td class="numeric" [class.order__accrued]="line.receivedNotInvoiced > 0">
+                  {{ quantity(line.receivedNotInvoiced) }}
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    @if (canReceive() && canReceiveAnything()) {
+      <section class="panel">
+        <div class="panel__header">
+          <h2>{{ t('purchasing.receipt.title') }}</h2>
+        </div>
+
+        <p class="panel__body order__hint">{{ t('purchasing.receipt.hint') }}</p>
+
+        <div class="panel__body draft">
+          <div class="field">
+            <label class="field__label" for="deliveryNo">
+              {{ t('purchasing.receipt.deliveryNo') }}
+            </label>
+            <input id="deliveryNo" class="input code" [(ngModel)]="deliveryNo" />
+          </div>
+        </div>
+
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('purchasing.orders.item') }}</th>
+                <th class="numeric">{{ t('purchasing.orders.toReceive') }}</th>
+                <th class="numeric">{{ t('purchasing.receipt.arrived') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (line of po.lines; track line.lineNo) {
+                @if (line.outstandingToReceive > 0) {
+                  <tr>
+                    <td class="code">{{ line.no }} <span class="order__desc">{{ line.description }}</span></td>
+                    <td class="numeric">{{ quantity(line.outstandingToReceive) }}</td>
+                    <td class="numeric">
+                      <input
+                        class="input input--number input--compact"
+                        type="number"
+                        inputmode="decimal"
+                        min="0"
+                        [placeholder]="quantity(line.outstandingToReceive)"
+                        [ngModel]="receiptOf(line)"
+                        (ngModelChange)="setReceipt(line, $event)"
+                      />
+                    </td>
+                  </tr>
+                }
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div class="panel__body draft__actions">
+          <button
+            type="button"
+            class="button button--primary"
+            [disabled]="busy() !== null"
+            (click)="receive()"
+          >
+            @if (busy() === 'receive') {
+              <span class="spinner"></span>
+              {{ t('purchasing.receipt.working') }}
+            } @else {
+              {{ t('purchasing.receipt.action') }}
+            }
+          </button>
+        </div>
+      </section>
+    }
+
+    @if (canInvoice() && canInvoiceAnything()) {
+      <section class="panel">
+        <div class="panel__header">
+          <h2>{{ t('purchasing.invoice.title') }}</h2>
+        </div>
+
+        <p class="panel__body order__hint">{{ t('purchasing.invoice.hint') }}</p>
+
+        <div class="panel__body draft">
+          <div class="field">
+            <label class="field__label" for="invoiceNo">
+              {{ t('purchasing.invoice.invoiceNo') }}
+            </label>
+            <input id="invoiceNo" class="input code" [(ngModel)]="invoiceNo" />
+          </div>
+        </div>
+
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('purchasing.orders.item') }}</th>
+                <th class="numeric">{{ t('purchasing.orders.toInvoice') }}</th>
+                <th class="numeric">{{ t('purchasing.orders.unitCost') }}</th>
+                <th class="numeric">{{ t('purchasing.invoice.billed') }}</th>
+                <th class="numeric">{{ t('purchasing.invoice.price') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (line of po.lines; track line.lineNo) {
+                @if (line.receivedNotInvoiced > 0) {
+                  <tr>
+                    <td class="code">{{ line.no }} <span class="order__desc">{{ line.description }}</span></td>
+                    <td class="numeric">{{ quantity(line.receivedNotInvoiced) }}</td>
+                    <td class="numeric">{{ i18n.total(line.directUnitCost) }}</td>
+                    <td class="numeric">
+                      <input
+                        class="input input--number input--compact"
+                        type="number"
+                        inputmode="decimal"
+                        min="0"
+                        [placeholder]="quantity(line.receivedNotInvoiced)"
+                        [ngModel]="invoiceQuantityOf(line)"
+                        (ngModelChange)="setInvoiceQuantity(line, $event)"
+                      />
+                    </td>
+                    <td class="numeric">
+                      <input
+                        class="input input--number input--compact"
+                        type="number"
+                        inputmode="decimal"
+                        min="0"
+                        [placeholder]="i18n.total(line.directUnitCost)"
+                        [ngModel]="invoicePriceOf(line)"
+                        (ngModelChange)="setInvoicePrice(line, $event)"
+                      />
+                    </td>
+                  </tr>
+                }
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div class="panel__body draft__actions">
+          <button
+            type="button"
+            class="button button--primary"
+            [disabled]="busy() !== null"
+            (click)="invoice()"
+          >
+            @if (busy() === 'invoice') {
+              <span class="spinner"></span>
+              {{ t('purchasing.invoice.working') }}
+            } @else {
+              {{ t('purchasing.invoice.action') }}
+            }
+          </button>
+        </div>
+      </section>
+    }
+  }
+</div>

@@ -13,6 +13,7 @@
     <ProjectReference Include="..\..\src\Modules\ASAP.Modules.Finance\ASAP.Modules.Finance.csproj" />
     <ProjectReference Include="..\..\src\Modules\ASAP.Modules.Inventory\ASAP.Modules.Inventory.csproj" />
     <ProjectReference Include="..\..\src\Modules\ASAP.Modules.Purchasing\ASAP.Modules.Purchasing.csproj" />
+    <ProjectReference Include="..\..\src\Modules\ASAP.Modules.Sales\ASAP.Modules.Sales.csproj" />
     <ProjectReference Include="..\..\src\Platform\ASAP.Platform.Core\ASAP.Platform.Core.csproj" />
   </ItemGroup>
 

@@ -139,6 +139,10 @@ public sealed class TaxPostingService(AsapDbContext context, ITenantContext tena
     /// Writes the tax entries a posting produced.
     /// </summary>
     /// <param name="computed">What <see cref="Compute"/> produced.</param>
+    /// <param name="lines">
+    /// The lines the tax came from, read for the party a tax entry should name. The tax return is
+    /// filed per counterparty, so an entry that cannot say whose it is has to be chased by hand.
+    /// </param>
     /// <param name="request">What the entries should say about themselves.</param>
     /// <param name="transactionNo">The number grouping this posting.</param>
     /// <returns>How many tax entries were written.</returns>

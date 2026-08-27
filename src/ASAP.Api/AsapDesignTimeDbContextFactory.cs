@@ -121,6 +121,7 @@ public static class AsapModules
         new FinanceModule(),
         new Modules.Inventory.InventoryModule(),
         new Modules.Purchasing.PurchasingModule(),
+        new Modules.Sales.SalesModule(),
     ];
 
     /// <summary>Every built-in module that owns tables.</summary>
@@ -129,5 +130,6 @@ public static class AsapModules
         new FinanceSchema(),
         new Modules.Inventory.InventorySchema(),
         new Modules.Purchasing.PurchasingSchema(),
+        new Modules.Sales.SalesSchema(),
     ];
 }

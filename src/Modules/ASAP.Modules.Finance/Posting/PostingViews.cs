@@ -159,6 +159,11 @@ public sealed record PostingTaxView(
 /// The customer or vendor this line posts to, when it posts to one rather than straight to an
 /// account.
 /// </param>
+/// <param name="ExternalDocumentNo">
+/// The other side's own reference, such as the number printed on the vendor's invoice. Carried on
+/// the party entry, where it is what somebody searches by when a supplier telephones.
+/// </param>
+/// <param name="Tax">The tax to post beside this line, or null for a line carrying none.</param>
 /// <remarks>
 /// A line naming a party still produces an ordinary general ledger entry -- on the party's control
 /// account -- and a subsidiary ledger entry beside it, in the same transaction. That is what makes
@@ -243,6 +248,10 @@ public readonly record struct MandatoryDimensionView(
 /// <param name="IsManualEntry">
 /// True when a person is posting by hand. Modules posting their own documents set this false, so
 /// the inventory module can write to the inventory account that a clerk may not.
+/// </param>
+/// <param name="TaxAccountsByNo">
+/// The accounts a generated tax line may land on. Supplied separately because tax accounts are
+/// control accounts nobody names by hand, so they never appear among the lines being posted.
 /// </param>
 public sealed record PostingEnvironment(
     string BatchCode,

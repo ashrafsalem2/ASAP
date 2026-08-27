@@ -87,9 +87,6 @@ public sealed class PurchaseOrder : CompanyEntity
     /// <summary>A note for whoever handles it.</summary>
     public string? Description { get; set; }
 
-    /// <summary>Who raised it.</summary>
-    public Guid? CreatedBy { get; set; }
-
     /// <summary>The lines on the order.</summary>
     public ICollection<PurchaseOrderLine> Lines { get; set; } = [];
 

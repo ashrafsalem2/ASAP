@@ -2,7 +2,6 @@ using ASAP.Modules.Finance.Journals;
 using ASAP.Modules.Finance.Ledger;
 using ASAP.Modules.Finance.Posting;
 using ASAP.Modules.Finance.Tax;
-using ASAP.Platform.Kernel.Cqrs;
 using ASAP.Platform.Kernel.Messaging;
 using ASAP.Platform.Kernel.Results;
 using ASAP.Platform.Kernel.Setup;
@@ -68,7 +67,7 @@ public readonly record struct PurchaseInvoiceReceipt(
 /// </remarks>
 /// <param name="context">The unit of work.</param>
 /// <param name="orders">Loads the order.</param>
-/// <param name="dispatcher">Posts the journal.</param>
+/// <param name="documents">Posts the journal, as a document rather than by hand.</param>
 /// <param name="messages">Renders refusals.</param>
 /// <param name="overrides">Records every protection this invoice pushed past.</param>
 /// <param name="setup">Supplies the accrual and variance accounts.</param>
@@ -77,7 +76,7 @@ public readonly record struct PurchaseInvoiceReceipt(
 public sealed class PurchaseInvoiceService(
     AsapDbContext context,
     PurchaseOrderService orders,
-    IDispatcher dispatcher,
+    DocumentPostingService documents,
     IMessageCatalog messages,
     OverrideAuditor overrides,
     ISetupService setup,
@@ -144,14 +143,21 @@ public sealed class PurchaseInvoiceService(
         var rates = await RatesAsync(billed, cancellationToken).ConfigureAwait(false);
         var journal = BuildJournal(order, billed, accrualAccount, varianceAccount, rates);
 
-        var posted = await dispatcher
-            .SendAsync(
-                new PostJournalCommand(
-                    "DEFAULT",
-                    journal.Lines,
-                    vendorInvoiceNo,
-                    $"{order.VendorName} — {order.No}",
-                    overrideReason),
+        var posted = await documents
+            .PostAsync(
+                new DocumentPosting(
+                    BatchCode: order.No,
+                    Lines: journal.Lines,
+                    SourceCode: "PURCH",
+
+                    // Not a person keying a journal. Purchasing owns the accrual account it is
+                    // clearing, and the restriction on that account exists to leave room for
+                    // exactly this.
+                    IsManualEntry: false,
+                    DocumentType: GlDocumentType.Invoice,
+                    DocumentNo: vendorInvoiceNo,
+                    Description: $"{order.VendorName} — {order.No}",
+                    OverrideReason: overrideReason),
                 cancellationToken)
             .ConfigureAwait(false);
 

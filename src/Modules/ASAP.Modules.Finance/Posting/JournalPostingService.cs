@@ -49,7 +49,6 @@ public readonly record struct PostingReceipt(
 /// <param name="events">Gives extensions their say, and announces the result.</param>
 /// <param name="messages">Renders messages.</param>
 /// <param name="tenantContext">Supplies the company and branch being posted in.</param>
-/// <param name="userContext">Supplies who is posting, for the audit trail.</param>
 /// <param name="clock">Supplies the time.</param>
 /// <param name="transactionNumbers">Issues the number that groups the entries.</param>
 /// <param name="logger">Records postings and refusals.</param>
@@ -62,7 +61,6 @@ public sealed class JournalPostingService(
     IEventPublisher events,
     IMessageCatalog messages,
     ITenantContext tenantContext,
-    IUserContext userContext,
     IClock clock,
     ITransactionNumberAllocator transactionNumbers,
     ILogger<JournalPostingService> logger)

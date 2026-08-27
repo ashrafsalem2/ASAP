@@ -26,6 +26,12 @@ namespace ASAP.Platform.Persistence;
 /// Nothing here saves. The rows join whatever transaction the caller is already in, so the trail
 /// and the entries it describes commit together or not at all.
 /// </para>
+/// <para>
+/// A message is recorded once however many layers see it. Sales asks Inventory to move stock and
+/// passes the messages it gets back to its own <see cref="Record"/> call, which wrote the same
+/// override twice and made one negative-stock decision look like two. The row that survives is
+/// the innermost one, which names the layer that actually raised the block.
+/// </para>
 /// </remarks>
 /// <param name="context">The unit of work.</param>
 /// <param name="tenantContext">Supplies the company and branch.</param>
@@ -37,6 +43,12 @@ public sealed class OverrideAuditor(
     IUserContext userContext,
     IClock clock)
 {
+    // By reference, not by value: two identical refusals on two different lines are two overrides
+    // and both belong in the trail. What must not be counted twice is one message seen twice on
+    // its way up.
+    private readonly HashSet<AsapMessage> recorded =
+        new(ReferenceEqualityComparer.Instance as IEqualityComparer<AsapMessage>);
+
     /// <summary>
     /// Writes an audit row for every message that was a refusal until the caller overrode it.
     /// </summary>
@@ -44,7 +56,7 @@ public sealed class OverrideAuditor(
     /// <param name="entityType">What was being posted, for example <c>Finance.GlEntry</c>.</param>
     /// <param name="displayNo">The document number a person would recognise it by.</param>
     /// <param name="reason">Why the caller says they pushed past it.</param>
-    /// <returns>How many overrides were recorded.</returns>
+    /// <returns>How many overrides this call recorded, not counting any already in the trail.</returns>
     public int Record(
         IEnumerable<AsapMessage> messages,
         string entityType,
@@ -53,7 +65,7 @@ public sealed class OverrideAuditor(
     {
         ArgumentNullException.ThrowIfNull(messages);
 
-        var recorded = 0;
+        var written = 0;
 
         foreach (var message in messages)
         {
@@ -61,6 +73,14 @@ public sealed class OverrideAuditor(
             // shape of a message that was never more than a warning, and logging those as
             // overrides would bury the real ones.
             if (!message.WasOverridden)
+            {
+                continue;
+            }
+
+            // Already written by a layer below. Recording it again would report one decision as
+            // two, and "how many times did we sell below cost last month" is a question people
+            // answer by counting these rows.
+            if (!this.recorded.Add(message))
             {
                 continue;
             }
@@ -85,9 +105,9 @@ public sealed class OverrideAuditor(
                 Changes = message.Detail,
             });
 
-            recorded++;
+            written++;
         }
 
-        return recorded;
+        return written;
     }
 }

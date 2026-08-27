@@ -317,6 +317,7 @@ public sealed class DemoSeeder(
         // Gapless for anything a tax authority may ask about; gap-tolerant for internal
         // documents, which are far more numerous and have no such duty.
         Add("GJ", "General journal", allowGaps: true, "GJ-{YYYY}-00001");
+        Add("SALES-ORD", "Sales orders", allowGaps: true, "SO-{YYYY}-00001");
         Add("SALES-INV", "Sales invoices", allowGaps: false, "INV-{YYYY}-00001");
         Add("SALES-CM", "Sales credit memos", allowGaps: false, "SCM-{YYYY}-00001");
         Add("PURCH-ORD", "Purchase orders", allowGaps: true, "PO-{YYYY}-00001");

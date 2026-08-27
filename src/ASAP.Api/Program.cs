@@ -156,6 +156,7 @@ app.MapPartyEndpoints();
 app.MapInventoryEndpoints();
 app.MapTransferEndpoints();
 app.MapPurchasingEndpoints();
+app.MapSalesEndpoints();
 app.MapNavigationEndpoints();
 
 await StartupTasks.RunAsync(app, moduleCatalog).ConfigureAwait(false);

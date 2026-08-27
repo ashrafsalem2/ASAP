@@ -51,6 +51,7 @@ public sealed class FinanceModule : IAsapModule
 
         services.AddScoped<JournalPostingValidator>();
         services.AddScoped<JournalPostingService>();
+        services.AddScoped<Journals.DocumentPostingService>();
         services.AddScoped<Parties.PartyLedgerWriter>();
         services.AddScoped<Parties.PartyApplicationService>();
         services.AddScoped<Tax.TaxPostingService>();

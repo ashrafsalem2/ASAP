@@ -12,6 +12,7 @@
     <Project Path="src/Modules/ASAP.Modules.Finance/ASAP.Modules.Finance.csproj" />
     <Project Path="src/Modules/ASAP.Modules.Inventory/ASAP.Modules.Inventory.csproj" />
     <Project Path="src/Modules/ASAP.Modules.Purchasing/ASAP.Modules.Purchasing.csproj" />
+    <Project Path="src/Modules/ASAP.Modules.Sales/ASAP.Modules.Sales.csproj" />
   </Folder>
   <Folder Name="/src/Sdk/">
     <Project Path="src/Sdk/ASAP.Extensions.Sdk/ASAP.Extensions.Sdk.csproj" />
@@ -21,6 +22,7 @@
     <Project Path="tests/ASAP.Modules.Finance.Tests/ASAP.Modules.Finance.Tests.csproj" />
     <Project Path="tests/ASAP.Modules.Inventory.Tests/ASAP.Modules.Inventory.Tests.csproj" />
     <Project Path="tests/ASAP.Modules.Purchasing.Tests/ASAP.Modules.Purchasing.Tests.csproj" />
+    <Project Path="tests/ASAP.Modules.Sales.Tests/ASAP.Modules.Sales.Tests.csproj" />
     <Project Path="tests/ASAP.Conformance.Tests/ASAP.Conformance.Tests.csproj" />
   </Folder>
 </Solution>

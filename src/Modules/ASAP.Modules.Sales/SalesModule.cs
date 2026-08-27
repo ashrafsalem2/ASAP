@@ -1,0 +1,214 @@
+using ASAP.Platform.Kernel.Messaging;
+using ASAP.Platform.Kernel.Modules;
+using ASAP.Platform.Kernel.Security;
+using ASAP.Platform.Kernel.Setup;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+
+namespace ASAP.Modules.Sales;
+
+/// <summary>
+/// The Sales module: orders, shipments, invoices, and the checks that guard them.
+/// </summary>
+public sealed class SalesModule : IAsapModule
+{
+    /// <summary>The module identifier used in every Sales permission and setting key.</summary>
+    public const string Id = "Sales";
+
+    /// <inheritdoc />
+    public string ModuleId => Id;
+
+    /// <inheritdoc />
+    public LocalizedText DisplayName => new("Sales", "المبيعات");
+
+    /// <inheritdoc />
+    public LocalizedText Description => new(
+        "Sales orders, shipments and invoices, with availability checked against stock and credit "
+        + "checked against the customer.",
+        "أوامر البيع والشحنات والفواتير، مع التحقق من توفر المخزون وحد ائتمان العميل.");
+
+    /// <inheritdoc />
+    public Version Version => new(1, 0, 0);
+
+    /// <summary>
+    /// Sales sits above Inventory and Finance, exactly as Purchasing does.
+    /// </summary>
+    /// <remarks>
+    /// A shipment is a stock movement and an invoice is a customer ledger entry. See
+    /// docs/architecture/module-dependencies.md.
+    /// </remarks>
+    public IReadOnlyCollection<string> DependsOn =>
+    [
+        Platform.Core.Modules.PlatformModule.Id,
+        Modules.Inventory.InventoryModule.Id,
+        Modules.Finance.FinanceModule.Id,
+    ];
+
+    /// <inheritdoc />
+    public IReadOnlyCollection<MessageDefinition> Messages => SalesMessages.All;
+
+    /// <inheritdoc />
+    public void ConfigureServices(IServiceCollection services, IConfiguration configuration)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        services.AddScoped<Orders.SalesOrderService>();
+        services.AddScoped<Orders.SalesShipmentService>();
+        services.AddScoped<Orders.SalesInvoiceService>();
+    }
+
+    /// <inheritdoc />
+    public IReadOnlyCollection<PermissionDescriptor> Permissions =>
+    [
+        PermissionDescriptor.Define(
+            Id, "Order", PermissionAction.Read,
+            new LocalizedText("View sales orders", "عرض أوامر البيع")),
+
+        PermissionDescriptor.Define(
+            Id, "Order", PermissionAction.Create,
+            new LocalizedText("Take sales orders", "تسجيل أوامر البيع"),
+            implies: [$"{Id}.Order.Read"]),
+
+        PermissionDescriptor.Define(
+            Id, "Order", PermissionAction.Update,
+            new LocalizedText("Change sales orders", "تعديل أوامر البيع"),
+            implies: [$"{Id}.Order.Read"]),
+
+        PermissionDescriptor.Define(
+            Id, "Shipment", PermissionAction.Post,
+            new LocalizedText("Ship goods", "شحن البضائع"),
+            new LocalizedText(
+                "Record that goods have left. This takes stock out and charges what it cost to "
+                + "cost of sales.",
+                "تسجيل خروج البضاعة. يخصم هذا من المخزون ويُحمّل تكلفته على تكلفة المبيعات."),
+            implies: [$"{Id}.Order.Read"],
+            isSensitive: true),
+
+        PermissionDescriptor.Define(
+            Id, "Invoice", PermissionAction.Post,
+            new LocalizedText("Post sales invoices", "ترحيل فواتير المبيعات"),
+            new LocalizedText(
+                "Turn what has shipped into a debt the customer owes. Separate from shipping, "
+                + "because deciding what to charge is not the same job as packing a box.",
+                "تحويل ما شُحن إلى دين على العميل. وهي منفصلة عن الشحن، لأن تحديد ما يُحاسَب عليه "
+                + "ليس نفس عمل تجهيز الشحنة."),
+            implies: [$"{Id}.Order.Read"],
+            isSensitive: true),
+
+        PermissionDescriptor.Define(
+            Id, "Order", PermissionAction.Override,
+            new LocalizedText(
+                "Sell to a blocked customer, or past what the order allows",
+                "البيع لعميل محظور أو بما يتجاوز أمر البيع"),
+            new LocalizedText(
+                "Take an order from a customer whose account is stopped, ship more than was "
+                + "ordered, or invoice more than shipped. Every use is audited.",
+                "تسجيل أمر لعميل موقوف الحساب، أو شحن أكثر من المطلوب، أو فوترة أكثر مما شُحن. "
+                + "ويتم تدقيق كل استخدام."),
+            implies: [$"{Id}.Order.Read"],
+            isSensitive: true),
+
+        PermissionDescriptor.Define(
+            Id, "Report", PermissionAction.Read,
+            new LocalizedText("Run sales reports", "تشغيل تقارير المبيعات")),
+    ];
+
+    /// <inheritdoc />
+    public IReadOnlyCollection<SetupDescriptor> Setups =>
+    [
+        new()
+        {
+            Key = $"{Id}.Posting.RevenueAccount",
+            Module = Id,
+            Group = new LocalizedText("Posting", "الترحيل"),
+            DisplayName = new LocalizedText("Sales revenue", "إيرادات المبيعات"),
+            Description = new LocalizedText(
+                "Where the value of what is sold is credited. Item lines can be routed to their "
+                + "own accounts through the item category later; this is what everything else "
+                + "posts to.",
+                "الحساب الذي تُرحّل إليه قيمة المبيعات. ويمكن لاحقًا توجيه سطور الأصناف إلى "
+                + "حسابات خاصة عبر تصنيف الصنف، وهذا هو الحساب الافتراضي لما عداها."),
+            ValueType = SetupValueType.Text,
+            Scope = SetupScope.Company,
+            DefaultValue = "4100",
+            RequiresPermission = $"{Id}.Order.Update",
+            HelpTopic = "sales/setup",
+        },
+        new()
+        {
+            Key = $"{Id}.Posting.DiscountAccount",
+            Module = Id,
+            Group = new LocalizedText("Posting", "الترحيل"),
+            DisplayName = new LocalizedText("Discounts given", "الخصومات الممنوحة"),
+            Description = new LocalizedText(
+                "Where discounts are posted, so what the company gives away is visible in its own "
+                + "right. Netting a discount off revenue hides it: the profit is the same and "
+                + "nobody can answer how much was discounted last quarter.",
+                "الحساب الذي تُرحّل إليه الخصومات، ليظهر ما تتنازل عنه الشركة بشكل مستقل. فخصمها "
+                + "من الإيراد مباشرة يُخفيها: الربح واحد، لكن لا أحد يستطيع الإجابة عن حجم "
+                + "الخصومات في الربع الماضي."),
+            ValueType = SetupValueType.Text,
+            Scope = SetupScope.Company,
+            DefaultValue = "4300",
+            RequiresPermission = $"{Id}.Order.Update",
+            HelpTopic = "sales/setup",
+        },
+        new()
+        {
+            Key = $"{Id}.Orders.NumberSeries",
+            Module = Id,
+            Group = new LocalizedText("Numbering", "الترقيم"),
+            DisplayName = new LocalizedText("Sales order numbers", "ترقيم أوامر البيع"),
+            Description = new LocalizedText(
+                "The series sales order numbers are issued from.",
+                "المسلسل الذي تصدر منه أرقام أوامر البيع."),
+            ValueType = SetupValueType.Text,
+            Scope = SetupScope.Company,
+            DefaultValue = "SALES-ORD",
+            RequiresPermission = $"{Id}.Order.Update",
+            HelpTopic = "sales/setup",
+        },
+        new()
+        {
+            Key = $"{Id}.Invoices.NumberSeries",
+            Module = Id,
+            Group = new LocalizedText("Numbering", "الترقيم"),
+            DisplayName = new LocalizedText("Sales invoice numbers", "ترقيم فواتير المبيعات"),
+            Description = new LocalizedText(
+                "The series invoice numbers are issued from. Use a gapless series: a tax invoice "
+                + "sequence with holes in it is a question from the authority.",
+                "المسلسل الذي تصدر منه أرقام الفواتير. استخدم مسلسلاً بلا فجوات، فتسلسل الفواتير "
+                + "الضريبية المتقطع يستدعي استفسارًا من الهيئة."),
+            ValueType = SetupValueType.Text,
+            Scope = SetupScope.Company,
+            DefaultValue = "SALES-INV",
+            RequiresPermission = $"{Id}.Order.Update",
+            HelpTopic = "sales/setup",
+        },
+    ];
+
+    /// <inheritdoc />
+    public IReadOnlyCollection<NavigationItem> Navigation =>
+    [
+        new()
+        {
+            Id = "Sales.Root",
+            Module = Id,
+            DisplayName = new LocalizedText("Sales", "المبيعات"),
+            Kind = NavigationKind.Group,
+            Icon = "sales",
+            Order = 400,
+        },
+        new()
+        {
+            Id = "Sales.Orders",
+            Module = Id,
+            ParentId = "Sales.Root",
+            DisplayName = new LocalizedText("Sales orders", "أوامر البيع"),
+            Kind = NavigationKind.Page,
+            Route = "/sales/orders",
+            RequiresPermission = $"{Id}.Order.Read",
+            Order = 10,
+        },
+    ];
+}

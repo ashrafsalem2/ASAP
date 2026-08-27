@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>ASAP.Modules.Sales</RootNamespace>
+    <Description>ASAP ERP Sales module: sales orders, shipments, invoices, and the availability and credit checks that guard them.</Description>
+  </PropertyGroup>
+
+  <!--
+    Sales sits above Inventory and Finance for the same reason Purchasing does: a shipment is a
+    stock movement and an invoice is a customer ledger entry. See
+    docs/architecture/module-dependencies.md.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\ASAP.Modules.Inventory\ASAP.Modules.Inventory.csproj" />
+    <ProjectReference Include="..\ASAP.Modules.Finance\ASAP.Modules.Finance.csproj" />
+  </ItemGroup>
+</Project>

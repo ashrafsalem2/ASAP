@@ -28,6 +28,7 @@ public sealed class ModuleDependencyTests
         new ASAP.Modules.Finance.FinanceModule(),
         new ASAP.Modules.Inventory.InventoryModule(),
         new ASAP.Modules.Purchasing.PurchasingModule(),
+        new ASAP.Modules.Promotions.PromotionsModule(),
         new ASAP.Modules.Sales.SalesModule(),
         new ASAP.Modules.Pos.PosModule(),
     ];

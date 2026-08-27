@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>ASAP.Modules.Promotions</RootNamespace>
+    <Description>ASAP ERP Promotions module: offers, the rules that pick between them, and the margin floor they cannot go below.</Description>
+  </PropertyGroup>
+
+  <!--
+    Promotions needs what things cost, which Inventory owns, and somewhere to post what it gives
+    away, which Finance owns. Sales and point of sale call it rather than the other way round:
+    pricing happens before either of them posts anything. See
+    docs/architecture/module-dependencies.md.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\ASAP.Modules.Inventory\ASAP.Modules.Inventory.csproj" />
+    <ProjectReference Include="..\ASAP.Modules.Finance\ASAP.Modules.Finance.csproj" />
+  </ItemGroup>
+</Project>

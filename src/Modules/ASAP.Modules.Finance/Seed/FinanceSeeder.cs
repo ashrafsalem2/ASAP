@@ -220,6 +220,10 @@ public sealed class FinanceSeeder(AsapDbContext context, ILogger<FinanceSeeder> 
         // Discount given lands on its own account rather than netting against revenue, so the cost
         // of promotion is visible in the profit and loss instead of hidden inside a lower sales figure.
         Add("4300", "Discounts given", "الخصومات الممنوحة", GlAccountCategory.Income, directPosting: false);
+
+        // Separate from the discount above on purpose. Both are money given away; only one of
+        // them is a campaign somebody chose to run and should be able to total the cost of.
+        Add("4350", "Promotions given", "قيمة العروض الممنوحة", GlAccountCategory.Income, directPosting: false);
         Add("4900", "Other income", "إيرادات أخرى", GlAccountCategory.Income);
 
         // Cost of sales

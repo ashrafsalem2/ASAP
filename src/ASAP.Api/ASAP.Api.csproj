@@ -10,6 +10,7 @@
     <ProjectReference Include="..\Modules\ASAP.Modules.Inventory\ASAP.Modules.Inventory.csproj" />
     <ProjectReference Include="..\Modules\ASAP.Modules.Purchasing\ASAP.Modules.Purchasing.csproj" />
     <ProjectReference Include="..\Modules\ASAP.Modules.Sales\ASAP.Modules.Sales.csproj" />
+    <ProjectReference Include="..\Modules\ASAP.Modules.Promotions\ASAP.Modules.Promotions.csproj" />
     <ProjectReference Include="..\Modules\ASAP.Modules.Pos\ASAP.Modules.Pos.csproj" />
   </ItemGroup>
   <ItemGroup>

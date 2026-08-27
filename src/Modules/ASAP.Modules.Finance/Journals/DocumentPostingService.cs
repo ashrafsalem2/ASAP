@@ -27,6 +27,13 @@ namespace ASAP.Modules.Finance.Journals;
 /// would otherwise silently acquire, or silently lose, the protection that keeps hand-keyed
 /// entries out of control accounts.
 /// </param>
+/// <param name="PartyKind">
+/// Whose side of the tax return this document belongs to, when the caller knows and the lines
+/// cannot say. A cash sale at a till names no customer anywhere -- the money is in the drawer,
+/// nobody owes anything -- so there is nothing for the inference below to read, and its discount
+/// contra would be classed as reclaimable input tax by its sign alone. Null means work it out
+/// from the lines, which is right for any document that does name a party.
+/// </param>
 /// <param name="DocumentType">What kind of document this is, for reporting.</param>
 /// <param name="DocumentNo">The document number the entries carry.</param>
 /// <param name="Description">Default description for lines that supply none.</param>
@@ -38,6 +45,7 @@ public sealed record DocumentPosting(
     IReadOnlyList<PostJournalLine> Lines,
     string SourceCode,
     bool IsManualEntry,
+    PartyKind? PartyKind = null,
     GlDocumentType DocumentType = GlDocumentType.None,
     string? DocumentNo = null,
     string? Description = null,
@@ -129,7 +137,7 @@ public sealed class DocumentPostingService(
         // of the line. A sales invoice that shows its discount separately has a revenue line
         // and a contra line; judged by sign alone the contra reads as a purchase, and its tax
         // would be claimed back instead of reducing what is owed.
-        var documentKind = DocumentPartyKind(request.Lines, parties);
+        var documentKind = request.PartyKind ?? DocumentPartyKind(request.Lines, parties);
 
         var lines = request.Lines
             .Select((line, index) =>

@@ -1,4 +1,5 @@
 using ASAP.Modules.Finance.Journals;
+using ASAP.Modules.Finance.Parties;
 using ASAP.Modules.Finance.Ledger;
 using ASAP.Modules.Finance.Tax;
 using ASAP.Platform.Kernel.Messaging;
@@ -155,6 +156,10 @@ public sealed class SalesInvoiceService(
                     // it is writing to, and the whole reason those accounts refuse direct posting
                     // is to leave the writing to this.
                     IsManualEntry: false,
+
+                    // Stated rather than inferred. It is true of every line here whether or
+                    // not the line names the customer, and the discount contra names nobody.
+                    PartyKind: PartyKind.Customer,
                     DocumentType: GlDocumentType.Invoice,
                     DocumentNo: numbered.Value,
                     Description: $"{order.CustomerName} — {order.No}",
@@ -320,7 +325,7 @@ public sealed class SalesInvoiceService(
                     ["LineNo"] = line.LineNo,
                     ["ItemNo"] = line.ItemNo ?? line.AccountNo,
                     ["Invoiced"] = quantity,
-                    ["Outstanding"] = line.ShippedNotInvoiced,
+                    ["OutstandingQuantity"] = line.ShippedNotInvoiced,
                 },
                 MessageTarget.OnField($"Lines[{line.LineNo}]"));
 

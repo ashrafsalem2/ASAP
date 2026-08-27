@@ -1,0 +1,941 @@
+using ASAP.Modules.Finance.Journals;
+using ASAP.Modules.Finance.Ledger;
+using ASAP.Modules.Finance.Parties;
+using ASAP.Modules.Inventory.Items;
+using ASAP.Modules.Inventory.Ledger;
+using ASAP.Modules.Inventory.Posting;
+using ASAP.Modules.Pos.Sessions;
+using ASAP.Modules.Pos.Stations;
+using ASAP.Platform.Kernel.Messaging;
+using ASAP.Platform.Kernel.Numbering;
+using ASAP.Platform.Kernel.Results;
+using ASAP.Platform.Kernel.Setup;
+using ASAP.Platform.Kernel.Time;
+using ASAP.Platform.Persistence;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
+
+namespace ASAP.Modules.Pos.Receipts;
+
+/// <summary>One thing being rung up.</summary>
+/// <param name="Type">Whether it sells stock or a charge.</param>
+/// <param name="No">The item number, or the account number on a charge line.</param>
+/// <param name="Quantity">How much. Negative takes goods back.</param>
+/// <param name="UnitPrice">The price, or zero to take the item's own.</param>
+/// <param name="DiscountPercent">A discount off this line.</param>
+/// <param name="Description">What it says on the receipt. Falls back to the item name.</param>
+/// <param name="TaxCode">The tax to charge. Falls back to the item's own.</param>
+public readonly record struct PosLineRequest(
+    PosLineType Type,
+    string No,
+    decimal Quantity,
+    decimal UnitPrice = 0m,
+    decimal DiscountPercent = 0m,
+    string? Description = null,
+    string? TaxCode = null);
+
+/// <summary>Money put towards a receipt.</summary>
+/// <param name="Kind">What kind of money it is.</param>
+/// <param name="Amount">How much was handed over, change included.</param>
+/// <param name="Reference">The card's last four, the voucher number, whatever identifies it.</param>
+public readonly record struct PosTenderRequest(
+    TenderKind Kind,
+    decimal Amount,
+    string? Reference = null);
+
+/// <summary>What a receipt posted.</summary>
+/// <param name="ReceiptNo">The receipt number issued.</param>
+/// <param name="TransactionNo">The transaction the entries posted under.</param>
+/// <param name="NetAmount">The goods, after discount and before tax.</param>
+/// <param name="DiscountAmount">What was given away.</param>
+/// <param name="TaxAmount">Tax charged.</param>
+/// <param name="RoundingAmount">What was rounded off to make the total payable.</param>
+/// <param name="TotalAmount">What the customer paid.</param>
+/// <param name="ChangeGiven">What was handed back.</param>
+/// <param name="CostAmount">What the goods cost, charged to cost of sales.</param>
+public readonly record struct PosReceiptPosted(
+    string ReceiptNo,
+    long TransactionNo,
+    decimal NetAmount,
+    decimal DiscountAmount,
+    decimal TaxAmount,
+    decimal RoundingAmount,
+    decimal TotalAmount,
+    decimal ChangeGiven,
+    decimal CostAmount);
+
+/// <summary>
+/// Rings up a sale at a till and takes the money for it.
+/// </summary>
+/// <remarks>
+/// <para>
+/// One transaction does everything a sale at a counter involves: stock leaves at what it cost,
+/// revenue is credited at list with the discount as a contra, tax lands on what the customer
+/// actually pays, and the money goes wherever that kind of money goes. There is no order, no
+/// shipment and no invoice, because at a till those three happen in the same second and pretending
+/// otherwise would mean three documents for a bottle of water.
+/// </para>
+/// <para>
+/// What it does not do is invent a different way of accounting for a sale. The revenue and tax
+/// entries are the same shape a sales invoice writes, deliberately: a company that reports its
+/// shop takings differently from its trade sales cannot add them up.
+/// </para>
+/// </remarks>
+/// <param name="context">The unit of work.</param>
+/// <param name="messages">Renders refusals.</param>
+/// <param name="overrides">Records every protection a receipt pushed past.</param>
+/// <param name="stock">Moves the goods.</param>
+/// <param name="documents">Posts the money.</param>
+/// <param name="numbers">Issues the receipt number.</param>
+/// <param name="setup">Supplies the accounts, the rounding and the discount limit.</param>
+/// <param name="clock">Supplies the time and the business date.</param>
+/// <param name="logger">Records receipts posted.</param>
+public sealed class PosReceiptService(
+    AsapDbContext context,
+    IMessageCatalog messages,
+    OverrideAuditor overrides,
+    StockPostingService stock,
+    DocumentPostingService documents,
+    INumberSeriesService numbers,
+    ISetupService setup,
+    IClock clock,
+    ILogger<PosReceiptService> logger)
+{
+    /// <summary>
+    /// Rings a sale up, takes the money and posts everything.
+    /// </summary>
+    /// <param name="sessionNo">The open session it belongs to.</param>
+    /// <param name="lines">What is being sold.</param>
+    /// <param name="tenders">How it is being paid for.</param>
+    /// <param name="customerNo">Who to record it against, or null for the till's walk-in customer.</param>
+    /// <param name="returnsReceiptNo">The receipt being returned against, when there is one.</param>
+    /// <param name="heldOverridePermissions">Override permissions the caller holds.</param>
+    /// <param name="overrideReason">Why a protection is being pushed past.</param>
+    /// <param name="cancellationToken">Cancels the work.</param>
+    /// <returns>What posted, or every reason it did not.</returns>
+    public async Task<Result<PosReceiptPosted>> PostAsync(
+        string sessionNo,
+        IReadOnlyList<PosLineRequest> lines,
+        IReadOnlyList<PosTenderRequest> tenders,
+        string? customerNo = null,
+        string? returnsReceiptNo = null,
+        IReadOnlySet<string>? heldOverridePermissions = null,
+        string? overrideReason = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(lines);
+        ArgumentNullException.ThrowIfNull(tenders);
+
+        var found = new List<AsapMessage>();
+
+        var session = await context.Set<PosSession>()
+            .FirstOrDefaultAsync(s => s.No == sessionNo, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (session is null)
+        {
+            return Result<PosReceiptPosted>.Failure(
+                messages.Render(
+                    PosMessages.SessionNotFound,
+                    Args(("SessionNo", sessionNo))));
+        }
+
+        if (!session.IsOpen)
+        {
+            return Result<PosReceiptPosted>.Failure(
+                messages.Render(
+                    PosMessages.SessionClosed,
+                    Args(("SessionNo", session.No), ("ClosedAt", session.ClosedAtUtc))));
+        }
+
+        var station = await context.Set<PosStation>()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Code == session.StationCode, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (station is null)
+        {
+            return Result<PosReceiptPosted>.Failure(
+                messages.Render(
+                    PosMessages.StationNotFound,
+                    Args(("StationCode", session.StationCode))));
+        }
+
+        if (lines.Count == 0)
+        {
+            return Result<PosReceiptPosted>.Failure(
+                messages.Render(PosMessages.ReceiptHasNoLines, Args(("SessionNo", session.No))));
+        }
+
+        var items = await ResolveItemsAsync(lines, cancellationToken).ConfigureAwait(false);
+        var discountLimit = await DiscountLimitAsync(cancellationToken).ConfigureAwait(false);
+
+        var built = BuildLines(lines, items, discountLimit, heldOverridePermissions, found);
+
+        if (found.Exists(static m => m.IsFailure))
+        {
+            return Result<PosReceiptPosted>.Failure(found);
+        }
+
+        var settled = await SettleAsync(
+                station,
+                customerNo,
+                built,
+                tenders,
+                found,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        if (settled is null || found.Exists(static m => m.IsFailure))
+        {
+            return Result<PosReceiptPosted>.Failure(found);
+        }
+
+        var today = clock.Today;
+        var seriesCode = await SeriesCodeAsync(cancellationToken).ConfigureAwait(false);
+        var numbered = await numbers.NextAsync(seriesCode, today, cancellationToken).ConfigureAwait(false);
+
+        if (numbered.Failed)
+        {
+            return Result<PosReceiptPosted>.FailureFrom(numbered);
+        }
+
+        var receipt = NewReceipt(
+            session,
+            station,
+            settled,
+            built,
+            numbered.Value,
+            today,
+            clock.UtcNow,
+            returnsReceiptNo);
+
+        // Stock first. If the goods cannot move there is no sale to account for, and a till that
+        // took the money and then discovered that would have to give it back.
+        var cost = await MoveStockAsync(
+                receipt,
+                built,
+                heldOverridePermissions,
+                overrideReason,
+                found,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        if (found.Exists(static m => m.IsFailure))
+        {
+            return Result<PosReceiptPosted>.Failure(found);
+        }
+
+        receipt.CostAmount = cost;
+
+        var posted = await PostMoneyAsync(receipt, built, settled, overrideReason, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (posted.Failed)
+        {
+            return Result<PosReceiptPosted>.FailureFrom(posted);
+        }
+
+        found.AddRange(posted.Messages.Where(static m => m.Severity is not MessageSeverity.Success));
+
+        receipt.TransactionNo = posted.Value.TransactionNo;
+        receipt.Status = PosReceiptStatus.Posted;
+
+        context.Set<PosReceipt>().Add(receipt);
+
+        Accumulate(session, receipt, settled);
+
+        overrides.Record(found, "Pos.Receipt", receipt.No, overrideReason);
+
+        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        logger.LogInformation(
+            "Posted receipt {ReceiptNo} at {StationCode} for {TotalAmount}, {LineCount} line(s).",
+            receipt.No,
+            receipt.StationCode,
+            receipt.TotalAmount,
+            receipt.Lines.Count);
+
+        return Result<PosReceiptPosted>.Success(
+            new PosReceiptPosted(
+                receipt.No,
+                posted.Value.TransactionNo,
+                receipt.NetAmount,
+                receipt.DiscountAmount,
+                receipt.TaxAmount,
+                receipt.RoundingAmount,
+                receipt.TotalAmount,
+                receipt.ChangeGiven,
+                receipt.CostAmount),
+            found);
+    }
+
+    /// <summary>What a line came out as once the catalogue and the limits had their say.</summary>
+    private sealed record BuiltLine(
+        int LineNo,
+        PosLineType Type,
+        string No,
+        string Description,
+        decimal Quantity,
+        decimal UnitPrice,
+        decimal DiscountPercent,
+        string? TaxCode)
+    {
+        public decimal NetUnitPrice => UnitPrice * (1m - (DiscountPercent / 100m));
+
+        public decimal LineAmount => Quantity * NetUnitPrice;
+
+        public decimal DiscountAmount => Quantity * UnitPrice * (DiscountPercent / 100m);
+    }
+
+    /// <summary>What the money side of the receipt came to.</summary>
+    private sealed record Settlement(
+        string CustomerNo,
+        string CustomerName,
+        decimal NetAmount,
+        decimal DiscountAmount,
+        decimal TaxAmount,
+        decimal RoundingAmount,
+        decimal TotalAmount,
+        decimal ChangeGiven,
+        IReadOnlyList<PosTenderRequest> Tenders);
+
+    private List<BuiltLine> BuildLines(
+        IReadOnlyList<PosLineRequest> lines,
+        IReadOnlyDictionary<string, Item> items,
+        decimal discountLimit,
+        IReadOnlySet<string>? held,
+        List<AsapMessage> found)
+    {
+        var built = new List<BuiltLine>();
+
+        for (var index = 0; index < lines.Count; index++)
+        {
+            var line = lines[index];
+            var lineNo = index + 1;
+            var target = MessageTarget.OnField($"Lines[{lineNo}]");
+
+            var arguments = Args(("LineNo", lineNo), ("ItemNo", line.No));
+
+            if (line.Quantity == 0m)
+            {
+                found.Add(messages.Render(PosMessages.QuantityZero, arguments, target));
+                continue;
+            }
+
+            Item? item = null;
+
+            if (line.Type is PosLineType.Item)
+            {
+                if (!items.TryGetValue(line.No, out item))
+                {
+                    found.Add(messages.Render(PosMessages.ItemNotFound, arguments, target));
+                    continue;
+                }
+            }
+
+            // Zero means the shelf price, which is what a cashier scanning something means.
+            var unitPrice = line.UnitPrice != 0m ? line.UnitPrice : item?.UnitPrice ?? 0m;
+
+            var description = line.Description
+                ?? item?.Description
+                ?? line.No;
+
+            if (line.DiscountPercent > discountLimit)
+            {
+                arguments["DiscountPercent"] = line.DiscountPercent;
+                arguments["DiscountLimit"] = discountLimit;
+
+                found.Add(Raise(PosMessages.DiscountAboveLimit, arguments, held, target));
+            }
+
+            var net = unitPrice * (1m - (line.DiscountPercent / 100m));
+
+            // Said at the till, not found in a margin report next month. A return is not a sale
+            // below cost however the arithmetic reads, so only outbound lines are checked.
+            if (item is not null && line.Quantity > 0m && item.UnitCost > 0m && net < item.UnitCost)
+            {
+                found.Add(messages.Render(
+                    PosMessages.BelowCost,
+                    Args(
+                        ("LineNo", lineNo),
+                        ("ItemNo", line.No),
+                        ("Description", description),
+                        ("NetUnitPrice", net),
+                        ("UnitCost", item.UnitCost),
+                        ("LossPerUnit", item.UnitCost - net),
+                        ("Quantity", line.Quantity)),
+                    target));
+            }
+
+            built.Add(new BuiltLine(
+                lineNo,
+                line.Type,
+                line.No,
+                description,
+                line.Quantity,
+                unitPrice,
+                line.DiscountPercent,
+                line.TaxCode));
+        }
+
+        return built;
+    }
+
+    /// <summary>
+    /// Works out what is owed, what was paid, and what comes back.
+    /// </summary>
+    /// <remarks>
+    /// The order matters. Tax is charged on the goods, the total is then rounded to a coin that
+    /// exists, and only then is the payment measured against it — because rounding after taking
+    /// the money would leave every cash sale a halala out.
+    /// </remarks>
+    private async Task<Settlement?> SettleAsync(
+        PosStation station,
+        string? customerNo,
+        IReadOnlyList<BuiltLine> lines,
+        IReadOnlyList<PosTenderRequest> tenders,
+        List<AsapMessage> found,
+        CancellationToken cancellationToken)
+    {
+        var net = lines.Sum(static l => l.LineAmount);
+        var discount = lines.Sum(static l => l.DiscountAmount);
+        var tax = await TaxAsync(lines, cancellationToken).ConfigureAwait(false);
+
+        var beforeRounding = Round(net + tax);
+        var rounding = await RoundCashAsync(beforeRounding, tenders, cancellationToken).ConfigureAwait(false);
+        var total = beforeRounding + rounding;
+
+        var effectiveCustomerNo = customerNo ?? station.DefaultCustomerNo;
+
+        var customer = await context.Set<Customer>()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(c => c.No == effectiveCustomerNo, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (customer is null)
+        {
+            found.Add(messages.Render(
+                Finance.FinanceMessages.PartyNotFound,
+                Args(("PartyNo", effectiveCustomerNo), ("PartyKind", "customer"), ("LineNo", 0))));
+
+            return null;
+        }
+
+        var tendered = tenders.Sum(static t => t.Amount);
+        var change = tendered - total;
+
+        // Charging a walk-in's shopping to the walk-in account creates a debt owed by a person
+        // who has already left, against a customer record shared by everybody who ever paid cash.
+        if (customerNo is null
+            && tenders.Any(static t => t.Kind is TenderKind.OnAccount))
+        {
+            found.Add(messages.Render(
+                PosMessages.OnAccountNeedsCustomer,
+                Args(
+                    ("Amount", tenders.Where(static t => t.Kind is TenderKind.OnAccount).Sum(static t => t.Amount)),
+                    ("CustomerNo", effectiveCustomerNo))));
+        }
+
+        if (change < 0m)
+        {
+            found.Add(messages.Render(
+                PosMessages.Underpaid,
+                Args(
+                    ("TotalAmount", total),
+                    ("TenderedAmount", tendered),
+                    ("OutstandingAmount", -change))));
+        }
+        else if (change > 0m)
+        {
+            // Only notes and coins can come back. A card charged for more than the bill is not
+            // change, it is an overcharge somebody has to ring the acquirer about.
+            var cash = tenders.Where(static t => t.Kind is TenderKind.Cash).Sum(static t => t.Amount);
+
+            if (cash < change)
+            {
+                var offending = tenders.First(static t => t.Kind is not TenderKind.Cash);
+
+                found.Add(messages.Render(
+                    PosMessages.NoChangeFromTender,
+                    Args(
+                        ("TenderKind", offending.Kind.ToString()),
+                        ("TenderedAmount", tendered),
+                        ("TotalAmount", total),
+                        ("ChangeGiven", change))));
+            }
+        }
+
+        return new Settlement(
+            customer.No,
+            customer.Name,
+            Round(net),
+            Round(discount),
+            tax,
+            rounding,
+            total,
+            Round(Math.Max(change, 0m)),
+            tenders);
+    }
+
+    /// <summary>
+    /// Takes the goods off the shelf, valued by the costing engine.
+    /// </summary>
+    /// <remarks>
+    /// The price on the receipt has nothing to do with it. What leaves carries whatever the
+    /// costing engine says it cost, which is the only reason a margin means anything.
+    /// </remarks>
+    private async Task<decimal> MoveStockAsync(
+        PosReceipt receipt,
+        IReadOnlyList<BuiltLine> lines,
+        IReadOnlySet<string>? held,
+        string? overrideReason,
+        List<AsapMessage> found,
+        CancellationToken cancellationToken)
+    {
+        var movements = lines
+            .Where(static l => l.Type is PosLineType.Item)
+            .Select(l => new StockMovementRequest(
+                ItemNo: l.No,
+                LocationCode: receipt.LocationCode,
+
+                // Negative sells, positive takes back. The sign on the line already says which.
+                Quantity: -l.Quantity,
+
+                // Zero, because the engine values what leaves. A price here would be the customer
+                // paying for the goods and the company recording that as what they cost.
+                UnitCost: 0m,
+                EntryType: l.Quantity > 0m ? ItemLedgerEntryType.Sale : ItemLedgerEntryType.SalesReturn,
+                SalesAmount: l.LineAmount))
+            .ToList();
+
+        if (movements.Count == 0)
+        {
+            return 0m;
+        }
+
+        var allowsNegative = await setup
+            .GetAsync<bool>(
+                $"{Inventory.InventoryModule.Id}.Costing.AllowNegativeInventory",
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        var posted = await stock
+            .PostAsync(
+                movements,
+                receipt.BusinessDate,
+                "POS",
+                receipt.No,
+                allowsNegative,
+                held,
+                overrideReason,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        found.AddRange(posted.Messages);
+
+        // Reported as a positive cost, which is how anybody reading a receipt thinks about it.
+        return posted.Failed ? 0m : -posted.Value.CostAmount;
+    }
+
+    /// <summary>
+    /// Posts the money: revenue, tax, rounding and whatever was handed over.
+    /// </summary>
+    /// <remarks>
+    /// Revenue goes in at list with the discount beside it as a contra, and both carry the tax
+    /// code. Neither line alone is the taxable amount, so taxing each and letting them offset is
+    /// what leaves tax charged on what the customer actually pays — and leaves the discount
+    /// visible in the P&amp;L instead of buried in a lower price.
+    /// </remarks>
+    private async Task<Result<Finance.Posting.PostingReceipt>> PostMoneyAsync(
+        PosReceipt receipt,
+        IReadOnlyList<BuiltLine> lines,
+        Settlement settled,
+        string? overrideReason,
+        CancellationToken cancellationToken)
+    {
+        var revenueAccount = await AccountAsync($"{Sales.SalesModule.Id}.Posting.RevenueAccount", cancellationToken)
+            .ConfigureAwait(false);
+
+        var discountAccount = await AccountAsync($"{Sales.SalesModule.Id}.Posting.DiscountAccount", cancellationToken)
+            .ConfigureAwait(false);
+
+        var journal = new List<PostJournalLine>();
+
+        foreach (var line in lines)
+        {
+            var account = line.Type is PosLineType.GlAccount ? line.No : revenueAccount;
+
+            if (string.IsNullOrWhiteSpace(account))
+            {
+                continue;
+            }
+
+            var showDiscount = line.DiscountAmount != 0m && !string.IsNullOrWhiteSpace(discountAccount);
+
+            journal.Add(new PostJournalLine(
+                account,
+                -(showDiscount ? line.LineAmount + line.DiscountAmount : line.LineAmount),
+                line.Description,
+                TaxCode: line.TaxCode));
+
+            if (showDiscount)
+            {
+                journal.Add(new PostJournalLine(
+                    discountAccount!,
+                    line.DiscountAmount,
+                    $"{line.Description} — discount",
+                    TaxCode: line.TaxCode));
+            }
+        }
+
+        if (settled.RoundingAmount != 0m)
+        {
+            var roundingAccount = await AccountAsync($"{PosModule.Id}.Posting.RoundingAccount", cancellationToken)
+                .ConfigureAwait(false);
+
+            if (!string.IsNullOrWhiteSpace(roundingAccount))
+            {
+                // The customer pays the rounded total, so the difference is the company's gain or
+                // loss and belongs in the P&L rather than quietly inside revenue.
+                journal.Add(new PostJournalLine(
+                    roundingAccount,
+                    -settled.RoundingAmount,
+                    $"{receipt.No} — cash rounding"));
+            }
+        }
+
+        var tenderLines = await TenderLinesAsync(receipt, settled, cancellationToken).ConfigureAwait(false);
+
+        if (tenderLines.Failed)
+        {
+            return Result<Finance.Posting.PostingReceipt>.FailureFrom(tenderLines);
+        }
+
+        journal.AddRange(tenderLines.Value);
+
+        return await documents
+            .PostAsync(
+                new DocumentPosting(
+                    BatchCode: receipt.No,
+                    Lines: journal,
+                    SourceCode: "POS",
+
+                    // The till owns the revenue, cash and tax accounts it writes to. Nobody keyed
+                    // this; a queue of people paid for their shopping.
+                    IsManualEntry: false,
+
+                    // Stated, because a cash sale names no customer anywhere. Left to inference,
+                    // the discount contra would be read as reclaimable input tax by its sign.
+                    PartyKind: PartyKind.Customer,
+                    DocumentType: GlDocumentType.PosReceipt,
+                    DocumentNo: receipt.No,
+                    Description: $"{receipt.StationCode} — {receipt.No}",
+                    OverrideReason: overrideReason),
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Turns what was handed over into ledger lines.
+    /// </summary>
+    /// <remarks>
+    /// Cash is debited net of change, because the drawer keeps the difference and not the note.
+    /// Everything else is debited for what it was charged. An on-account tender is the only one
+    /// that names a party, and it is the only one that leaves a debt behind.
+    /// </remarks>
+    private async Task<Result<List<PostJournalLine>>> TenderLinesAsync(
+        PosReceipt receipt,
+        Settlement settled,
+        CancellationToken cancellationToken)
+    {
+        var journal = new List<PostJournalLine>();
+
+        foreach (var group in settled.Tenders.GroupBy(static t => t.Kind))
+        {
+            var amount = group.Sum(static t => t.Amount);
+
+            if (group.Key is TenderKind.Cash)
+            {
+                amount -= settled.ChangeGiven;
+            }
+
+            if (amount == 0m)
+            {
+                continue;
+            }
+
+            if (group.Key is TenderKind.OnAccount)
+            {
+                journal.Add(new PostJournalLine(
+                    settled.CustomerNo,
+                    amount,
+                    $"{receipt.StationCode} — {receipt.No}",
+                    AccountType: JournalAccountType.Customer,
+                    ExternalDocumentNo: receipt.No));
+
+                continue;
+            }
+
+            var key = $"{PosModule.Id}.Posting.{group.Key}Account";
+            var account = await AccountAsync(key, cancellationToken).ConfigureAwait(false);
+
+            if (string.IsNullOrWhiteSpace(account))
+            {
+                return Result<List<PostJournalLine>>.Failure(
+                    messages.Render(
+                        PosMessages.NoTenderAccount,
+                        Args(("TenderKind", group.Key.ToString()), ("Amount", amount))));
+            }
+
+            journal.Add(new PostJournalLine(
+                account,
+                amount,
+                $"{receipt.StationCode} — {receipt.No} — {group.Key}"));
+        }
+
+        return Result<List<PostJournalLine>>.Success(journal);
+    }
+
+    /// <summary>
+    /// Adds what this receipt did to the session's running figures.
+    /// </summary>
+    /// <remarks>
+    /// Kept on the session rather than summed from the receipts at close. A drawer is counted at
+    /// the moment somebody is standing in front of it, and a query across a day's receipts is a
+    /// slower answer to a question that has to be instant.
+    /// </remarks>
+    private static void Accumulate(PosSession session, PosReceipt receipt, Settlement settled)
+    {
+        session.ReceiptCount++;
+        session.NetSales += receipt.NetAmount;
+        session.TaxAmount += receipt.TaxAmount;
+
+        foreach (var tender in settled.Tenders)
+        {
+            switch (tender.Kind)
+            {
+                case TenderKind.Cash when tender.Amount >= 0m:
+                    session.CashTendered += tender.Amount;
+                    break;
+
+                // A return paid out in cash is money leaving the drawer, which is not negative
+                // takings. Counting it as such would make a day of refunds look like a day of
+                // fewer sales.
+                case TenderKind.Cash:
+                    session.CashRefunded += -tender.Amount;
+                    break;
+
+                case TenderKind.Card:
+                    session.CardTaken += tender.Amount;
+                    break;
+
+                case TenderKind.OnAccount:
+                    session.OnAccountTaken += tender.Amount;
+                    break;
+
+                case TenderKind.Voucher:
+                default:
+                    break;
+            }
+        }
+
+        session.ChangeGiven += receipt.ChangeGiven;
+    }
+
+    private static PosReceipt NewReceipt(
+        PosSession session,
+        PosStation station,
+        Settlement settled,
+        IReadOnlyList<BuiltLine> lines,
+        string receiptNo,
+        DateOnly businessDate,
+        DateTime takenAtUtc,
+        string? returnsReceiptNo)
+    {
+        var receipt = new PosReceipt
+        {
+            No = receiptNo,
+            SessionId = session.Id,
+            StationCode = station.Code,
+            CustomerNo = settled.CustomerNo,
+            CustomerName = settled.CustomerName,
+            LocationCode = station.LocationCode,
+            TakenAtUtc = takenAtUtc,
+            BusinessDate = businessDate,
+            ReturnsReceiptNo = returnsReceiptNo,
+            NetAmount = settled.NetAmount,
+            DiscountAmount = settled.DiscountAmount,
+            TaxAmount = settled.TaxAmount,
+            RoundingAmount = settled.RoundingAmount,
+            ChangeGiven = settled.ChangeGiven,
+            CashierId = session.CashierId,
+        };
+
+        // The lines are kept as they were rung up, not as they were requested: the price that
+        // was actually charged, the description that was actually printed. A receipt that stored
+        // what the till was asked for could not be reconciled against the one in somebody's bag.
+        foreach (var line in lines)
+        {
+            receipt.Lines.Add(new PosReceiptLine
+            {
+                LineNo = line.LineNo,
+                Type = line.Type,
+                ItemNo = line.Type is PosLineType.Item ? line.No : null,
+                AccountNo = line.Type is PosLineType.GlAccount ? line.No : null,
+                Description = line.Description,
+                Quantity = line.Quantity,
+                UnitPrice = line.UnitPrice,
+                DiscountPercent = line.DiscountPercent,
+                TaxCode = line.TaxCode,
+            });
+        }
+
+        var tenderNo = 0;
+
+        foreach (var tender in settled.Tenders)
+        {
+            receipt.Tenders.Add(new PosTender
+            {
+                LineNo = ++tenderNo,
+                Kind = tender.Kind,
+                Amount = tender.Amount,
+                Reference = tender.Reference,
+            });
+        }
+
+        return receipt;
+    }
+
+    private async Task<Dictionary<string, Item>> ResolveItemsAsync(
+        IReadOnlyList<PosLineRequest> lines,
+        CancellationToken cancellationToken)
+    {
+        var itemNos = lines
+            .Where(static l => l.Type is PosLineType.Item)
+            .Select(static l => l.No)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return itemNos.Count == 0
+            ? new Dictionary<string, Item>(StringComparer.OrdinalIgnoreCase)
+            : await context.Set<Item>()
+                .AsNoTracking()
+                .Where(i => itemNos.Contains(i.No))
+                .ToDictionaryAsync(static i => i.No, StringComparer.OrdinalIgnoreCase, cancellationToken)
+                .ConfigureAwait(false);
+    }
+
+    /// <summary>Works out the tax on the goods, before rounding touches the total.</summary>
+    private async Task<decimal> TaxAsync(
+        IReadOnlyList<BuiltLine> lines,
+        CancellationToken cancellationToken)
+    {
+        var codes = lines
+            .Select(static l => l.TaxCode)
+            .Where(static c => !string.IsNullOrWhiteSpace(c))
+            .Select(static c => c!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (codes.Count == 0)
+        {
+            return 0m;
+        }
+
+        var rates = await context.Set<Finance.Tax.TaxCode>()
+            .AsNoTracking()
+            .Include(c => c.Rates)
+            .Where(c => codes.Contains(c.Code) && c.IsActive)
+            .ToDictionaryAsync(static c => c.Code, StringComparer.OrdinalIgnoreCase, cancellationToken)
+            .ConfigureAwait(false);
+
+        var today = clock.Today;
+        var tax = 0m;
+
+        foreach (var line in lines)
+        {
+            if (string.IsNullOrWhiteSpace(line.TaxCode)
+                || !rates.TryGetValue(line.TaxCode, out var code))
+            {
+                continue;
+            }
+
+            tax += Round(line.LineAmount * ((code.RateOn(today) ?? 0m) / 100m));
+        }
+
+        return tax;
+    }
+
+    /// <summary>
+    /// Works out what to round a cash total by, if anything.
+    /// </summary>
+    /// <remarks>
+    /// Only cash is rounded, and only when it is the whole payment. A card settles to the halala
+    /// perfectly well, and rounding a card total would be taking money for no reason.
+    /// </remarks>
+    private async Task<decimal> RoundCashAsync(
+        decimal total,
+        IReadOnlyList<PosTenderRequest> tenders,
+        CancellationToken cancellationToken)
+    {
+        if (tenders.Count == 0 || tenders.Any(static t => t.Kind is not TenderKind.Cash))
+        {
+            return 0m;
+        }
+
+        var increment = await setup
+            .GetAsync<decimal>($"{PosModule.Id}.Cash.RoundingIncrement", cancellationToken)
+            .ConfigureAwait(false);
+
+        if (increment <= 0m)
+        {
+            return 0m;
+        }
+
+        var rounded = Math.Round(total / increment, MidpointRounding.AwayFromZero) * increment;
+
+        return Round(rounded - total);
+    }
+
+    private static decimal Round(decimal value) => Math.Round(value, 2, MidpointRounding.AwayFromZero);
+
+    private async Task<decimal> DiscountLimitAsync(CancellationToken cancellationToken)
+        => await setup
+            .GetAsync<decimal>($"{PosModule.Id}.Receipts.DiscountLimitPercent", cancellationToken)
+            .ConfigureAwait(false);
+
+    private async Task<string> SeriesCodeAsync(CancellationToken cancellationToken)
+        => await setup
+               .GetAsync<string>($"{PosModule.Id}.Receipts.NumberSeries", cancellationToken)
+               .ConfigureAwait(false)
+           ?? "POS-RCP";
+
+    private async Task<string?> AccountAsync(string key, CancellationToken cancellationToken)
+        => await setup.GetAsync<string>(key, cancellationToken).ConfigureAwait(false);
+
+    private static Dictionary<string, object?> Args(params (string Key, object? Value)[] pairs)
+    {
+        var arguments = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (key, value) in pairs)
+        {
+            arguments[key] = value;
+        }
+
+        return arguments;
+    }
+
+    private AsapMessage Raise(
+        MessageCode code,
+        Dictionary<string, object?> arguments,
+        IReadOnlySet<string>? held,
+        MessageTarget target = default)
+    {
+        var rendered = messages.Render(code, arguments, target);
+
+        return rendered.OverridePermission is { } permission && held?.Contains(permission) == true
+            ? messages.AsOverridden(rendered)
+            : rendered;
+    }
+}

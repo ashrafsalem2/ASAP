@@ -29,6 +29,7 @@ public sealed class ModuleDependencyTests
         new ASAP.Modules.Inventory.InventoryModule(),
         new ASAP.Modules.Purchasing.PurchasingModule(),
         new ASAP.Modules.Sales.SalesModule(),
+        new ASAP.Modules.Pos.PosModule(),
     ];
 
     private static readonly Dictionary<string, IAsapModule> ById =

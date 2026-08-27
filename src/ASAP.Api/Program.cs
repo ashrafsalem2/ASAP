@@ -157,6 +157,7 @@ app.MapInventoryEndpoints();
 app.MapTransferEndpoints();
 app.MapPurchasingEndpoints();
 app.MapSalesEndpoints();
+app.MapPosEndpoints();
 app.MapNavigationEndpoints();
 
 await StartupTasks.RunAsync(app, moduleCatalog).ConfigureAwait(false);
@@ -240,6 +241,7 @@ internal static class StartupTasks
 
         var financeSeeder = services.GetRequiredService<FinanceSeeder>();
         var inventorySeeder = services.GetRequiredService<ASAP.Modules.Inventory.Seed.InventorySeeder>();
+        var posSeeder = services.GetRequiredService<ASAP.Modules.Pos.Seed.PosSeeder>();
         var year = services.GetRequiredService<IClock>().Today.Year;
 
         foreach (var company in companies)
@@ -256,6 +258,13 @@ internal static class StartupTasks
             if (await inventorySeeder.SeedAsync(company.TenantId, company.Id).ConfigureAwait(false))
             {
                 logger.LogInformation("Set up Inventory for company {Company}.", company.Code);
+            }
+
+            // After Inventory, which is not incidental: a till sells from a stock location, and
+            // one seeded before there were any would have nowhere to sell from.
+            if (await posSeeder.SeedAsync(company.TenantId, company.Id).ConfigureAwait(false))
+            {
+                logger.LogInformation("Set up point of sale for company {Company}.", company.Code);
             }
         }
     }

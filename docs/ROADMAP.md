@@ -91,10 +91,19 @@ Everything else posts here, so it goes first.
 
 ## Phase 4 — Sales
 
-- Customers, price lists, discount structures, credit limits, payment terms
-- Quote, order, shipment, invoice, return, credit memo
-- Availability check and reservation against inventory
-- Posting into inventory, COGS and the customer ledger
+- **done** Customers, credit limits and payment terms (through the Finance party ledger); a
+  line discount held as a percentage so what was given away stays reportable. Price lists and
+  discount structures to come
+- *in progress* **Order, shipment and invoice done**; quote, return and credit memo to come
+- **done** Availability decided at shipment, by the costing engine, which is the only thing that
+  knows what is on the shelf at the moment somebody reaches for it. Reservation to come
+- **done** Posting into inventory, cost of sales and the customer ledger. A shipment moves stock
+  at what the goods cost and an invoice bills what was agreed, and the two never meet — which is
+  the only way the margin report describes anything
+- **done** Revenue posted at list with the discount as a contra, each carrying the tax code, so
+  the tax lands on what the customer actually pays and the discount stays visible in the P&L
+- **done** The location is asked about when the order is taken, not at the despatch bay
+- **done** Client screens: sales orders, shipment and invoice
 - Reports: sales analysis, margin by item and customer, open orders
 
 ## Phase 5 — Point of sale and branch operations

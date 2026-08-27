@@ -477,7 +477,7 @@ public sealed class TransferService(
                 InventoryMessages.TransferShortReceipt,
                 new Dictionary<string, object?>(Arguments(transfer), StringComparer.OrdinalIgnoreCase)
                 {
-                    ["Shortfall"] = stillInTransit,
+                    ["ShortfallQuantity"] = stillInTransit,
                     ["Location"] = inTransit.Name,
                 }));
         }

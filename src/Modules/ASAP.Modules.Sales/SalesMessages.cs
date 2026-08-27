@@ -176,9 +176,9 @@ public static class SalesMessages
             Title = new LocalizedText("More than was ordered", "أكثر من الكمية المطلوبة"),
             Detail = new LocalizedText(
                 "{Shipped:0.#####} of {ItemNo} was entered against line {LineNo}, which has "
-                + "{Outstanding:0.#####} still to go of {Ordered:0.#####} ordered.",
+                + "{OutstandingQuantity:0.#####} still to go of {Ordered:0.#####} ordered.",
                 "تم إدخال {Shipped:0.#####} من {ItemNo} على السطر {LineNo}، والمتبقي للشحن "
-                + "{Outstanding:0.#####} من أصل {Ordered:0.#####} مطلوبة."),
+                + "{OutstandingQuantity:0.#####} من أصل {Ordered:0.#####} مطلوبة."),
             Resolution = new LocalizedText(
                 "Ship what the order covers and take a separate order for the rest, so the "
                 + "customer is charged a price they agreed to.",
@@ -206,9 +206,9 @@ public static class SalesMessages
             Title = new LocalizedText("Invoicing more than was shipped", "الفوترة أكثر مما شُحن"),
             Detail = new LocalizedText(
                 "The invoice covers {Invoiced:0.#####} of {ItemNo} on line {LineNo}, and only "
-                + "{Outstanding:0.#####} shipped has yet to be invoiced.",
+                + "{OutstandingQuantity:0.#####} shipped has yet to be invoiced.",
                 "تغطي الفاتورة {Invoiced:0.#####} من {ItemNo} في السطر {LineNo}، ولم يتبق دون "
-                + "فوترة سوى {Outstanding:0.#####} مما شُحن."),
+                + "فوترة سوى {OutstandingQuantity:0.#####} مما شُحن."),
             Resolution = new LocalizedText(
                 "Billing for goods the customer has not received is how a dispute starts. Ship "
                 + "the rest first, or invoice only what has gone.",

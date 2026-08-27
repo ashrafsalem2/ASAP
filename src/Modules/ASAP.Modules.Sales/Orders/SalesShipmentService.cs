@@ -230,7 +230,7 @@ public sealed class SalesShipmentService(
                     ["LineNo"] = line.LineNo,
                     ["ItemNo"] = line.ItemNo ?? line.AccountNo,
                     ["Shipped"] = quantity,
-                    ["Outstanding"] = line.OutstandingToShip,
+                    ["OutstandingQuantity"] = line.OutstandingToShip,
                     ["Ordered"] = line.Quantity,
                 },
                 MessageTarget.OnField($"Lines[{line.LineNo}]"));

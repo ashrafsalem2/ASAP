@@ -176,9 +176,9 @@ public static class PurchasingMessages
             Title = new LocalizedText("More than was ordered", "أكثر من الكمية المطلوبة"),
             Detail = new LocalizedText(
                 "{Received:0.#####} of {ItemNo} was entered against line {LineNo}, which has "
-                + "{Outstanding:0.#####} still outstanding of {Ordered:0.#####} ordered.",
+                + "{OutstandingQuantity:0.#####} still outstanding of {Ordered:0.#####} ordered.",
                 "تم إدخال {Received:0.#####} من {ItemNo} على السطر {LineNo}، والمتبقي عليه "
-                + "{Outstanding:0.#####} من أصل {Ordered:0.#####} مطلوبة."),
+                + "{OutstandingQuantity:0.#####} من أصل {Ordered:0.#####} مطلوبة."),
             Resolution = new LocalizedText(
                 "Receive what the order covers and raise a separate order for the excess, so the "
                 + "extra goods have a price somebody agreed to.",
@@ -206,9 +206,9 @@ public static class PurchasingMessages
             Title = new LocalizedText("Invoiced for more than arrived", "الفاتورة أكثر مما وصل"),
             Detail = new LocalizedText(
                 "The invoice covers {Invoiced:0.#####} of {ItemNo} on line {LineNo}, and only "
-                + "{Outstanding:0.#####} received has yet to be invoiced.",
+                + "{OutstandingQuantity:0.#####} received has yet to be invoiced.",
                 "تغطي الفاتورة {Invoiced:0.#####} من {ItemNo} في السطر {LineNo}، ولم يتبق دون فوترة "
-                + "سوى {Outstanding:0.#####} مما استُلم."),
+                + "سوى {OutstandingQuantity:0.#####} مما استُلم."),
             Resolution = new LocalizedText(
                 "This is the check that catches being billed for goods that never came. Confirm "
                 + "the delivery before paying, and receive the rest if it did arrive.",

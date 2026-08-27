@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>ASAP.Modules.Pos</RootNamespace>
+    <Description>ASAP ERP point of sale module: tills, cashier sessions, receipts and the cash count that closes a turn.</Description>
+  </PropertyGroup>
+
+  <!--
+    Point of sale sits above Sales, and through it above Inventory and Finance. A receipt is a
+    sales invoice with a cash drawer attached and posts through the same machinery, so the P&amp;L
+    cannot tell which door a sale came through. See docs/architecture/module-dependencies.md.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\ASAP.Modules.Sales\ASAP.Modules.Sales.csproj" />
+    <ProjectReference Include="..\ASAP.Modules.Inventory\ASAP.Modules.Inventory.csproj" />
+    <ProjectReference Include="..\ASAP.Modules.Finance\ASAP.Modules.Finance.csproj" />
+  </ItemGroup>
+</Project>

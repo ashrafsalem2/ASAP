@@ -47,20 +47,33 @@ public sealed class FinanceSeeder(AsapDbContext context, ILogger<FinanceSeeder> 
         var hasParties = await ExistsAsync<Parties.Customer>(companyId, cancellationToken).ConfigureAwait(false);
         var hasTaxCodes = await ExistsAsync<Tax.TaxCode>(companyId, cancellationToken).ConfigureAwait(false);
 
-        if (hasAccounts && hasParties && hasTaxCodes)
-        {
-            return false;
-        }
-
         // Each unit guards on its own data rather than on the chart of accounts. Gating everything
         // behind one check means a company set up before a later unit existed never receives it --
         // which is exactly what happened when customers and vendors arrived: the tables were
         // created, the screens shipped, and every existing company saw them empty.
         if (!hasAccounts)
         {
-            SeedChartOfAccounts(tenantId, companyId);
+            context.Set<GlAccount>().AddRange(ChartOfAccounts(tenantId, companyId));
             SeedFiscalYear(tenantId, companyId, year);
             SeedJournalBatches(tenantId, companyId);
+        }
+        else
+        {
+            // Adds only what is missing. Installing a module brings accounts with it, and a
+            // company that already has a chart is exactly the one that will not get them.
+            //
+            // Deliberately ahead of the "has everything" check below, and this is not a detail:
+            // written after it, the top-up runs only for companies that were already incomplete,
+            // which is every company except the ones that need it. That is the same mistake this
+            // whole method is a correction of, made one level up.
+            await TopUpChartAsync(tenantId, companyId, cancellationToken).ConfigureAwait(false);
+        }
+
+        if (hasAccounts && hasParties && hasTaxCodes)
+        {
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+            return false;
         }
 
         if (!hasParties)
@@ -92,7 +105,47 @@ public sealed class FinanceSeeder(AsapDbContext context, ILogger<FinanceSeeder> 
             .IgnoreQueryFilters()
             .AnyAsync(e => e.CompanyId == companyId, cancellationToken);
 
-    private void SeedChartOfAccounts(Guid tenantId, Guid companyId)
+    /// <summary>
+    /// Adds any account this version ships that the company does not already have.
+    /// </summary>
+    /// <remarks>
+    /// Adds only. Never renames, never re-parents, never touches a balance. A company is entitled
+    /// to have renamed 6400 to something that suits it, and a seeder that reasserted its own idea
+    /// of the chart would undo that on the next restart.
+    /// </remarks>
+    private async Task TopUpChartAsync(
+        Guid tenantId,
+        Guid companyId,
+        CancellationToken cancellationToken)
+    {
+        var have = await context.Set<GlAccount>()
+            .IgnoreQueryFilters()
+            .Where(a => a.CompanyId == companyId)
+            .Select(static a => a.No)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var known = have.ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var missing = ChartOfAccounts(tenantId, companyId)
+            .Where(a => !known.Contains(a.No))
+            .ToList();
+
+        if (missing.Count == 0)
+        {
+            return;
+        }
+
+        context.Set<GlAccount>().AddRange(missing);
+
+        logger.LogInformation(
+            "Added {Count} account(s) to company {Company}: {Accounts}.",
+            missing.Count,
+            companyId,
+            string.Join(", ", missing.Select(static a => a.No)));
+    }
+
+    private static List<GlAccount> ChartOfAccounts(Guid tenantId, Guid companyId)
     {
         var accounts = new List<GlAccount>();
 
@@ -124,6 +177,11 @@ public sealed class FinanceSeeder(AsapDbContext context, ILogger<FinanceSeeder> 
         Add("1100", "Cash on hand", "النقد بالصندوق", GlAccountCategory.Assets);
         Add("1110", "Bank current account", "الحساب الجاري بالبنك", GlAccountCategory.Assets);
 
+        // Card takings between the sale and the day the acquirer pays. Money the company has
+        // earned and does not yet hold, which is a real position and belongs on its own line
+        // rather than inside cash, where it would say the shop is holding notes it has not got.
+        Add("1150", "Card settlement due", "مستحقات البطاقات", GlAccountCategory.Assets);
+
         // Control accounts. Direct posting is off: these are written by the module that owns the
         // subsidiary ledger, and a hand-keyed entry makes the control disagree with the ledger
         // behind it -- a difference nobody finds until year end.
@@ -140,6 +198,10 @@ public sealed class FinanceSeeder(AsapDbContext context, ILogger<FinanceSeeder> 
         Add("2100", "Accounts payable", "الذمم الدائنة", GlAccountCategory.Liabilities, directPosting: false);
         Add("2200", "VAT payable", "ضريبة القيمة المضافة المستحقة", GlAccountCategory.Liabilities, directPosting: false);
         Add("2300", "Accrued expenses", "مصروفات مستحقة", GlAccountCategory.Liabilities);
+
+        // Gift cards sold and not yet spent. The company has the money and owes the goods, so it
+        // is a liability until somebody redeems it -- not revenue on the day it was bought.
+        Add("2350", "Gift cards outstanding", "قسائم الشراء غير المستخدمة", GlAccountCategory.Liabilities);
         Add("2400", "Payroll payable", "رواتب مستحقة", GlAccountCategory.Liabilities, directPosting: false);
         Add("2500", "End of service provision", "مخصص نهاية الخدمة", GlAccountCategory.Liabilities);
         Add("2999", "TOTAL LIABILITIES", "إجمالي الخصوم", GlAccountCategory.Liabilities, GlAccountType.Total, 0, "2000..2998");
@@ -175,9 +237,18 @@ public sealed class FinanceSeeder(AsapDbContext context, ILogger<FinanceSeeder> 
         Add("6500", "Marketing", "التسويق", GlAccountCategory.Expense);
         Add("6600", "Depreciation", "الإهلاك", GlAccountCategory.Expense);
         Add("6900", "Other expenses", "مصروفات أخرى", GlAccountCategory.Expense);
+
+        // Where a drawer that counts to something other than it should is reconciled. Kept apart
+        // from other expenses on purpose: it is the one account whose balance is a question about
+        // how the shops are being run rather than a cost of running them.
+        Add("6910", "Till differences", "فروقات نقاط البيع", GlAccountCategory.Expense);
+
+        // The halalas rounded off cash totals. Individually trivial, collectively the reason a
+        // till without this account never quite balances.
+        Add("6920", "Cash rounding", "تقريب النقد", GlAccountCategory.Expense);
         Add("6999", "TOTAL EXPENSES", "إجمالي المصروفات", GlAccountCategory.Expense, GlAccountType.Total, 0, "6000..6998");
 
-        context.Set<GlAccount>().AddRange(accounts);
+        return accounts;
     }
 
     /// <summary>

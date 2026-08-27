@@ -323,6 +323,11 @@ public sealed class DemoSeeder(
         Add("PURCH-ORD", "Purchase orders", allowGaps: true, "PO-{YYYY}-00001");
         Add("PURCH-INV", "Purchase invoices", allowGaps: true, "PINV-{YYYY}-00001");
         Add("TRANSFER", "Stock transfers", allowGaps: true, "TR-{YYYY}-00001");
+        Add("POS-SESS", "Till sessions", allowGaps: true, "Z-{YYYY}-00001");
+
+        // Gapless: a till receipt is a simplified tax invoice, and a sequence with holes in it is
+        // a question from the authority. Branches that want their own may override the setting.
+        Add("POS-RCP", "Point of sale receipts", allowGaps: false, "R-{YYYY}-000001");
 
         foreach (var branch in branches.Where(static b => b.Kind == BranchKind.Store))
         {

@@ -1,4 +1,5 @@
 using ASAP.Modules.Finance.Journals;
+using ASAP.Modules.Finance.Parties;
 using ASAP.Modules.Finance.Ledger;
 using ASAP.Modules.Finance.Posting;
 using ASAP.Modules.Finance.Tax;
@@ -154,6 +155,10 @@ public sealed class PurchaseInvoiceService(
                     // clearing, and the restriction on that account exists to leave room for
                     // exactly this.
                     IsManualEntry: false,
+
+                    // Stated rather than inferred, for the same reason as the sales side: a
+                    // variance line names no vendor and would be read by its sign alone.
+                    PartyKind: PartyKind.Vendor,
                     DocumentType: GlDocumentType.Invoice,
                     DocumentNo: vendorInvoiceNo,
                     Description: $"{order.VendorName} — {order.No}",
@@ -378,7 +383,7 @@ public sealed class PurchaseInvoiceService(
                         ["LineNo"] = line.LineNo,
                         ["ItemNo"] = line.ItemNo ?? line.AccountNo,
                         ["Invoiced"] = quantity,
-                        ["Outstanding"] = line.ReceivedNotInvoiced,
+                        ["OutstandingQuantity"] = line.ReceivedNotInvoiced,
                     },
                     target);
 

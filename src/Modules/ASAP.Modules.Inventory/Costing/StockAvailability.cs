@@ -173,9 +173,9 @@ public sealed class StockAvailability(IMessageCatalog messages)
         var allowed = movement.Item.AllowNegativeInventory ?? companyAllowsNegative;
 
         arguments["Requested"] = requested;
-        arguments["Available"] = movement.QuantityOnHand;
-        arguments["Balance"] = balance;
-        arguments["Shortfall"] = shortfall;
+        arguments["AvailableQuantity"] = movement.QuantityOnHand;
+        arguments["BalanceQuantity"] = balance;
+        arguments["ShortfallQuantity"] = shortfall;
         arguments["EstimatedUnitCost"] = movement.Item.UnitCost;
 
         if (!allowed)
@@ -212,7 +212,7 @@ public sealed class StockAvailability(IMessageCatalog messages)
             InventoryMessages.BelowReorderPoint,
             new Dictionary<string, object?>(arguments, StringComparer.OrdinalIgnoreCase)
             {
-                ["Balance"] = balance,
+                ["BalanceQuantity"] = balance,
                 ["ReorderPoint"] = movement.Item.ReorderPoint,
             },
             target));

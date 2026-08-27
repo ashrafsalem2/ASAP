@@ -73,14 +73,14 @@ public static class InventoryMessages
             Severity = MessageSeverity.Blocked,
             Title = new LocalizedText("Not enough stock", "الكمية غير كافية"),
             Detail = new LocalizedText(
-                "{Requested:0.#####} of {ItemNo} {ItemName} was requested at {Location}, and {Available:0.#####} "
+                "{Requested:0.#####} of {ItemNo} {ItemName} was requested at {Location}, and {AvailableQuantity:0.#####} "
                 + "is on hand. This company does not allow stock to go below zero.",
-                "تم طلب {Requested:0.#####} من {ItemNo} {ItemName} في {Location}، والمتوفر {Available:0.#####}. "
+                "تم طلب {Requested:0.#####} من {ItemNo} {ItemName} في {Location}، والمتوفر {AvailableQuantity:0.#####}. "
                 + "لا تسمح هذه الشركة بأن يقل المخزون عن الصفر."),
             Resolution = new LocalizedText(
-                "Reduce the quantity to {Available:0.#####}, receive the goods first, or ask an "
+                "Reduce the quantity to {AvailableQuantity:0.#####}, receive the goods first, or ask an "
                 + "administrator to allow negative stock for this item.",
-                "قلّل الكمية إلى {Available:0.#####}، أو استلم البضاعة أولاً، أو اطلب من المسؤول السماح "
+                "قلّل الكمية إلى {AvailableQuantity:0.#####}، أو استلم البضاعة أولاً، أو اطلب من المسؤول السماح "
                 + "بالمخزون السالب لهذا الصنف."),
             OverridePermission = "Inventory.Stock.Override",
             HelpTopic = "inventory/negative-stock",
@@ -95,9 +95,9 @@ public static class InventoryMessages
             Severity = MessageSeverity.Warning,
             Title = new LocalizedText("Stock has gone below zero", "أصبح المخزون بالسالب"),
             Detail = new LocalizedText(
-                "{ItemNo} {ItemName} is now {Balance:0.#####} at {Location}. {Shortfall:0.#####} unit(s) were "
+                "{ItemNo} {ItemName} is now {BalanceQuantity:0.#####} at {Location}. {ShortfallQuantity:0.#####} unit(s) were "
                 + "valued at an estimated {EstimatedUnitCost:N2} each.",
-                "أصبح {ItemNo} {ItemName} الآن {Balance:0.#####} في {Location}. تم تقييم {Shortfall:0.#####} وحدة "
+                "أصبح {ItemNo} {ItemName} الآن {BalanceQuantity:0.#####} في {Location}. تم تقييم {ShortfallQuantity:0.#####} وحدة "
                 + "بتكلفة تقديرية {EstimatedUnitCost:N2} للوحدة."),
             Resolution = new LocalizedText(
                 "Receive the goods as soon as the paperwork allows. ASAP will settle the estimate "
@@ -124,9 +124,9 @@ public static class InventoryMessages
             Severity = MessageSeverity.Warning,
             Title = new LocalizedText("Item is below its reorder point", "الصنف تحت حد إعادة الطلب"),
             Detail = new LocalizedText(
-                "{ItemNo} {ItemName} is down to {Balance:0.#####} at {Location}, against a reorder point "
+                "{ItemNo} {ItemName} is down to {BalanceQuantity:0.#####} at {Location}, against a reorder point "
                 + "of {ReorderPoint:0.#####}.",
-                "انخفض {ItemNo} {ItemName} إلى {Balance:0.#####} في {Location}، مقابل حد إعادة طلب "
+                "انخفض {ItemNo} {ItemName} إلى {BalanceQuantity:0.#####} في {Location}، مقابل حد إعادة طلب "
                 + "قدره {ReorderPoint:0.#####}."),
         },
         new()
@@ -298,8 +298,8 @@ public static class InventoryMessages
             Severity = MessageSeverity.Warning,
             Title = new LocalizedText("Less arrived than was sent", "الكمية الواصلة أقل من المرسلة"),
             Detail = new LocalizedText(
-                "{Shortfall:0.#####} unit(s) from transfer {TransferNo} are still at {Location}.",
-                "لا تزال {Shortfall:0.#####} وحدة من التحويل {TransferNo} في {Location}."),
+                "{ShortfallQuantity:0.#####} unit(s) from transfer {TransferNo} are still at {Location}.",
+                "لا تزال {ShortfallQuantity:0.#####} وحدة من التحويل {TransferNo} في {Location}."),
             Resolution = new LocalizedText(
                 "Receive them when they turn up. If they are lost, write them off with a negative "
                 + "adjustment so the loss is recorded rather than assumed.",

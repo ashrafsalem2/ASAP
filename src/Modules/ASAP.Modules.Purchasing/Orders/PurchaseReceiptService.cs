@@ -260,7 +260,7 @@ public sealed class PurchaseReceiptService(
                     ["LineNo"] = line.LineNo,
                     ["ItemNo"] = line.ItemNo ?? line.AccountNo,
                     ["Received"] = quantity,
-                    ["Outstanding"] = line.OutstandingToReceive,
+                    ["OutstandingQuantity"] = line.OutstandingToReceive,
                     ["Ordered"] = line.Quantity,
                 },
                 MessageTarget.OnField($"Lines[{line.LineNo}]"));

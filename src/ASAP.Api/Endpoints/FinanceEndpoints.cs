@@ -4,6 +4,7 @@ using ASAP.Modules.Finance.Journals;
 using ASAP.Modules.Finance.Ledger;
 using ASAP.Modules.Finance.Posting;
 using ASAP.Modules.Finance.Reporting;
+using ASAP.Modules.Finance.Tax;
 using ASAP.Platform.Kernel.Time;
 using ASAP.Platform.Kernel.Cqrs;
 using ASAP.Platform.Persistence;
@@ -94,6 +95,14 @@ public static class FinanceEndpoints
         group.MapGet("/reports/balance-sheet", BalanceSheetAsync)
              .WithName("BalanceSheet")
              .WithSummary("Reports what the company owned and owed on a given day.");
+
+        group.MapGet("/reports/tax-return", TaxReturnAsync)
+             .WithName("TaxReturn")
+             .WithSummary("Reports tax charged and tax paid for a period, and the net owed.");
+
+        group.MapGet("/tax-codes", TaxCodesAsync)
+             .WithName("TaxCodes")
+             .WithSummary("Lists the tax codes a document can carry, with the rate in force today.");
 
         return app;
     }
@@ -267,6 +276,56 @@ public static class FinanceEndpoints
             includeAll ?? false);
 
         return Results.Ok(await dispatcher.SendAsync(query, cancellationToken).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> TaxReturnAsync(
+        IDispatcher dispatcher,
+        [FromQuery] DateOnly? from,
+        [FromQuery] DateOnly? to,
+        [FromQuery] bool? includeFiled,
+        IClock clock,
+        CancellationToken cancellationToken)
+    {
+        var today = clock.Today;
+
+        // Defaults to the current quarter, which is the period most returns cover and saves the
+        // reader working out where it started.
+        var quarterStart = new DateOnly(today.Year, (((today.Month - 1) / 3) * 3) + 1, 1);
+
+        var query = new TaxReturnQuery(
+            from ?? quarterStart,
+            to ?? today,
+            includeFiled ?? false);
+
+        return Results.Ok(await dispatcher.SendAsync(query, cancellationToken).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> TaxCodesAsync(
+        AsapDbContext context,
+        IClock clock,
+        CancellationToken cancellationToken)
+    {
+        var codes = await context.Set<TaxCode>()
+            .AsNoTracking()
+            .Include(c => c.Rates)
+            .Where(c => c.IsActive)
+            .OrderBy(c => c.Code)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var today = clock.Today;
+
+        return Results.Ok(codes.Select(c => new
+        {
+            code = c.Code,
+            description = c.Description,
+            descriptionArabic = c.DescriptionArabic,
+            kind = c.Kind.ToString(),
+
+            // Today's rate, for showing beside the code on a screen. A posting resolves the rate
+            // from its own document date rather than from this.
+            percentage = c.RateOn(today) ?? 0m,
+        }));
     }
 
     private static async Task<IResult> BalanceSheetAsync(

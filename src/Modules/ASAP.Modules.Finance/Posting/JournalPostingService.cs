@@ -44,6 +44,7 @@ public readonly record struct PostingReceipt(
 /// <param name="context">The unit of work.</param>
 /// <param name="validator">Checks the lines before anything is written.</param>
 /// <param name="partyLedger">Writes the customer and vendor side of the same posting.</param>
+/// <param name="taxPosting">Works out the tax and records it for the return.</param>
 /// <param name="events">Gives extensions their say, and announces the result.</param>
 /// <param name="messages">Renders messages.</param>
 /// <param name="tenantContext">Supplies the company and branch being posted in.</param>
@@ -55,6 +56,7 @@ public sealed class JournalPostingService(
     AsapDbContext context,
     JournalPostingValidator validator,
     Parties.PartyLedgerWriter partyLedger,
+    Tax.TaxPostingService taxPosting,
     IEventPublisher events,
     IMessageCatalog messages,
     ITenantContext tenantContext,
@@ -83,6 +85,12 @@ public sealed class JournalPostingService(
         ArgumentNullException.ThrowIfNull(lines);
         ArgumentNullException.ThrowIfNull(environment);
         ArgumentNullException.ThrowIfNull(request);
+
+        // Tax is worked out before validation so the balance check judges the journal the user
+        // will actually get, tax lines included. Checking first and expanding afterwards would
+        // approve a balanced journal and post an unbalanced one.
+        var computedTax = Tax.TaxPostingService.Compute(lines, environment.CurrencyDecimals);
+        lines = Tax.TaxPostingService.Expand(lines, computedTax, environment.TaxAccounts);
 
         var validation = validator.Validate(lines, environment);
 
@@ -133,6 +141,10 @@ public sealed class JournalPostingService(
         await partyLedger
             .WriteAsync(lines, request, transactionNo, environment.CurrencyDecimals, cancellationToken)
             .ConfigureAwait(false);
+
+        // And the tax side, for the same reason. A return built from entries that could be written
+        // separately from the ledger they describe is a return nobody can defend.
+        taxPosting.Write(computedTax, lines, request, transactionNo);
 
         // Warnings that started life as blocks record an override. This is the whole reason the
         // audit log carries a message code: "show me every time someone posted into a closed

@@ -53,6 +53,7 @@ public sealed class FinanceModule : IAsapModule
         services.AddScoped<JournalPostingService>();
         services.AddScoped<Parties.PartyLedgerWriter>();
         services.AddScoped<Parties.PartyApplicationService>();
+        services.AddScoped<Tax.TaxPostingService>();
         services.AddScoped<Seed.FinanceSeeder>();
         services.AddScoped<
             ASAP.Platform.Kernel.Cqrs.IRequestHandler<
@@ -77,6 +78,9 @@ public sealed class FinanceModule : IAsapModule
         services.AddScoped<
             ASAP.Platform.Kernel.Cqrs.IRequestHandler<Reporting.AgedAnalysisQuery, Reporting.AgedAnalysis>,
             Reporting.AgedAnalysisQueryHandler>();
+        services.AddScoped<
+            ASAP.Platform.Kernel.Cqrs.IRequestHandler<Reporting.TaxReturnQuery, Reporting.TaxReturn>,
+            Reporting.TaxReturnQueryHandler>();
 
         // Finance answers any module that asks for value to be posted to the ledger. Neither side
         // references the other; the contract is a kernel type they both already depend on.

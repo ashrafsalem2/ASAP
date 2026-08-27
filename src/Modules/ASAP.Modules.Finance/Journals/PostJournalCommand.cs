@@ -2,6 +2,7 @@ using ASAP.Modules.Finance.Accounts;
 using ASAP.Modules.Finance.Ledger;
 using ASAP.Modules.Finance.Parties;
 using ASAP.Modules.Finance.Periods;
+using ASAP.Modules.Finance.Tax;
 using ASAP.Modules.Finance.Posting;
 using ASAP.Platform.Core.Dimensions;
 using ASAP.Platform.Kernel.Cqrs;
@@ -35,6 +36,14 @@ namespace ASAP.Modules.Finance.Journals;
 /// The other side's reference, such as the number printed on the vendor's own invoice. Carried on
 /// the party entry, where it is the thing people search by when a supplier telephones.
 /// </param>
+/// <param name="TaxCode">
+/// The tax to apply, or null for a line carrying none. ASAP works out the tax and posts it beside
+/// the line, so the person keying it never has to.
+/// </param>
+/// <param name="TaxIncludedInAmount">
+/// Whether <paramref name="Amount"/> already contains the tax. False for a net figure the tax is
+/// added to; true for a shelf price the tax comes out of.
+/// </param>
 public sealed record PostJournalLine(
     string AccountNo,
     decimal Amount,
@@ -42,7 +51,9 @@ public sealed record PostJournalLine(
     string? BalancingAccountNo = null,
     DateOnly? PostingDate = null,
     JournalAccountType AccountType = JournalAccountType.GlAccount,
-    string? ExternalDocumentNo = null);
+    string? ExternalDocumentNo = null,
+    string? TaxCode = null,
+    bool TaxIncludedInAmount = false);
 
 /// <summary>
 /// Posts a set of journal lines to the general ledger.
@@ -93,6 +104,7 @@ public sealed class PostJournalCommandHandler(
         var today = clock.Today;
 
         var parties = await ResolvePartiesAsync(request.Lines, cancellationToken).ConfigureAwait(false);
+        var taxCodes = await ResolveTaxCodesAsync(request.Lines, cancellationToken).ConfigureAwait(false);
 
         // A party line posts to its control account, so that account has to be loaded alongside
         // the ones the journal names directly.
@@ -101,6 +113,12 @@ public sealed class PostJournalCommandHandler(
             {
                 l.AccountType is JournalAccountType.GlAccount ? l.AccountNo : ControlAccountFor(l, parties),
                 l.BalancingAccountNo,
+
+                // A tax line is generated during posting rather than named by the user, so its
+                // account has to be loaded here with everything else. Both sides, because which
+                // one applies depends on the party, resolved separately below.
+                TaxAccountFor(l, taxCodes, TaxDirection.Output),
+                TaxAccountFor(l, taxCodes, TaxDirection.Input),
             })
             .Where(static no => !string.IsNullOrWhiteSpace(no))
             .Select(static no => no!)
@@ -152,7 +170,8 @@ public sealed class PostJournalCommandHandler(
                     DocumentNo: request.DocumentNo,
                     Description: line.Description,
                     Party: party,
-                    ExternalDocumentNo: line.ExternalDocumentNo);
+                    ExternalDocumentNo: line.ExternalDocumentNo,
+                    Tax: TaxFor(line, party, taxCodes, line.PostingDate ?? today));
             })
             .ToList();
 
@@ -184,7 +203,11 @@ public sealed class PostJournalCommandHandler(
             // Only the overrides this caller actually holds. The validator downgrades a block to a
             // warning when the permission is present, and the posting service audits the fact.
             HeldOverridePermissions: HeldOverrides(),
-            IsManualEntry: true);
+            IsManualEntry: true,
+
+            // Every account a generated tax line might land on. The tax accounts are control
+            // accounts, so this is also what lets a tax line reach one without an override.
+            TaxAccountsByNo: TaxAccounts(taxCodes, accounts, companyDimensionIds));
 
         var postingRequest = new PostingRequest(
             SourceCode: "GENJNL",
@@ -303,6 +326,110 @@ public sealed class PostJournalCommandHandler(
         }
 
         return found;
+    }
+
+    /// <summary>Loads every tax code the journal names, with its rates.</summary>
+    private async Task<Dictionary<string, TaxCode>> ResolveTaxCodesAsync(
+        IReadOnlyList<PostJournalLine> lines,
+        CancellationToken cancellationToken)
+    {
+        var codes = lines
+            .Select(static l => l.TaxCode)
+            .Where(static c => !string.IsNullOrWhiteSpace(c))
+            .Select(static c => c!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (codes.Count == 0)
+        {
+            return new Dictionary<string, TaxCode>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        return await context.Set<TaxCode>()
+            .AsNoTracking()
+            .Include(c => c.Rates)
+            .Where(c => codes.Contains(c.Code) && c.IsActive)
+            .ToDictionaryAsync(static c => c.Code, StringComparer.OrdinalIgnoreCase, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Builds the tax view for a line, resolving the rate that was in force on its own date.
+    /// </summary>
+    /// <remarks>
+    /// Which side of the return a figure belongs to follows the party where there is one, and the
+    /// sign of the amount where there is not. A journal line debiting an expense is money going
+    /// out, so its tax is input tax; a credit to revenue is money coming in, so its tax is output.
+    /// </remarks>
+    private static PostingTaxView? TaxFor(
+        PostJournalLine line,
+        PostingPartyView? party,
+        IReadOnlyDictionary<string, TaxCode> taxCodes,
+        DateOnly postingDate)
+    {
+        if (string.IsNullOrWhiteSpace(line.TaxCode)
+            || !taxCodes.TryGetValue(line.TaxCode, out var code))
+        {
+            return null;
+        }
+
+        var direction = party?.Kind switch
+        {
+            PartyKind.Customer => TaxDirection.Output,
+            PartyKind.Vendor => TaxDirection.Input,
+            _ => line.Amount < 0m ? TaxDirection.Output : TaxDirection.Input,
+        };
+
+        return new PostingTaxView(
+            code.Id,
+            code.Code,
+            code.Kind,
+            direction,
+
+            // The rate on the line's date, not today's. A credit note against an old invoice has
+            // to carry the rate that invoice was raised under.
+            code.RateOn(postingDate) ?? 0m,
+            direction is TaxDirection.Output ? code.OutputAccountNo : code.InputAccountNo,
+            line.TaxIncludedInAmount);
+    }
+
+    private static string? TaxAccountFor(
+        PostJournalLine line,
+        IReadOnlyDictionary<string, TaxCode> taxCodes,
+        TaxDirection direction)
+        => string.IsNullOrWhiteSpace(line.TaxCode) || !taxCodes.TryGetValue(line.TaxCode, out var code)
+            ? null
+            : direction is TaxDirection.Output ? code.OutputAccountNo : code.InputAccountNo;
+
+    /// <summary>
+    /// The accounts tax can land on, as views the engine can post to.
+    /// </summary>
+    /// <remarks>
+    /// Built with direct posting allowed. These are control accounts a person may not key by
+    /// hand, and rightly so, but a generated tax line is not a person keying by hand -- it is the
+    /// module that owns the account writing to it, which is exactly what the restriction exists
+    /// to leave room for.
+    /// </remarks>
+    private static Dictionary<string, PostingAccountView> TaxAccounts(
+        IReadOnlyDictionary<string, TaxCode> taxCodes,
+        Dictionary<string, GlAccount> accounts,
+        List<Guid> companyDimensionIds)
+    {
+        var resolved = new Dictionary<string, PostingAccountView>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var accountNo in taxCodes.Values
+                     .SelectMany(static c => new[] { c.OutputAccountNo, c.InputAccountNo })
+                     .Where(static no => !string.IsNullOrWhiteSpace(no))
+                     .Select(static no => no!)
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (Resolve(accountNo, accounts, companyDimensionIds) is { } account)
+            {
+                resolved[accountNo] = account with { AllowsDirectPosting = true };
+            }
+        }
+
+        return resolved;
     }
 
     private static PostingAccountView? Resolve(

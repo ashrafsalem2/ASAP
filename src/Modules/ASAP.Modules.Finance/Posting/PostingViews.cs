@@ -77,6 +77,10 @@ public sealed record PostingAccountView(
 /// </param>
 /// <param name="CreditLimit">The most the party may owe, or zero for no limit.</param>
 /// <param name="Balance">What the party owed before this posting.</param>
+/// <param name="TaxRegistrationNo">
+/// Their tax registration number, copied onto any tax entry the line produces. An audited return
+/// has to show who a figure was charged to.
+/// </param>
 public sealed record PostingPartyView(
     Guid Id,
     string No,
@@ -86,7 +90,8 @@ public sealed record PostingPartyView(
     int PaymentTermsDays,
     string ControlAccountNo,
     decimal CreditLimit = 0m,
-    decimal Balance = 0m)
+    decimal Balance = 0m,
+    string? TaxRegistrationNo = null)
 {
     /// <summary>Whether an entry may land on this party at all.</summary>
     public bool IsPostable => !IsBlocked;
@@ -107,9 +112,36 @@ public sealed record PostingPartyView(
             party.PaymentTermsDays,
             party.ControlAccountNo ?? defaultControlAccountNo,
             party.CreditLimit,
-            party.Balance);
+            party.Balance,
+            party.TaxRegistrationNo);
     }
 }
+
+/// <summary>
+/// What the posting engine needs to know about the tax on a line.
+/// </summary>
+/// <param name="Id">The tax code key.</param>
+/// <param name="Code">The code, for example <c>VAT15</c>.</param>
+/// <param name="Kind">How the code behaves.</param>
+/// <param name="Direction">Whether this is tax charged out or tax paid in.</param>
+/// <param name="Percentage">
+/// The rate in force on the line's posting date, already resolved. Held here rather than looked up
+/// later so a rate change can never restate a figure that has been posted.
+/// </param>
+/// <param name="Account">The account the tax lands on, or null when the code names none.</param>
+/// <param name="TaxIncludedInAmount">
+/// Whether the line's amount already contains the tax. A wholesaler enters the net and the tax is
+/// added; a shop enters the shelf price and the tax comes out of it. Both happen in one company,
+/// so the line says which rather than the company deciding once for everybody.
+/// </param>
+public sealed record PostingTaxView(
+    Guid Id,
+    string Code,
+    Tax.TaxKind Kind,
+    Tax.TaxDirection Direction,
+    decimal Percentage,
+    string? Account,
+    bool TaxIncludedInAmount = false);
 
 /// <summary>One line about to be posted, with its accounts already resolved.</summary>
 /// <param name="LineNo">Position in the batch, used to point the user at the right row.</param>
@@ -143,7 +175,8 @@ public sealed record PostingLineView(
     string? DocumentNo = null,
     string? Description = null,
     PostingPartyView? Party = null,
-    string? ExternalDocumentNo = null);
+    string? ExternalDocumentNo = null,
+    PostingTaxView? Tax = null);
 
 /// <summary>Whether a date may be posted to, and why not when it may not.</summary>
 public enum PeriodAvailability
@@ -220,10 +253,24 @@ public sealed record PostingEnvironment(
     DateOnly? PostingWindowTo = null,
     IReadOnlyList<MandatoryDimensionView>? MandatoryDimensions = null,
     IReadOnlySet<string>? HeldOverridePermissions = null,
-    bool IsManualEntry = true)
+    bool IsManualEntry = true,
+    IReadOnlyDictionary<string, PostingAccountView>? TaxAccountsByNo = null)
 {
     /// <summary>Dimensions every entry must carry a value for.</summary>
     public IReadOnlyList<MandatoryDimensionView> Mandatory => MandatoryDimensions ?? [];
+
+    /// <summary>
+    /// The accounts tax lands on, keyed by number.
+    /// </summary>
+    /// <remarks>
+    /// Resolved up front because a tax line is generated during posting rather than named by the
+    /// user, and the engine has no way to look an account up once it is running.
+    /// </remarks>
+    public IReadOnlyDictionary<string, PostingAccountView> TaxAccounts
+        => TaxAccountsByNo ?? EmptyAccounts;
+
+    private static readonly Dictionary<string, PostingAccountView> EmptyAccounts
+        = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Whether the caller can push past a given block.</summary>
     /// <param name="permission">The override permission named on the message.</param>

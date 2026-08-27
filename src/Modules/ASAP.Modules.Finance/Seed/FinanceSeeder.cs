@@ -2,6 +2,7 @@ using System.Globalization;
 using ASAP.Modules.Finance.Accounts;
 using ASAP.Modules.Finance.Journals;
 using ASAP.Modules.Finance.Periods;
+using ASAP.Modules.Finance.Tax;
 using ASAP.Platform.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
@@ -44,8 +45,9 @@ public sealed class FinanceSeeder(AsapDbContext context, ILogger<FinanceSeeder> 
     {
         var hasAccounts = await ExistsAsync<GlAccount>(companyId, cancellationToken).ConfigureAwait(false);
         var hasParties = await ExistsAsync<Parties.Customer>(companyId, cancellationToken).ConfigureAwait(false);
+        var hasTaxCodes = await ExistsAsync<Tax.TaxCode>(companyId, cancellationToken).ConfigureAwait(false);
 
-        if (hasAccounts && hasParties)
+        if (hasAccounts && hasParties && hasTaxCodes)
         {
             return false;
         }
@@ -66,13 +68,20 @@ public sealed class FinanceSeeder(AsapDbContext context, ILogger<FinanceSeeder> 
             SeedParties(tenantId, companyId);
         }
 
+        if (!hasTaxCodes)
+        {
+            SeedTaxCodes(tenantId, companyId);
+        }
+
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         logger.LogInformation(
-            "Seeded Finance for company {Company}: chart and calendar {Chart}, customers and vendors {Parties}.",
+            "Seeded Finance for company {Company}: chart and calendar {Chart}, "
+            + "customers and vendors {Parties}, tax codes {Tax}.",
             companyId,
             hasAccounts ? "already present" : $"created for {year}",
-            hasParties ? "already present" : "created");
+            hasParties ? "already present" : "created",
+            hasTaxCodes ? "already present" : "created");
 
         return true;
     }
@@ -277,5 +286,75 @@ public sealed class FinanceSeeder(AsapDbContext context, ILogger<FinanceSeeder> 
         Vendor("V-0001", "Gulf Office Supplies", "الخليج للأدوات المكتبية", 30);
         Vendor("V-0002", "Riyadh Logistics", "الرياض للخدمات اللوجستية", 45);
         Vendor("V-0003", "Najd Contracting", "نجد للمقاولات", 30);
+    }
+
+    /// <summary>
+    /// The tax codes a Saudi company actually needs.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Standard-rated carries both of its historical rates rather than only the current one. The
+    /// Kingdom went from 5% to 15% on 1 July 2020, and a system that only knows today's rate
+    /// restates every older document the moment anyone touches it -- including a credit note,
+    /// which then fails to offset the invoice it corrects.
+    /// </para>
+    /// <para>
+    /// Zero-rated and exempt are seeded separately even though both charge nothing, because they
+    /// are not the same thing and belong in different boxes on the return.
+    /// </para>
+    /// </remarks>
+    private void SeedTaxCodes(Guid tenantId, Guid companyId)
+    {
+        TaxCode Add(
+            string code,
+            string description,
+            string arabic,
+            TaxKind kind,
+            params (DateOnly From, decimal Percentage)[] rates)
+        {
+            var taxCode = new TaxCode
+            {
+                TenantId = tenantId,
+                CompanyId = companyId,
+                Code = code,
+                Description = description,
+                DescriptionArabic = arabic,
+                Kind = kind,
+                OutputAccountNo = "2200",
+                InputAccountNo = "1500",
+            };
+
+            foreach (var (from, percentage) in rates)
+            {
+                taxCode.Rates.Add(new TaxRate
+                {
+                    TenantId = tenantId,
+                    CompanyId = companyId,
+                    StartingDate = from,
+                    Percentage = percentage,
+                });
+            }
+
+            context.Set<TaxCode>().Add(taxCode);
+            return taxCode;
+        }
+
+        Add(
+            "VAT",
+            "Value added tax, standard rate",
+            "ضريبة القيمة المضافة، النسبة الأساسية",
+            TaxKind.Standard,
+            (new DateOnly(2018, 1, 1), 5m),
+            (new DateOnly(2020, 7, 1), 15m));
+
+        Add("VAT-Z", "Zero rated", "خاضع لنسبة صفر", TaxKind.ZeroRated);
+        Add("VAT-E", "Exempt", "معفى", TaxKind.Exempt);
+
+        Add(
+            "VAT-RC",
+            "Reverse charge, imported services",
+            "الاحتساب العكسي، خدمات مستوردة",
+            TaxKind.ReverseCharge,
+            (new DateOnly(2020, 7, 1), 15m));
     }
 }

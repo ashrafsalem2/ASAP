@@ -3,6 +3,7 @@ using ASAP.Modules.Finance.Journals;
 using ASAP.Modules.Finance.Ledger;
 using ASAP.Modules.Finance.Parties;
 using ASAP.Modules.Finance.Periods;
+using ASAP.Modules.Finance.Tax;
 using ASAP.Platform.Persistence;
 using ASAP.Platform.Persistence.Conventions;
 using Microsoft.EntityFrameworkCore;
@@ -31,6 +32,73 @@ public sealed class FinanceSchema : IModuleSchema
         ConfigureJournals(modelBuilder);
         ConfigureLedger(modelBuilder);
         ConfigureParties(modelBuilder);
+        ConfigureTax(modelBuilder);
+    }
+
+    private void ConfigureTax(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<TaxCode>(builder =>
+        {
+            builder.ToTable("TaxCodes", SchemaName);
+
+            builder.Property(c => c.Code).HasMaxLength(20).IsRequired();
+            builder.Property(c => c.Description).HasMaxLength(200).IsRequired();
+            builder.Property(c => c.DescriptionArabic).HasMaxLength(200);
+            builder.Property(c => c.OutputAccountNo).HasMaxLength(20);
+            builder.Property(c => c.InputAccountNo).HasMaxLength(20);
+            builder.Property(c => c.RowVersion).IsRowVersion();
+
+            builder.HasIndex(c => new { c.CompanyId, c.Code })
+                   .IsUnique()
+                   .HasFilter("[IsDeleted] = 0");
+
+            builder.HasMany(c => c.Rates)
+                   .WithOne(r => r.TaxCode!)
+                   .HasForeignKey(r => r.TaxCodeId)
+                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<TaxRate>(builder =>
+        {
+            builder.ToTable("TaxRates", SchemaName);
+
+            builder.Property(r => r.Percentage).HasColumnType(DecimalPrecisionConventions.Percentage);
+            builder.Property(r => r.RowVersion).IsRowVersion();
+
+            // Every posting asks which rate was in force on a date, so the lookup is a seek.
+            builder.HasIndex(r => new { r.TaxCodeId, r.StartingDate }).IsUnique();
+        });
+
+        modelBuilder.Entity<TaxEntry>(builder =>
+        {
+            builder.ToTable("TaxEntries", SchemaName);
+
+            builder.Property(e => e.TaxCodeNo).HasMaxLength(20).IsRequired();
+            builder.Property(e => e.DocumentNo).HasMaxLength(64);
+            builder.Property(e => e.ExternalDocumentNo).HasMaxLength(64);
+            builder.Property(e => e.PartyNo).HasMaxLength(20);
+            builder.Property(e => e.PartyName).HasMaxLength(200);
+            builder.Property(e => e.PartyTaxRegistrationNo).HasMaxLength(40);
+            builder.Property(e => e.TaxAccountNo).HasMaxLength(20);
+            builder.Property(e => e.SourceCode).HasMaxLength(32).IsRequired();
+
+            builder.Property(e => e.Percentage).HasColumnType(DecimalPrecisionConventions.Percentage);
+            builder.Property(e => e.BaseAmount).HasColumnType(DecimalPrecisionConventions.Money);
+            builder.Property(e => e.TaxAmount).HasColumnType(DecimalPrecisionConventions.Money);
+
+            // The question a return asks: everything in this period, not yet declared, grouped by
+            // code and direction. Filtered to the open entries, because a ledger is mostly closed
+            // periods within a year of going live.
+            builder.HasIndex(e => new { e.CompanyId, e.PostingDate, e.Direction })
+                   .HasFilter("[IsClosed] = 0");
+
+            builder.HasIndex(e => new { e.CompanyId, e.TransactionNo });
+
+            builder.HasOne<TaxCode>()
+                   .WithMany()
+                   .HasForeignKey(e => e.TaxCodeId)
+                   .OnDelete(DeleteBehavior.Restrict);
+        });
     }
 
     /// <summary>

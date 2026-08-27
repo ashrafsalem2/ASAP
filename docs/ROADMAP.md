@@ -52,7 +52,8 @@ Everything else posts here, so it goes first.
 - Bank accounts and reconciliation
 - **done** Customer and vendor ledgers with application and settlement, posted through the journal
   so the control account and the subsidiary ledger commit together
-- VAT/tax setup, tax posting, and a return-ready tax entry table
+- **done** VAT/tax setup with dated rates, tax posting on journal lines, and a return-ready
+  tax entry table the return is built from rather than from the tax account balance
 - *in progress* Financial reports: **trial balance, income statement, balance sheet and aged
   analysis done**; cash flow to come. The balance sheet carries the result for the year as its own
   computed line, so it balances before the year-end transfer exists

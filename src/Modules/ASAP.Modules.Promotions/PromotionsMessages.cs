@@ -17,6 +17,9 @@ public static class PromotionsMessages
     /// <summary>An offer would sell something below the floor the company set.</summary>
     public static readonly MessageCode BelowMarginFloor = new("PRM.OFFER.BELOW_MARGIN_FLOOR");
 
+    /// <summary>An offer was left out of a basket because it would have broken the floor.</summary>
+    public static readonly MessageCode OfferNotApplied = new("PRM.OFFER.NOT_APPLIED");
+
     /// <summary>The offer named does not exist.</summary>
     public static readonly MessageCode OfferNotFound = new("PRM.OFFER.NOT_FOUND");
 
@@ -69,6 +72,26 @@ public static class PromotionsMessages
                 + "Promotions.Offer.OverrideMargin. فالتكاليف تتغير، وقد لا يكون العرض السليم عند "
                 + "إعداده سليمًا اليوم."),
             OverridePermission = "Promotions.Offer.OverrideMargin",
+            HelpTopic = "promotions/margin",
+        },
+        new()
+        {
+            Code = OfferNotApplied,
+            Severity = MessageSeverity.Warning,
+            Title = new LocalizedText("An offer did not apply", "لم يُطبَّق أحد العروض"),
+            Detail = new LocalizedText(
+                "{OfferCode} would have sold {ItemNo} {Description} at {OfferPrice:N2} against a "
+                + "cost of {UnitCost:N2}, a margin of {MarginPercent:N2}% where {FloorPercent:N2}% "
+                + "is the least this company accepts. The sale went through at the ordinary price.",
+                "كان العرض {OfferCode} سيبيع {ItemNo} {Description} بسعر {OfferPrice:N2} مقابل "
+                + "تكلفة {UnitCost:N2}، بهامش {MarginPercent:N2}% بينما الحد الأدنى المقبول "
+                + "{FloorPercent:N2}%. وقد تمت العملية بالسعر العادي."),
+            Resolution = new LocalizedText(
+                "Nothing to do at the counter. Somebody who maintains offers should look at "
+                + "{OfferCode}: costs move, and one that was sound when it was written may not be "
+                + "today.",
+                "لا إجراء عند نقطة البيع. وعلى من يدير العروض مراجعة {OfferCode}، فالتكاليف تتغير "
+                + "وقد لا يكون العرض السليم عند إعداده سليمًا اليوم."),
             HelpTopic = "promotions/margin",
         },
         new()

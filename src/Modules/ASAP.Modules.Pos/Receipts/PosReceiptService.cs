@@ -6,6 +6,8 @@ using ASAP.Modules.Inventory.Ledger;
 using ASAP.Modules.Inventory.Posting;
 using ASAP.Modules.Pos.Sessions;
 using ASAP.Modules.Pos.Stations;
+using ASAP.Modules.Promotions.Offers;
+using ASAP.Modules.Promotions.Pricing;
 using ASAP.Platform.Kernel.Messaging;
 using ASAP.Platform.Kernel.Numbering;
 using ASAP.Platform.Kernel.Results;
@@ -84,6 +86,8 @@ public readonly record struct PosReceiptPosted(
 /// <param name="context">The unit of work.</param>
 /// <param name="messages">Renders refusals.</param>
 /// <param name="overrides">Records every protection a receipt pushed past.</param>
+/// <param name="offers">Supplies what is running today, and the margin floor.</param>
+/// <param name="promotions">Decides which offers apply and what they take off.</param>
 /// <param name="stock">Moves the goods.</param>
 /// <param name="documents">Posts the money.</param>
 /// <param name="numbers">Issues the receipt number.</param>
@@ -94,6 +98,8 @@ public sealed class PosReceiptService(
     AsapDbContext context,
     IMessageCatalog messages,
     OverrideAuditor overrides,
+    OfferService offers,
+    PromotionEngine promotions,
     StockPostingService stock,
     DocumentPostingService documents,
     INumberSeriesService numbers,
@@ -184,6 +190,16 @@ public sealed class PosReceiptService(
         }
 
         var built = BuildLines(lines, items, discountLimit, original, heldOverridePermissions, found);
+
+        built = await ApplyOffersAsync(
+                built,
+                items,
+                station,
+                session,
+                heldOverridePermissions,
+                found,
+                cancellationToken)
+            .ConfigureAwait(false);
 
         if (original is not null)
         {
@@ -656,10 +672,19 @@ public sealed class PosReceiptService(
         decimal DiscountPercent,
         string? TaxCode)
     {
+        /// <summary>The offer that applied, when one did.</summary>
+        public string? OfferCode { get; init; }
+
+        /// <summary>What that offer took off, in money.</summary>
+        public decimal OfferDiscountAmount { get; init; }
+
+        /// <summary>What each unit goes for before an offer is considered.</summary>
         public decimal NetUnitPrice => UnitPrice * (1m - (DiscountPercent / 100m));
 
-        public decimal LineAmount => Quantity * NetUnitPrice;
+        /// <summary>What the line comes to after every discount, before tax.</summary>
+        public decimal LineAmount => (Quantity * NetUnitPrice) - OfferDiscountAmount;
 
+        /// <summary>What the person at the till took off.</summary>
         public decimal DiscountAmount => Quantity * UnitPrice * (DiscountPercent / 100m);
     }
 
@@ -669,6 +694,7 @@ public sealed class PosReceiptService(
         string CustomerName,
         decimal NetAmount,
         decimal DiscountAmount,
+        decimal PromotionAmount,
         decimal TaxAmount,
         decimal RoundingAmount,
         decimal TotalAmount,
@@ -790,6 +816,99 @@ public sealed class PosReceiptService(
     }
 
     /// <summary>
+    /// Lets the promotions engine price the basket.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Server-side, and that is not an implementation detail. A till that worked out its own
+    /// offers is a till whose arithmetic nobody can audit and whose margin floor anybody with a
+    /// debugger can step over. The screen shows a total so the customer is not kept waiting; what
+    /// is charged is decided here.
+    /// </para>
+    /// <para>
+    /// Returns is where this needs care. An offer must not apply to goods coming back — the
+    /// customer already had whatever discount they had, and applying today's promotion to a
+    /// refund would hand back more than was ever paid.
+    /// </para>
+    /// </remarks>
+    private async Task<List<BuiltLine>> ApplyOffersAsync(
+        List<BuiltLine> built,
+        IReadOnlyDictionary<string, Item> items,
+        PosStation station,
+        PosSession session,
+        IReadOnlySet<string>? held,
+        List<AsapMessage> found,
+        CancellationToken cancellationToken)
+    {
+        var sellable = built
+            .Where(static l => l.Type is PosLineType.Item && l.Quantity > 0m)
+            .ToList();
+
+        if (sellable.Count == 0)
+        {
+            return built;
+        }
+
+        var running = await offers.RunningAsync(session.BusinessDate, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (running.Count == 0)
+        {
+            return built;
+        }
+
+        var floor = await offers.FloorAsync(cancellationToken).ConfigureAwait(false);
+
+        var basket = sellable
+            .Select(line => new BasketLine(
+                line.LineNo,
+                line.No,
+                items.GetValueOrDefault(line.No)?.CategoryId,
+                line.Quantity,
+                line.UnitPrice,
+                items.GetValueOrDefault(line.No)?.UnitCost ?? 0m,
+                line.DiscountPercent))
+            .ToList();
+
+        var context = new BasketContext(
+            session.BusinessDate,
+            TimeOnly.FromDateTime(clock.UtcNow),
+            SalesChannel.PointOfSale,
+            station.BranchId);
+
+        var names = items.ToDictionary(
+            static i => i.Key,
+            static i => (string?)i.Value.Description,
+            StringComparer.OrdinalIgnoreCase);
+
+        var priced = promotions.Price(basket, running, context, floor, names, found);
+
+        if (priced.Discounts.Count == 0)
+        {
+            return built;
+        }
+
+        return
+        [
+            .. built.Select(line =>
+            {
+                var amount = priced.DiscountOn(line.LineNo);
+
+                if (amount <= 0m)
+                {
+                    return line;
+                }
+
+                return line with
+                {
+                    OfferCode = priced.Discounts.First(d => d.LineNo == line.LineNo).OfferCode,
+                    OfferDiscountAmount = amount,
+                };
+            }),
+        ];
+    }
+
+    /// <summary>
     /// Works out what is owed, what was paid, and what comes back.
     /// </summary>
     /// <remarks>
@@ -807,6 +926,7 @@ public sealed class PosReceiptService(
     {
         var net = lines.Sum(static l => l.LineAmount);
         var discount = lines.Sum(static l => l.DiscountAmount);
+        var promotion = lines.Sum(static l => l.OfferDiscountAmount);
         var tax = await TaxAsync(lines, cancellationToken).ConfigureAwait(false);
 
         var beforeRounding = Round(net + tax);
@@ -896,6 +1016,7 @@ public sealed class PosReceiptService(
             customer.Name,
             Round(net),
             Round(discount),
+            Round(promotion),
             tax,
             rounding,
             total,
@@ -985,6 +1106,11 @@ public sealed class PosReceiptService(
         var discountAccount = await AccountAsync($"{Sales.SalesModule.Id}.Posting.DiscountAccount", cancellationToken)
             .ConfigureAwait(false);
 
+        var promotionAccount = await AccountAsync(
+                $"{Promotions.PromotionsModule.Id}.Posting.DiscountAccount",
+                cancellationToken)
+            .ConfigureAwait(false);
+
         var journal = new List<PostJournalLine>();
 
         foreach (var line in lines)
@@ -998,9 +1124,20 @@ public sealed class PosReceiptService(
 
             var showDiscount = line.DiscountAmount != 0m && !string.IsNullOrWhiteSpace(discountAccount);
 
+            var showPromotion = line.OfferDiscountAmount != 0m
+                                && !string.IsNullOrWhiteSpace(promotionAccount);
+
+            // Revenue goes in at what the shelf said, and everything taken off it stands beside
+            // it as a contra. That is what lets somebody read a month and answer both "what did
+            // we sell" and "what did we give away, and to which campaign" -- questions a netted
+            // down revenue line cannot answer at all.
+            var atList = line.LineAmount
+                         + (showDiscount ? line.DiscountAmount : 0m)
+                         + (showPromotion ? line.OfferDiscountAmount : 0m);
+
             journal.Add(new PostJournalLine(
                 account,
-                -(showDiscount ? line.LineAmount + line.DiscountAmount : line.LineAmount),
+                -atList,
                 line.Description,
                 TaxCode: line.TaxCode));
 
@@ -1010,6 +1147,18 @@ public sealed class PosReceiptService(
                     discountAccount!,
                     line.DiscountAmount,
                     $"{line.Description} — discount",
+                    TaxCode: line.TaxCode));
+            }
+
+            if (showPromotion)
+            {
+                // Every contra carries the tax code too. None of these lines alone is the taxable
+                // amount, so taxing each and letting them offset is what leaves tax charged on
+                // what the customer actually pays.
+                journal.Add(new PostJournalLine(
+                    promotionAccount!,
+                    line.OfferDiscountAmount,
+                    $"{line.Description} — {line.OfferCode}",
                     TaxCode: line.TaxCode));
             }
         }
@@ -1191,6 +1340,7 @@ public sealed class PosReceiptService(
             ReturnsReceiptNo = returnsReceiptNo,
             NetAmount = settled.NetAmount,
             DiscountAmount = settled.DiscountAmount,
+            PromotionAmount = settled.PromotionAmount,
             TaxAmount = settled.TaxAmount,
             RoundingAmount = settled.RoundingAmount,
             ChangeGiven = settled.ChangeGiven,
@@ -1212,6 +1362,8 @@ public sealed class PosReceiptService(
                 Quantity = line.Quantity,
                 UnitPrice = line.UnitPrice,
                 DiscountPercent = line.DiscountPercent,
+                OfferCode = line.OfferCode,
+                OfferDiscountAmount = line.OfferDiscountAmount,
                 TaxCode = line.TaxCode,
             });
         }

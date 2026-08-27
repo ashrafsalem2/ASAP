@@ -110,8 +110,18 @@ public sealed class PosReceipt : CompanyEntity
     /// <summary>What the goods came to, after discount and before tax.</summary>
     public decimal NetAmount { get; set; }
 
-    /// <summary>What was given away.</summary>
+    /// <summary>What was given away by whoever was at the till.</summary>
     public decimal DiscountAmount { get; set; }
+
+    /// <summary>
+    /// What was given away by a promotion.
+    /// </summary>
+    /// <remarks>
+    /// Held apart from the discount above and posted to a different account. Both are money the
+    /// company chose not to take; only one of them is a campaign somebody planned and should be
+    /// able to total the cost of.
+    /// </remarks>
+    public decimal PromotionAmount { get; set; }
 
     /// <summary>Tax charged.</summary>
     public decimal TaxAmount { get; set; }
@@ -194,6 +204,19 @@ public sealed class PosReceiptLine : CompanyEntity
     /// <summary>A discount off this line, held as a percentage so it stays reportable.</summary>
     public decimal DiscountPercent { get; set; }
 
+    /// <summary>The offer that applied to this line, when one did.</summary>
+    public string? OfferCode { get; set; }
+
+    /// <summary>
+    /// What that offer took off the line, in money.
+    /// </summary>
+    /// <remarks>
+    /// An amount rather than a percentage, because a buy-three-get-one-free is not a percentage
+    /// of anything a customer would recognise and a receipt claiming it was would be putting a
+    /// number on paper that no arithmetic produced.
+    /// </remarks>
+    public decimal OfferDiscountAmount { get; set; }
+
     /// <summary>The tax charged.</summary>
     public string? TaxCode { get; set; }
 
@@ -201,8 +224,8 @@ public sealed class PosReceiptLine : CompanyEntity
     /// <summary>What each unit actually goes for.</summary>
     public decimal NetUnitPrice => UnitPrice * (1m - (DiscountPercent / 100m));
 
-    /// <summary>What the line comes to, after discount and before tax.</summary>
-    public decimal LineAmount => Quantity * NetUnitPrice;
+    /// <summary>What the line comes to, after every discount and before tax.</summary>
+    public decimal LineAmount => (Quantity * NetUnitPrice) - OfferDiscountAmount;
 
     /// <summary>What was given away on this line.</summary>
     public decimal DiscountAmount => Quantity * UnitPrice * (DiscountPercent / 100m);

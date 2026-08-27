@@ -107,7 +107,7 @@ public sealed class PromotionEngineTests
         BasketContext context,
         decimal floor = -1000m,
         List<AsapMessage>? found = null)
-        => engine.Price(lines, offers, context, floor, null, null, found ?? []);
+        => engine.Price(lines, offers, context, floor, null, found ?? []);
 
     [Fact]
     public void One_offer_applies_to_the_lines_it_covers()
@@ -288,10 +288,15 @@ public sealed class PromotionEngineTests
     }
 
     [Fact]
-    public void An_offer_that_would_break_the_floor_is_refused_and_says_why()
+    public void An_offer_that_would_break_the_floor_is_left_out_and_says_why()
     {
         // The whole point of the phase. Half off something costing 60 leaves a negative margin,
         // and the offer does not apply.
+        //
+        // A warning rather than a refusal, and the distinction cost a shop a morning to find: a
+        // blocked message here stopped the till selling water at all because somebody had
+        // misconfigured a promotion on it last week. The refusal belongs where it can be acted
+        // on, which is the screen the offer was written on.
         var found = new List<AsapMessage>();
 
         var priced = Price(
@@ -304,12 +309,12 @@ public sealed class PromotionEngineTests
 
         priced.TotalDiscount.ShouldBe(0m, "the offer did not apply");
 
-        var refusal = found.Single();
-        refusal.Code.Value.ShouldBe("PRM.OFFER.BELOW_MARGIN_FLOOR");
-        refusal.IsFailure.ShouldBeTrue();
-        refusal.Detail.ShouldNotBeNull().ShouldContain("HALF");
-        refusal.Detail.ShouldContain("ITEM-1001");
-        refusal.Target.Field.ShouldBe("Lines[1]");
+        var told = found.Single();
+        told.Code.Value.ShouldBe("PRM.OFFER.NOT_APPLIED");
+        told.IsFailure.ShouldBeFalse("the shop keeps trading");
+        told.Detail.ShouldNotBeNull().ShouldContain("HALF");
+        told.Detail.ShouldContain("ITEM-1001");
+        told.Target.Field.ShouldBe("Lines[1]");
     }
 
     [Fact]

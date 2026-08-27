@@ -45,6 +45,7 @@ public sealed class PosModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISyncCont
         Modules.Inventory.InventoryModule.Id,
         Modules.Finance.FinanceModule.Id,
         Modules.Sales.SalesModule.Id,
+        Modules.Promotions.PromotionsModule.Id,
     ];
 
     /// <summary>

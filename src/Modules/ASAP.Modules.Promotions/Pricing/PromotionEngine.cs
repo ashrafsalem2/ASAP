@@ -33,16 +33,20 @@ public sealed class PromotionEngine(IMessageCatalog messages)
     /// <param name="context">When, where and who.</param>
     /// <param name="marginFloorPercent">The least margin this company accepts.</param>
     /// <param name="names">What the items are called, for messages.</param>
-    /// <param name="held">Override permissions the caller holds.</param>
     /// <param name="found">Where messages are collected.</param>
     /// <returns>What came off, per line and per offer.</returns>
+    /// <remarks>
+    /// An offer that would break the floor is left out and said so, as a warning. It is
+    /// emphatically not a refusal here: a shop must not stop selling water because somebody
+    /// misconfigured a promotion on it last week. The refusal belongs where it can be acted on,
+    /// which is the screen the offer was written on.
+    /// </remarks>
     public PricedBasket Price(
         IReadOnlyList<BasketLine> lines,
         IReadOnlyList<Offer> offers,
         BasketContext context,
         decimal marginFloorPercent,
         IReadOnlyDictionary<string, string?>? names,
-        IReadOnlySet<string>? held,
         List<AsapMessage> found)
     {
         ArgumentNullException.ThrowIfNull(lines);
@@ -91,11 +95,12 @@ public sealed class PromotionEngine(IMessageCatalog messages)
                 {
                     var offer = candidates.Single(o => o.Code == discount.OfferCode);
 
-                    found.Add(Raise(
-                        PromotionsMessages.BelowMarginFloor,
+                    // Left out, and said so. The customer pays the ordinary price and the shop
+                    // keeps trading; somebody who maintains offers gets told what to look at.
+                    found.Add(messages.Render(
+                        PromotionsMessages.OfferNotApplied,
                         MarginGuard.Arguments(check, offer, names?.GetValueOrDefault(line.ItemNo)),
-                        MarginGuard.TargetFor(check),
-                        held));
+                        MarginGuard.TargetFor(check)));
 
                     continue;
                 }
@@ -216,19 +221,6 @@ public sealed class PromotionEngine(IMessageCatalog messages)
 
     private static decimal TotalOn(IReadOnlyList<AppliedDiscount> applied, int lineNo)
         => applied.Where(d => d.LineNo == lineNo).Sum(static d => d.Amount);
-
-    private AsapMessage Raise(
-        MessageCode code,
-        Dictionary<string, object?> arguments,
-        MessageTarget target,
-        IReadOnlySet<string>? held)
-    {
-        var rendered = messages.Render(code, arguments, target);
-
-        return rendered.OverridePermission is { } permission && held?.Contains(permission) == true
-            ? messages.AsOverridden(rendered)
-            : rendered;
-    }
 
     private static decimal Round(decimal value) => Math.Round(value, 2, MidpointRounding.AwayFromZero);
 }

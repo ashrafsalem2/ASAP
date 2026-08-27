@@ -98,6 +98,7 @@ public sealed class PosSchema : IModuleSchema
                      {
                          nameof(PosReceipt.NetAmount),
                          nameof(PosReceipt.DiscountAmount),
+                         nameof(PosReceipt.PromotionAmount),
                          nameof(PosReceipt.TaxAmount),
                          nameof(PosReceipt.RoundingAmount),
                          nameof(PosReceipt.CostAmount),
@@ -147,6 +148,11 @@ public sealed class PosSchema : IModuleSchema
             builder.Property(l => l.AccountNo).HasMaxLength(20);
             builder.Property(l => l.Description).HasMaxLength(250).IsRequired();
             builder.Property(l => l.TaxCode).HasMaxLength(20);
+            builder.Property(l => l.OfferCode).HasMaxLength(20);
+            builder.Property(l => l.OfferDiscountAmount).HasColumnType(DecimalPrecisionConventions.Money);
+
+            // "What did this campaign cost us?" reads this one.
+            builder.HasIndex(l => new { l.CompanyId, l.OfferCode });
 
             builder.Property(l => l.Quantity).HasColumnType(DecimalPrecisionConventions.Quantity);
             builder.Property(l => l.UnitPrice).HasColumnType(DecimalPrecisionConventions.UnitAmount);

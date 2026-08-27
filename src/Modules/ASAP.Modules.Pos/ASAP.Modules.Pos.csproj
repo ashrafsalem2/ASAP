@@ -11,6 +11,7 @@
   -->
   <ItemGroup>
     <ProjectReference Include="..\ASAP.Modules.Sales\ASAP.Modules.Sales.csproj" />
+    <ProjectReference Include="..\ASAP.Modules.Promotions\ASAP.Modules.Promotions.csproj" />
     <ProjectReference Include="..\ASAP.Modules.Inventory\ASAP.Modules.Inventory.csproj" />
     <ProjectReference Include="..\ASAP.Modules.Finance\ASAP.Modules.Finance.csproj" />
   </ItemGroup>

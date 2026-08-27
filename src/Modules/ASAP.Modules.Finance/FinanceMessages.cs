@@ -29,6 +29,30 @@ public static class FinanceMessages
     /// <summary>A line carries no amount.</summary>
     public static readonly MessageCode AmountZero = new("FIN.JOURNAL.AMOUNT_ZERO");
 
+    /// <summary>A line names a customer or vendor withdrawn from use.</summary>
+    public static readonly MessageCode PartyBlocked = new("FIN.PARTY.BLOCKED");
+
+    /// <summary>A line names a customer or vendor that does not exist.</summary>
+    public static readonly MessageCode PartyNotFound = new("FIN.PARTY.NOT_FOUND");
+
+    /// <summary>Posting would take a customer past the credit they are allowed.</summary>
+    public static readonly MessageCode CreditLimitExceeded = new("FIN.CUSTOMER.CREDIT_LIMIT_EXCEEDED");
+
+    /// <summary>An application would settle more than is outstanding.</summary>
+    public static readonly MessageCode ApplicationTooLarge = new("FIN.APPLICATION.TOO_LARGE");
+
+    /// <summary>An application names two entries that pull the same way.</summary>
+    public static readonly MessageCode ApplicationSameDirection = new("FIN.APPLICATION.SAME_DIRECTION");
+
+    /// <summary>An application names entries belonging to different parties.</summary>
+    public static readonly MessageCode ApplicationDifferentParties = new("FIN.APPLICATION.DIFFERENT_PARTIES");
+
+    /// <summary>An application names an entry that is already settled.</summary>
+    public static readonly MessageCode ApplicationEntryClosed = new("FIN.APPLICATION.ENTRY_CLOSED");
+
+    /// <summary>An application names an entry that does not exist.</summary>
+    public static readonly MessageCode ApplicationEntryNotFound = new("FIN.APPLICATION.ENTRY_NOT_FOUND");
+
     /// <summary>The posting date falls in no defined period.</summary>
     public static readonly MessageCode NoOpenPeriod = new("FIN.PERIOD.NOT_DEFINED");
 
@@ -137,6 +161,55 @@ public static class FinanceMessages
         },
         new()
         {
+            Code = PartyNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such customer or vendor", "لا يوجد عميل أو مورّد بهذا الرقم"),
+            Detail = new LocalizedText(
+                "Line {LineNo} names {PartyNo}, and no {PartyKind} in this company carries that number.",
+                "السطر {LineNo} يشير إلى {PartyNo}، ولا يوجد {PartyKind} في هذه الشركة بهذا الرقم."),
+            Resolution = new LocalizedText(
+                "Check the number against the customer or vendor list, or create {PartyNo} first.",
+                "تحقق من الرقم في قائمة العملاء أو المورّدين، أو أنشئ {PartyNo} أولاً."),
+        },
+        new()
+        {
+            Code = PartyBlocked,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("That account is blocked", "هذا الحساب محظور"),
+            Detail = new LocalizedText(
+                "{PartyNo} {PartyName} has been withdrawn from use, usually because trading with "
+                + "them has been stopped.",
+                "تم سحب {PartyNo} {PartyName} من الاستخدام، عادةً لإيقاف التعامل معه."),
+            Resolution = new LocalizedText(
+                "Unblock {PartyNo} if trading has resumed. If this is a payment settling what they "
+                + "already owe, an administrator can override -- taking money owed is rarely the "
+                + "thing a block was meant to prevent.",
+                "ألغِ حظر {PartyNo} إن استُؤنف التعامل. وإذا كان هذا سدادًا لمديونية قائمة، يمكن "
+                + "للمسؤول التجاوز، فتحصيل المستحقات نادرًا ما يكون الغرض من الحظر."),
+            OverridePermission = "Finance.Party.Override",
+            HelpTopic = "finance/customers-and-vendors",
+        },
+        new()
+        {
+            Code = CreditLimitExceeded,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("Over the credit limit", "تجاوز حد الائتمان"),
+            Detail = new LocalizedText(
+                "{PartyNo} {PartyName} owes {Balance:N2} and this would take them to "
+                + "{BalanceAfter:N2}, which is {ExcessAmount:N2} over their limit of {CreditLimit:N2}.",
+                "مديونية {PartyNo} {PartyName} حاليًا {Balance:N2} وهذه العملية سترفعها إلى "
+                + "{BalanceAfter:N2}، أي بزيادة {ExcessAmount:N2} عن حدّه البالغ {CreditLimit:N2}."),
+            Resolution = new LocalizedText(
+                "Take payment against what is already outstanding, reduce the amount, or raise the "
+                + "credit limit on {PartyNo}. Someone with the override permission can let this "
+                + "one through, and it will be recorded against their name.",
+                "حصّل جزءًا من المديونية القائمة، أو خفّض المبلغ، أو ارفع حد الائتمان لـ {PartyNo}. "
+                + "ويمكن لمن يملك صلاحية التجاوز تمرير هذه العملية، وسيُسجَّل ذلك باسمه."),
+            OverridePermission = "Finance.Party.Override",
+            HelpTopic = "finance/customers-and-vendors",
+        },
+        new()
+        {
             Code = AmountZero,
             Severity = MessageSeverity.Error,
             Title = new LocalizedText("A line has no amount", "أحد السطور بدون مبلغ"),
@@ -209,6 +282,78 @@ public static class FinanceMessages
                 "صحّح التاريخ في السطر {LineNo}، أو اطلب من المسؤول توسيع نطاق الترحيل المسموح لك."),
             OverridePermission = "Finance.Period.Override",
             HelpTopic = "finance/posting-window",
+        },
+        new()
+        {
+            Code = ApplicationEntryNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such ledger entry", "لا يوجد قيد بهذا الرقم"),
+            Detail = new LocalizedText(
+                "Nothing in this company's {PartyKind} ledger matches the entry named.",
+                "لا يوجد في دفتر {PartyKind} بهذه الشركة أي قيد مطابق."),
+            Resolution = new LocalizedText(
+                "Choose the entry from the account rather than typing it, so only entries that "
+                + "exist can be picked.",
+                "اختر القيد من كشف الحساب بدلاً من كتابته، حتى لا يمكن اختيار سوى قيود موجودة."),
+        },
+        new()
+        {
+            Code = ApplicationEntryClosed,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("That entry is already settled", "هذا القيد مُسوّى بالكامل"),
+            Detail = new LocalizedText(
+                "{DocumentNo} has nothing outstanding, so there is nothing to apply against it.",
+                "لا يوجد رصيد مستحق على {DocumentNo}، فلا شيء لتسويته."),
+            Resolution = new LocalizedText(
+                "Choose an entry that is still open. If this one was settled in error, unapply the "
+                + "application that closed it first.",
+                "اختر قيدًا ما زال مفتوحًا. وإذا سُوّي هذا القيد بالخطأ، فألغِ التسوية التي أغلقته أولاً."),
+        },
+        new()
+        {
+            Code = ApplicationSameDirection,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Those two entries cannot settle each other", "لا يمكن تسوية هذين القيدين ببعضهما"),
+            Detail = new LocalizedText(
+                "{FromDocumentNo} and {ToDocumentNo} are both on the same side of the account, so "
+                + "applying one to the other would increase what is outstanding rather than reduce it.",
+                "القيدان {FromDocumentNo} و{ToDocumentNo} في الجانب نفسه من الحساب، لذا فإن تسوية "
+                + "أحدهما بالآخر ستزيد الرصيد المستحق بدلاً من تخفيضه."),
+            Resolution = new LocalizedText(
+                "Apply a payment or credit memo against an invoice. Two invoices do not settle one "
+                + "another.",
+                "طبّق سدادًا أو إشعارًا دائنًا على فاتورة. الفاتورتان لا تُسوّي إحداهما الأخرى."),
+        },
+        new()
+        {
+            Code = ApplicationDifferentParties,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Those entries belong to different accounts", "القيدان يخصّان حسابين مختلفين"),
+            Detail = new LocalizedText(
+                "{FromDocumentNo} belongs to {FromPartyNo} and {ToDocumentNo} to {ToPartyNo}.",
+                "القيد {FromDocumentNo} يخص {FromPartyNo} والقيد {ToDocumentNo} يخص {ToPartyNo}."),
+            Resolution = new LocalizedText(
+                "Apply within one account. Money received from one customer does not settle "
+                + "another's invoice, even where the two are related -- if it genuinely should, "
+                + "post a transfer between them so the movement is on the record.",
+                "طبّق التسوية داخل الحساب الواحد. المبلغ المستلم من عميل لا يُسوّي فاتورة عميل آخر "
+                + "حتى لو كانا مرتبطين، وإن لزم ذلك فعلاً فرحّل تحويلاً بينهما ليكون الأمر موثّقًا."),
+        },
+        new()
+        {
+            Code = ApplicationTooLarge,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("More than is outstanding", "أكبر من الرصيد المستحق"),
+            Detail = new LocalizedText(
+                "{Amount:N2} was offered against {ToDocumentNo}, which has {Outstanding:N2} left, "
+                + "drawing on {FromDocumentNo}, which has {Available:N2} unapplied.",
+                "تم تقديم {Amount:N2} لتسوية {ToDocumentNo} الذي تبقّى عليه {Outstanding:N2}، "
+                + "سحبًا من {FromDocumentNo} الذي لديه {Available:N2} غير مطبّق."),
+            Resolution = new LocalizedText(
+                "Apply no more than the smaller of the two. Leaving the rest unapplied is correct: "
+                + "it stays on the account and can settle the next invoice.",
+                "لا تطبّق أكثر من الأصغر بين المبلغين. وترك الباقي دون تطبيق هو التصرف الصحيح، "
+                + "إذ يبقى في الحساب لتسوية الفاتورة التالية."),
         },
         new()
         {

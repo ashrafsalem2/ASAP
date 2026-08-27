@@ -43,6 +43,7 @@ public readonly record struct PostingReceipt(
 /// </remarks>
 /// <param name="context">The unit of work.</param>
 /// <param name="validator">Checks the lines before anything is written.</param>
+/// <param name="partyLedger">Writes the customer and vendor side of the same posting.</param>
 /// <param name="events">Gives extensions their say, and announces the result.</param>
 /// <param name="messages">Renders messages.</param>
 /// <param name="tenantContext">Supplies the company and branch being posted in.</param>
@@ -53,6 +54,7 @@ public readonly record struct PostingReceipt(
 public sealed class JournalPostingService(
     AsapDbContext context,
     JournalPostingValidator validator,
+    Parties.PartyLedgerWriter partyLedger,
     IEventPublisher events,
     IMessageCatalog messages,
     ITenantContext tenantContext,
@@ -125,6 +127,12 @@ public sealed class JournalPostingService(
         context.Set<GlEntry>().AddRange(entries);
 
         await ApplyBalancesAsync(entries, cancellationToken).ConfigureAwait(false);
+
+        // The customer and vendor side, written here rather than by a separate service so the
+        // control account and the subsidiary ledger commit together and cannot disagree.
+        await partyLedger
+            .WriteAsync(lines, request, transactionNo, environment.CurrencyDecimals, cancellationToken)
+            .ConfigureAwait(false);
 
         // Warnings that started life as blocks record an override. This is the whole reason the
         // audit log carries a message code: "show me every time someone posted into a closed

@@ -42,29 +42,46 @@ public sealed class FinanceSeeder(AsapDbContext context, ILogger<FinanceSeeder> 
         int year,
         CancellationToken cancellationToken = default)
     {
-        var alreadySet = await context.Set<GlAccount>()
-            .IgnoreQueryFilters()
-            .AnyAsync(a => a.CompanyId == companyId, cancellationToken)
-            .ConfigureAwait(false);
+        var hasAccounts = await ExistsAsync<GlAccount>(companyId, cancellationToken).ConfigureAwait(false);
+        var hasParties = await ExistsAsync<Parties.Customer>(companyId, cancellationToken).ConfigureAwait(false);
 
-        if (alreadySet)
+        if (hasAccounts && hasParties)
         {
             return false;
         }
 
-        SeedChartOfAccounts(tenantId, companyId);
-        SeedFiscalYear(tenantId, companyId, year);
-        SeedJournalBatches(tenantId, companyId);
+        // Each unit guards on its own data rather than on the chart of accounts. Gating everything
+        // behind one check means a company set up before a later unit existed never receives it --
+        // which is exactly what happened when customers and vendors arrived: the tables were
+        // created, the screens shipped, and every existing company saw them empty.
+        if (!hasAccounts)
+        {
+            SeedChartOfAccounts(tenantId, companyId);
+            SeedFiscalYear(tenantId, companyId, year);
+            SeedJournalBatches(tenantId, companyId);
+        }
+
+        if (!hasParties)
+        {
+            SeedParties(tenantId, companyId);
+        }
 
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         logger.LogInformation(
-            "Seeded the Finance chart of accounts and the {Year} fiscal calendar for company {Company}.",
-            year,
-            companyId);
+            "Seeded Finance for company {Company}: chart and calendar {Chart}, customers and vendors {Parties}.",
+            companyId,
+            hasAccounts ? "already present" : $"created for {year}",
+            hasParties ? "already present" : "created");
 
         return true;
     }
+
+    private Task<bool> ExistsAsync<TEntity>(Guid companyId, CancellationToken cancellationToken)
+        where TEntity : ASAP.Platform.Kernel.Entities.CompanyEntity
+        => context.Set<TEntity>()
+            .IgnoreQueryFilters()
+            .AnyAsync(e => e.CompanyId == companyId, cancellationToken);
 
     private void SeedChartOfAccounts(Guid tenantId, Guid companyId)
     {
@@ -214,5 +231,51 @@ public sealed class FinanceSeeder(AsapDbContext context, ILogger<FinanceSeeder> 
                 NumberSeriesCode = "GJ",
                 SourceCode = "GENJNL",
             });
+    }
+
+    /// <summary>
+    /// A handful of customers and vendors to trade with.
+    /// </summary>
+    /// <remarks>
+    /// Deliberately varied rather than uniform: different payment terms, one customer with a tight
+    /// credit limit and one with none, and one party that is both. Seed data where every row is
+    /// the same teaches nothing and hides every rule that only fires on the unusual case.
+    /// </remarks>
+    private void SeedParties(Guid tenantId, Guid companyId)
+    {
+        void Customer(string no, string name, string arabic, int terms, decimal limit)
+            => context.Set<Parties.Customer>().Add(new Parties.Customer
+            {
+                TenantId = tenantId,
+                CompanyId = companyId,
+                No = no,
+                Name = name,
+                NameArabic = arabic,
+                PaymentTermsDays = terms,
+                CreditLimit = limit,
+            });
+
+        void Vendor(string no, string name, string arabic, int terms)
+            => context.Set<Parties.Vendor>().Add(new Parties.Vendor
+            {
+                TenantId = tenantId,
+                CompanyId = companyId,
+                No = no,
+                Name = name,
+                NameArabic = arabic,
+                PaymentTermsDays = terms,
+            });
+
+        Customer("C-0001", "Al Faisaliah Trading", "الفيصلية للتجارة", 30, 50_000m);
+        Customer("C-0002", "Najd Contracting", "نجد للمقاولات", 60, 250_000m);
+        Customer("C-0003", "Rawabi Retail", "روابي للتجزئة", 14, 15_000m);
+
+        // No limit at all, which is the case that catches a credit check written as
+        // "balance > limit" without asking whether a limit was set.
+        Customer("C-0004", "Cash sales", "مبيعات نقدية", 0, 0m);
+
+        Vendor("V-0001", "Gulf Office Supplies", "الخليج للأدوات المكتبية", 30);
+        Vendor("V-0002", "Riyadh Logistics", "الرياض للخدمات اللوجستية", 45);
+        Vendor("V-0003", "Najd Contracting", "نجد للمقاولات", 30);
     }
 }

@@ -1,5 +1,6 @@
 using ASAP.Modules.Finance.Accounts;
 using ASAP.Modules.Finance.Ledger;
+using ASAP.Modules.Finance.Parties;
 using ASAP.Modules.Finance.Periods;
 using ASAP.Modules.Finance.Posting;
 using ASAP.Platform.Core.Dimensions;
@@ -15,19 +16,33 @@ using Microsoft.EntityFrameworkCore;
 namespace ASAP.Modules.Finance.Journals;
 
 /// <summary>One line of a journal being posted through the API.</summary>
-/// <param name="AccountNo">The account number, for example <c>6400</c>.</param>
+/// <param name="AccountNo">
+/// What the line posts to. A general ledger account number such as <c>6400</c>, or a customer or
+/// vendor number when <paramref name="AccountType"/> says so.
+/// </param>
 /// <param name="Amount">The signed amount. Positive debits the account, negative credits it.</param>
 /// <param name="Description">What the entry should say. Falls back to the account name.</param>
 /// <param name="BalancingAccountNo">
 /// What this line balances against. When given, the line stands alone and produces two entries.
 /// </param>
 /// <param name="PostingDate">The date to report the entry in. Defaults to today.</param>
+/// <param name="AccountType">
+/// Whether the line posts to a general ledger account or to a customer or vendor. Modelled on the
+/// line rather than the journal so one batch can hold an invoice and its contra, which is how
+/// anybody actually keys a purchase day book.
+/// </param>
+/// <param name="ExternalDocumentNo">
+/// The other side's reference, such as the number printed on the vendor's own invoice. Carried on
+/// the party entry, where it is the thing people search by when a supplier telephones.
+/// </param>
 public sealed record PostJournalLine(
     string AccountNo,
     decimal Amount,
     string? Description = null,
     string? BalancingAccountNo = null,
-    DateOnly? PostingDate = null);
+    DateOnly? PostingDate = null,
+    JournalAccountType AccountType = JournalAccountType.GlAccount,
+    string? ExternalDocumentNo = null);
 
 /// <summary>
 /// Posts a set of journal lines to the general ledger.
@@ -64,6 +79,7 @@ public sealed class PostJournalCommandHandler(
     AsapDbContext context,
     JournalPostingService posting,
     ISetupService setup,
+    IMessageCatalog messages,
     IUserContext userContext,
     IClock clock) : IRequestHandler<PostJournalCommand, Result<PostingReceipt>>
 {
@@ -76,8 +92,16 @@ public sealed class PostJournalCommandHandler(
 
         var today = clock.Today;
 
+        var parties = await ResolvePartiesAsync(request.Lines, cancellationToken).ConfigureAwait(false);
+
+        // A party line posts to its control account, so that account has to be loaded alongside
+        // the ones the journal names directly.
         var accountNumbers = request.Lines
-            .SelectMany(static l => new[] { l.AccountNo, l.BalancingAccountNo })
+            .SelectMany(l => new[]
+            {
+                l.AccountType is JournalAccountType.GlAccount ? l.AccountNo : ControlAccountFor(l, parties),
+                l.BalancingAccountNo,
+            })
             .Where(static no => !string.IsNullOrWhiteSpace(no))
             .Select(static no => no!)
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -109,16 +133,37 @@ public sealed class PostJournalCommandHandler(
         var calendar = await FiscalCalendar.LoadAsync(context, cancellationToken).ConfigureAwait(false);
 
         var lines = request.Lines
-            .Select((line, index) => new PostingLineView(
-                LineNo: index + 1,
-                PostingDate: line.PostingDate ?? today,
-                Amount: line.Amount,
-                Account: Resolve(line.AccountNo, accounts, companyDimensionIds),
-                BalancingAccount: Resolve(line.BalancingAccountNo, accounts, companyDimensionIds),
-                Dimensions: DimensionCombination.Empty,
-                DocumentNo: request.DocumentNo,
-                Description: line.Description))
+            .Select((line, index) =>
+            {
+                var party = PartyFor(line, parties);
+
+                return new PostingLineView(
+                    LineNo: index + 1,
+                    PostingDate: line.PostingDate ?? today,
+                    Amount: line.Amount,
+                    Account: Resolve(
+                        line.AccountType is JournalAccountType.GlAccount
+                            ? line.AccountNo
+                            : party?.ControlAccountNo,
+                        accounts,
+                        companyDimensionIds),
+                    BalancingAccount: Resolve(line.BalancingAccountNo, accounts, companyDimensionIds),
+                    Dimensions: DimensionCombination.Empty,
+                    DocumentNo: request.DocumentNo,
+                    Description: line.Description,
+                    Party: party,
+                    ExternalDocumentNo: line.ExternalDocumentNo);
+            })
             .ToList();
+
+        // A party number matching nothing is reported here rather than inside the validator, which
+        // never sees the number the user typed -- only the party it failed to resolve to.
+        var unknown = UnknownParties(request.Lines, parties);
+
+        if (unknown.Count > 0)
+        {
+            return Result<PostingReceipt>.Failure(unknown);
+        }
 
         var environment = new PostingEnvironment(
             BatchCode: request.BatchCode,
@@ -153,6 +198,113 @@ public sealed class PostJournalCommandHandler(
             .ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// Loads every customer and vendor the journal names, keyed by kind and number.
+    /// </summary>
+    /// <remarks>
+    /// Two queries at most, whatever the batch holds. A purchase day book names forty vendors
+    /// across two hundred lines, and resolving per line would be two hundred round trips.
+    /// </remarks>
+    private async Task<Dictionary<(JournalAccountType Type, string No), PostingPartyView>> ResolvePartiesAsync(
+        IReadOnlyList<PostJournalLine> lines,
+        CancellationToken cancellationToken)
+    {
+        var resolved = new Dictionary<(JournalAccountType, string), PostingPartyView>();
+
+        var customerNos = NumbersOf(lines, JournalAccountType.Customer);
+        var vendorNos = NumbersOf(lines, JournalAccountType.Vendor);
+
+        if (customerNos.Count == 0 && vendorNos.Count == 0)
+        {
+            return resolved;
+        }
+
+        var receivables = await ControlAccountAsync(
+                $"{FinanceModule.Id}.Parties.ReceivablesAccount",
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        var payables = await ControlAccountAsync(
+                $"{FinanceModule.Id}.Parties.PayablesAccount",
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        foreach (var customer in await LoadAsync<Customer>(customerNos, cancellationToken).ConfigureAwait(false))
+        {
+            resolved[(JournalAccountType.Customer, customer.No)] =
+                PostingPartyView.From(customer, receivables);
+        }
+
+        foreach (var vendor in await LoadAsync<Vendor>(vendorNos, cancellationToken).ConfigureAwait(false))
+        {
+            resolved[(JournalAccountType.Vendor, vendor.No)] = PostingPartyView.From(vendor, payables);
+        }
+
+        return resolved;
+    }
+
+    private static List<string> NumbersOf(IReadOnlyList<PostJournalLine> lines, JournalAccountType type)
+        => [.. lines
+            .Where(l => l.AccountType == type)
+            .Select(static l => l.AccountNo)
+            .Distinct(StringComparer.OrdinalIgnoreCase)];
+
+    private Task<List<TParty>> LoadAsync<TParty>(List<string> numbers, CancellationToken cancellationToken)
+        where TParty : Party
+        => numbers.Count == 0
+            ? Task.FromResult(new List<TParty>())
+            : context.Set<TParty>()
+                .AsNoTracking()
+                .Where(p => numbers.Contains(p.No))
+                .ToListAsync(cancellationToken);
+
+    private async Task<string> ControlAccountAsync(string setupKey, CancellationToken cancellationToken)
+        => await setup.GetAsync<string>(setupKey, cancellationToken).ConfigureAwait(false)
+           ?? string.Empty;
+
+    private static PostingPartyView? PartyFor(
+        PostJournalLine line,
+        IReadOnlyDictionary<(JournalAccountType Type, string No), PostingPartyView> parties)
+        => line.AccountType is JournalAccountType.GlAccount
+            ? null
+            : parties.GetValueOrDefault((line.AccountType, line.AccountNo));
+
+    private static string? ControlAccountFor(
+        PostJournalLine line,
+        IReadOnlyDictionary<(JournalAccountType Type, string No), PostingPartyView> parties)
+        => PartyFor(line, parties)?.ControlAccountNo;
+
+    /// <summary>Builds a refusal for every line naming a party that does not exist.</summary>
+    private List<AsapMessage> UnknownParties(
+        IReadOnlyList<PostJournalLine> lines,
+        IReadOnlyDictionary<(JournalAccountType Type, string No), PostingPartyView> parties)
+    {
+        var found = new List<AsapMessage>();
+
+        for (var index = 0; index < lines.Count; index++)
+        {
+            var line = lines[index];
+
+            if (line.AccountType is JournalAccountType.GlAccount
+                || parties.ContainsKey((line.AccountType, line.AccountNo)))
+            {
+                continue;
+            }
+
+            found.Add(messages.Render(
+                FinanceMessages.PartyNotFound,
+                new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["LineNo"] = index + 1,
+                    ["PartyNo"] = line.AccountNo,
+                    ["PartyKind"] = line.AccountType.ToString().ToLowerInvariant(),
+                },
+                MessageTarget.OnField($"Lines[{index + 1}]")));
+        }
+
+        return found;
+    }
+
     private static PostingAccountView? Resolve(
         string? accountNo,
         Dictionary<string, GlAccount> accounts,
@@ -170,12 +322,22 @@ public sealed class PostJournalCommandHandler(
             : null;
     }
 
+    /// <summary>
+    /// Which of the overridable blocks this caller may push past.
+    /// </summary>
+    /// <remarks>
+    /// Every permission named as an <c>OverridePermission</c> on a message the validator can raise
+    /// has to appear here. A message that offers an override the handler never collects is worse
+    /// than one that offers none: it tells the user to go and find somebody who can approve it,
+    /// and that person then finds they cannot either.
+    /// </remarks>
     private IReadOnlySet<string> HeldOverrides()
     {
         HashSet<string> candidates =
         [
             $"{FinanceModule.Id}.Period.Override",
             $"{FinanceModule.Id}.Account.Override",
+            $"{FinanceModule.Id}.Party.Override",
         ];
 
         return candidates.Where(userContext.Has).ToHashSet(StringComparer.OrdinalIgnoreCase);

@@ -1,6 +1,7 @@
 using ASAP.Modules.Finance.Accounts;
 using ASAP.Modules.Finance.Journals;
 using ASAP.Modules.Finance.Ledger;
+using ASAP.Modules.Finance.Parties;
 using ASAP.Modules.Finance.Periods;
 using ASAP.Platform.Persistence;
 using ASAP.Platform.Persistence.Conventions;
@@ -29,7 +30,116 @@ public sealed class FinanceSchema : IModuleSchema
         ConfigurePeriods(modelBuilder);
         ConfigureJournals(modelBuilder);
         ConfigureLedger(modelBuilder);
+        ConfigureParties(modelBuilder);
     }
+
+    /// <summary>
+    /// Registers the customer and vendor ledgers.
+    /// </summary>
+    /// <remarks>
+    /// Customers and vendors share a base class but not a table. The base is never registered as
+    /// an entity type, so EF maps each concrete type as its own root rather than inventing a
+    /// discriminator over a hierarchy that has no reason to share storage.
+    /// </remarks>
+    private void ConfigureParties(ModelBuilder modelBuilder)
+    {
+        ConfigureParty<Customer>(modelBuilder, "Customers");
+        ConfigureParty<Vendor>(modelBuilder, "Vendors");
+
+        ConfigurePartyLedger<CustomerLedgerEntry, Customer>(modelBuilder, "CustomerLedgerEntries");
+        ConfigurePartyLedger<VendorLedgerEntry, Vendor>(modelBuilder, "VendorLedgerEntries");
+
+        ConfigureApplication<CustomerApplication, CustomerLedgerEntry>(modelBuilder, "CustomerApplications");
+        ConfigureApplication<VendorApplication, VendorLedgerEntry>(modelBuilder, "VendorApplications");
+    }
+
+    private void ConfigureParty<TParty>(ModelBuilder modelBuilder, string table)
+        where TParty : Party
+        => modelBuilder.Entity<TParty>(builder =>
+        {
+            builder.ToTable(table, SchemaName);
+
+            builder.Property(p => p.No).HasMaxLength(20).IsRequired();
+            builder.Property(p => p.Name).HasMaxLength(200).IsRequired();
+            builder.Property(p => p.NameArabic).HasMaxLength(200);
+            builder.Property(p => p.ControlAccountNo).HasMaxLength(20);
+            builder.Property(p => p.Email).HasMaxLength(320);
+            builder.Property(p => p.Phone).HasMaxLength(40);
+            builder.Property(p => p.TaxRegistrationNo).HasMaxLength(40);
+            builder.Property(p => p.CreditLimit).HasColumnType(DecimalPrecisionConventions.Money);
+            builder.Property(p => p.Balance).HasColumnType(DecimalPrecisionConventions.Money);
+            builder.Property(p => p.RowVersion).IsRowVersion();
+
+            builder.HasIndex(p => new { p.CompanyId, p.No })
+                   .IsUnique()
+                   .HasFilter("[IsDeleted] = 0");
+
+            builder.Ignore(p => p.Kind);
+            builder.Ignore(p => p.IsPostable);
+        });
+
+    private void ConfigurePartyLedger<TEntry, TParty>(ModelBuilder modelBuilder, string table)
+        where TEntry : PartyLedgerEntry
+        where TParty : Party
+        => modelBuilder.Entity<TEntry>(builder =>
+        {
+            builder.ToTable(table, SchemaName);
+
+            builder.Property(e => e.PartyNo).HasMaxLength(20).IsRequired();
+            builder.Property(e => e.PartyName).HasMaxLength(200).IsRequired();
+            builder.Property(e => e.DocumentNo).HasMaxLength(64);
+            builder.Property(e => e.ExternalDocumentNo).HasMaxLength(64);
+            builder.Property(e => e.Description).HasMaxLength(250).IsRequired();
+            builder.Property(e => e.ControlAccountNo).HasMaxLength(20).IsRequired();
+            builder.Property(e => e.SourceCode).HasMaxLength(32).IsRequired();
+            builder.Property(e => e.CurrencyCode).HasMaxLength(3).IsFixedLength();
+
+            builder.Property(e => e.Amount).HasColumnType(DecimalPrecisionConventions.Money);
+            builder.Property(e => e.RemainingAmount).HasColumnType(DecimalPrecisionConventions.Money);
+
+            // What is still owed, which is what the aged analysis, the statement and the
+            // application screen all ask for. Filtered so the index covers only the rows anybody
+            // looks for; a ledger is mostly closed entries within a year of going live.
+            builder.HasIndex(e => new { e.CompanyId, e.PartyId, e.DueDate })
+                   .HasFilter("[IsOpen] = 1");
+
+            builder.HasIndex(e => new { e.CompanyId, e.PartyId, e.PostingDate });
+            builder.HasIndex(e => new { e.CompanyId, e.TransactionNo });
+
+            builder.HasOne<TParty>()
+                   .WithMany()
+                   .HasForeignKey(e => e.PartyId)
+                   .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Ignore(e => e.Kind);
+            builder.Ignore(e => e.AppliedAmount);
+        });
+
+    private void ConfigureApplication<TApplication, TEntry>(ModelBuilder modelBuilder, string table)
+        where TApplication : PartyApplication
+        where TEntry : PartyLedgerEntry
+        => modelBuilder.Entity<TApplication>(builder =>
+        {
+            builder.ToTable(table, SchemaName);
+
+            builder.Property(a => a.Amount).HasColumnType(DecimalPrecisionConventions.Money);
+
+            // Read from both ends: what settled this invoice, and what this payment went towards.
+            builder.HasIndex(a => new { a.CompanyId, a.AppliedToEntryId });
+            builder.HasIndex(a => new { a.CompanyId, a.AppliedFromEntryId });
+
+            builder.HasOne<TEntry>()
+                   .WithMany()
+                   .HasForeignKey(a => a.AppliedFromEntryId)
+                   .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasOne<TEntry>()
+                   .WithMany()
+                   .HasForeignKey(a => a.AppliedToEntryId)
+                   .OnDelete(DeleteBehavior.Restrict);
+
+            builder.Ignore(a => a.Kind);
+        });
 
     private void ConfigureAccounts(ModelBuilder modelBuilder)
     {

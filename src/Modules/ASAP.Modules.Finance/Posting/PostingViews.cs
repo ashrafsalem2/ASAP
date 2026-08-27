@@ -1,4 +1,5 @@
 using ASAP.Modules.Finance.Accounts;
+using ASAP.Modules.Finance.Parties;
 using ASAP.Platform.Core.Dimensions;
 
 namespace ASAP.Modules.Finance.Posting;
@@ -61,6 +62,55 @@ public sealed record PostingAccountView(
     }
 }
 
+/// <summary>
+/// What the posting engine needs to know about a customer or vendor a line posts to.
+/// </summary>
+/// <param name="Id">The party key.</param>
+/// <param name="No">The party number.</param>
+/// <param name="Name">The party name.</param>
+/// <param name="Kind">Which subsidiary ledger it belongs to.</param>
+/// <param name="IsBlocked">Whether it has been withdrawn from use.</param>
+/// <param name="PaymentTermsDays">How many days after the posting date payment falls due.</param>
+/// <param name="ControlAccountNo">
+/// The control account this party posts to, already resolved from the party's own override or the
+/// company default.
+/// </param>
+/// <param name="CreditLimit">The most the party may owe, or zero for no limit.</param>
+/// <param name="Balance">What the party owed before this posting.</param>
+public sealed record PostingPartyView(
+    Guid Id,
+    string No,
+    string Name,
+    PartyKind Kind,
+    bool IsBlocked,
+    int PaymentTermsDays,
+    string ControlAccountNo,
+    decimal CreditLimit = 0m,
+    decimal Balance = 0m)
+{
+    /// <summary>Whether an entry may land on this party at all.</summary>
+    public bool IsPostable => !IsBlocked;
+
+    /// <summary>Builds a view from a party entity.</summary>
+    /// <param name="party">The customer or vendor.</param>
+    /// <param name="defaultControlAccountNo">The company control account, used when the party names none.</param>
+    public static PostingPartyView From(Party party, string defaultControlAccountNo)
+    {
+        ArgumentNullException.ThrowIfNull(party);
+
+        return new PostingPartyView(
+            party.Id,
+            party.No,
+            party.Name,
+            party.Kind,
+            party.IsBlocked,
+            party.PaymentTermsDays,
+            party.ControlAccountNo ?? defaultControlAccountNo,
+            party.CreditLimit,
+            party.Balance);
+    }
+}
+
 /// <summary>One line about to be posted, with its accounts already resolved.</summary>
 /// <param name="LineNo">Position in the batch, used to point the user at the right row.</param>
 /// <param name="PostingDate">The date the entry will be reported in.</param>
@@ -73,6 +123,16 @@ public sealed record PostingAccountView(
 /// <param name="Dimensions">The dimension combination the entry will carry.</param>
 /// <param name="DocumentNo">The document number.</param>
 /// <param name="Description">What the entry will say.</param>
+/// <param name="Party">
+/// The customer or vendor this line posts to, when it posts to one rather than straight to an
+/// account.
+/// </param>
+/// <remarks>
+/// A line naming a party still produces an ordinary general ledger entry -- on the party's control
+/// account -- and a subsidiary ledger entry beside it, in the same transaction. That is what makes
+/// the control account and the customer ledger incapable of disagreeing, and it is why the control
+/// accounts ship with direct posting switched off: this is the only road to them.
+/// </remarks>
 public sealed record PostingLineView(
     int LineNo,
     DateOnly PostingDate,
@@ -81,7 +141,9 @@ public sealed record PostingLineView(
     PostingAccountView? BalancingAccount = null,
     DimensionCombination Dimensions = default,
     string? DocumentNo = null,
-    string? Description = null);
+    string? Description = null,
+    PostingPartyView? Party = null,
+    string? ExternalDocumentNo = null);
 
 /// <summary>Whether a date may be posted to, and why not when it may not.</summary>
 public enum PeriodAvailability

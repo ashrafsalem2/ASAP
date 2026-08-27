@@ -51,6 +51,8 @@ public sealed class FinanceModule : IAsapModule
 
         services.AddScoped<JournalPostingValidator>();
         services.AddScoped<JournalPostingService>();
+        services.AddScoped<Parties.PartyLedgerWriter>();
+        services.AddScoped<Parties.PartyApplicationService>();
         services.AddScoped<Seed.FinanceSeeder>();
         services.AddScoped<
             ASAP.Platform.Kernel.Cqrs.IRequestHandler<
@@ -72,6 +74,9 @@ public sealed class FinanceModule : IAsapModule
         services.AddScoped<
             ASAP.Platform.Kernel.Cqrs.IRequestHandler<Reporting.BalanceSheetQuery, Reporting.BalanceSheet>,
             Reporting.BalanceSheetQueryHandler>();
+        services.AddScoped<
+            ASAP.Platform.Kernel.Cqrs.IRequestHandler<Reporting.AgedAnalysisQuery, Reporting.AgedAnalysis>,
+            Reporting.AgedAnalysisQueryHandler>();
 
         // Finance answers any module that asks for value to be posted to the ledger. Neither side
         // references the other; the contract is a kernel type they both already depend on.
@@ -143,6 +148,37 @@ public sealed class FinanceModule : IAsapModule
             isSensitive: true),
 
         PermissionDescriptor.Define(
+            Id, "Party", PermissionAction.Read,
+            new LocalizedText("View customers and vendors", "عرض العملاء والمورّدين")),
+
+        PermissionDescriptor.Define(
+            Id, "Party", PermissionAction.Update,
+            new LocalizedText("Add and change customers and vendors", "إضافة وتعديل العملاء والمورّدين"),
+            implies: [$"{Id}.Party.Read"]),
+
+        PermissionDescriptor.Define(
+            Id, "Party", PermissionAction.Post,
+            new LocalizedText("Apply payments to invoices", "تطبيق المدفوعات على الفواتير"),
+            new LocalizedText(
+                "Decide which payment settled which invoice, and undo an application made in "
+                + "error. Separate from posting a journal because it changes what a customer is "
+                + "shown as owing without moving a single figure in the ledger.",
+                "تحديد أي سداد يُسوّي أي فاتورة، والتراجع عن تسوية تمت بالخطأ. وهي منفصلة عن ترحيل "
+                + "القيود لأنها تغيّر ما يظهر على العميل كمديونية دون تحريك أي رقم في دفتر الأستاذ."),
+            implies: [$"{Id}.Party.Read"],
+            isSensitive: true),
+
+        PermissionDescriptor.Define(
+            Id, "Party", PermissionAction.Override,
+            new LocalizedText("Post past a credit limit or a block", "الترحيل رغم حد الائتمان أو الحظر"),
+            new LocalizedText(
+                "Post to a customer who is over their credit limit, or to a party withdrawn from "
+                + "use. Every use is audited.",
+                "الترحيل لعميل تجاوز حد الائتمان، أو لطرف مسحوب من الاستخدام. ويتم تدقيق كل استخدام."),
+            implies: [$"{Id}.Party.Read"],
+            isSensitive: true),
+
+        PermissionDescriptor.Define(
             Id, "Period", PermissionAction.Read,
             new LocalizedText("View fiscal periods", "عرض الفترات المالية")),
 
@@ -177,6 +213,40 @@ public sealed class FinanceModule : IAsapModule
     /// <inheritdoc />
     public IReadOnlyCollection<SetupDescriptor> Setups =>
     [
+        new()
+        {
+            Key = $"{Id}.Parties.ReceivablesAccount",
+            Module = Id,
+            Group = new LocalizedText("Customers and vendors", "العملاء والمورّدون"),
+            DisplayName = new LocalizedText("Receivables control account", "حساب مراقبة الذمم المدينة"),
+            Description = new LocalizedText(
+                "Where customer balances land in the general ledger. Every customer posts here "
+                + "unless their own card names a different account, which is worth doing only when "
+                + "a balance has to be shown separately on the face of the balance sheet.",
+                "الحساب الذي تُرحّل إليه أرصدة العملاء في دفتر الأستاذ. يُرحّل كل عميل هنا ما لم "
+                + "تحدد بطاقته حسابًا آخر، وهو ما يلزم فقط عند الحاجة لإظهار رصيد مستقل في قائمة "
+                + "المركز المالي."),
+            ValueType = SetupValueType.Text,
+            Scope = SetupScope.Company,
+            DefaultValue = "1300",
+            RequiresPermission = $"{Id}.Account.Update",
+            HelpTopic = "finance/customers-and-vendors",
+        },
+        new()
+        {
+            Key = $"{Id}.Parties.PayablesAccount",
+            Module = Id,
+            Group = new LocalizedText("Customers and vendors", "العملاء والمورّدون"),
+            DisplayName = new LocalizedText("Payables control account", "حساب مراقبة الذمم الدائنة"),
+            Description = new LocalizedText(
+                "Where vendor balances land in the general ledger.",
+                "الحساب الذي تُرحّل إليه أرصدة المورّدين في دفتر الأستاذ."),
+            ValueType = SetupValueType.Text,
+            Scope = SetupScope.Company,
+            DefaultValue = "2100",
+            RequiresPermission = $"{Id}.Account.Update",
+            HelpTopic = "finance/customers-and-vendors",
+        },
         new()
         {
             Key = $"{Id}.Posting.AllowFrom",
@@ -271,6 +341,29 @@ public sealed class FinanceModule : IAsapModule
             Route = "/finance/periods",
             RequiresPermission = $"{Id}.Period.Read",
             Order = 40,
+        },
+        Page(
+            "Customers",
+            new LocalizedText("Customers", "العملاء"),
+            "/finance/customers",
+            $"{Id}.Party.Read",
+            25),
+        Page(
+            "Vendors",
+            new LocalizedText("Vendors", "المورّدون"),
+            "/finance/vendors",
+            $"{Id}.Party.Read",
+            26),
+        new()
+        {
+            Id = "Finance.AgedAnalysis",
+            Module = Id,
+            ParentId = "Finance.Root",
+            DisplayName = new LocalizedText("Aged analysis", "أعمار الديون"),
+            Kind = NavigationKind.Report,
+            Route = "/finance/reports/aged-analysis",
+            RequiresPermission = $"{Id}.Report.Read",
+            Order = 80,
         },
         new()
         {

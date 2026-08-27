@@ -10,6 +10,7 @@ using ASAP.Platform.Core.Cqrs;
 using ASAP.Platform.Core.Modules;
 using ASAP.Platform.Core.Security;
 using ASAP.Platform.Core.Time;
+using ASAP.Platform.Kernel.Messaging;
 using ASAP.Platform.Kernel.Modules;
 using ASAP.Platform.Kernel.Security;
 using ASAP.Platform.Kernel.Tenancy;
@@ -151,6 +152,7 @@ app.MapGet("/health", () => Results.Ok(new { status = "ok" }))
 
 app.MapAuthEndpoints();
 app.MapFinanceEndpoints();
+app.MapPartyEndpoints();
 app.MapInventoryEndpoints();
 app.MapTransferEndpoints();
 app.MapNavigationEndpoints();
@@ -178,6 +180,7 @@ internal static class StartupTasks
             string.Join(" -> ", moduleCatalog.Modules.Select(static m => m.ModuleId)));
 
         AuditPermissions(moduleCatalog, logger);
+        AuditOverridePermissions(moduleCatalog, services.GetRequiredService<IMessageCatalog>(), logger);
 
         // The seeder writes rows for a tenant that does not exist yet, so the company filters
         // have to stand aside. The scope is opened here, in the host, rather than being reachable
@@ -285,6 +288,46 @@ internal static class StartupTasks
                 + "[NoPermissionRequired(\"reason\")] if that is deliberate.",
                 report.RequestType.FullName);
         }
+    }
+
+    /// <summary>
+    /// Checks that every override a message offers is a permission somebody can actually hold.
+    /// </summary>
+    /// <remarks>
+    /// A blocking message names the permission that would let a user push past it, and the text
+    /// tells them to go and find someone who holds it. If no module declares that permission, the
+    /// advice sends them on an errand that cannot succeed -- and nobody notices, because the
+    /// message only appears when something is already going wrong.
+    /// </remarks>
+    private static void AuditOverridePermissions(
+        IModuleCatalog moduleCatalog,
+        IMessageCatalog messages,
+        ILogger logger)
+    {
+        var declared = moduleCatalog.Modules
+            .SelectMany(static m => m.Permissions)
+            .Select(static p => p.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var dangling = messages.All
+            .Where(static d => d.OverridePermission is not null)
+            .Where(d => !declared.Contains(d.OverridePermission!))
+            .ToList();
+
+        foreach (var definition in dangling)
+        {
+            logger.LogWarning(
+                "Message {Code} offers override permission {Permission}, which no module declares. "
+                + "Either declare it or remove the offer -- as it stands the message tells the "
+                + "user to find an approver who cannot exist.",
+                definition.Code.Value,
+                definition.OverridePermission);
+        }
+
+        logger.LogInformation(
+            "Override audit: {Overridable} overridable message(s), {Dangling} naming a permission nobody declares.",
+            messages.All.Count(static d => d.OverridePermission is not null),
+            dangling.Count);
     }
 }
 

@@ -82,8 +82,63 @@ public sealed class JournalPostingValidator(IMessageCatalog messages)
             CheckAccount(line, line.BalancingAccount, environment, found, target);
         }
 
+        CheckParty(line, environment, found, target);
         CheckPeriod(line, environment, found, target);
         CheckDimensions(line, environment, found, target);
+    }
+
+    /// <summary>
+    /// Checks the customer or vendor a line posts to.
+    /// </summary>
+    /// <remarks>
+    /// The credit limit is checked here rather than at the point of sale because this is where the
+    /// balance actually moves. A limit enforced only when an order is taken is a limit that never
+    /// notices the second order, and it is the accumulation that matters.
+    /// </remarks>
+    private void CheckParty(
+        PostingLineView line,
+        PostingEnvironment environment,
+        List<AsapMessage> found,
+        MessageTarget target)
+    {
+        if (line.Party is not { } party)
+        {
+            return;
+        }
+
+        var arguments = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["LineNo"] = line.LineNo,
+            ["PartyNo"] = party.No,
+            ["PartyName"] = party.Name,
+        };
+
+        if (party.IsBlocked)
+        {
+            found.Add(Raise(environment, FinanceMessages.PartyBlocked, arguments, target));
+            return;
+        }
+
+        // Only a debit can breach it: crediting a customer is them paying, and refusing a payment
+        // because the account is over its limit would be absurd.
+        if (party.Kind is not Parties.PartyKind.Customer || party.CreditLimit <= 0m || line.Amount <= 0m)
+        {
+            return;
+        }
+
+        var after = party.Balance + line.Amount;
+
+        if (after <= party.CreditLimit)
+        {
+            return;
+        }
+
+        arguments["CreditLimit"] = party.CreditLimit;
+        arguments["Balance"] = party.Balance;
+        arguments["BalanceAfter"] = after;
+        arguments["ExcessAmount"] = after - party.CreditLimit;
+
+        found.Add(Raise(environment, FinanceMessages.CreditLimitExceeded, arguments, target));
     }
 
     private void CheckAccount(
@@ -130,11 +185,22 @@ public sealed class JournalPostingValidator(IMessageCatalog messages)
         // Control accounts are written only by the module that owns them. A hand-keyed entry to
         // receivables makes the control account disagree with the customer ledger behind it, and
         // that difference is found months later by someone reconciling at year end.
-        if (environment.IsManualEntry && !account.AllowsDirectPosting)
+        //
+        // A line naming a party is the exception, and the only one: it writes the subsidiary entry
+        // in the same transaction, so the two cannot come apart. That is what the control account
+        // is protecting, and this is the road it is meant to be reached by.
+        if (environment.IsManualEntry
+            && !account.AllowsDirectPosting
+            && !IsControlAccountFor(line, account))
         {
             found.Add(Raise(environment, FinanceMessages.DirectPostingNotAllowed, arguments, target));
         }
     }
+
+    /// <summary>Whether this account is the control account of the party the line posts to.</summary>
+    private static bool IsControlAccountFor(PostingLineView line, PostingAccountView account)
+        => line.Party is { } party
+           && string.Equals(party.ControlAccountNo, account.No, StringComparison.OrdinalIgnoreCase);
 
     private void CheckPeriod(
         PostingLineView line,

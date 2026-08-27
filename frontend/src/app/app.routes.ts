@@ -126,6 +126,16 @@ export const routes: Routes = [
           import('./features/sales/sales-order').then((m) => m.SalesOrderDetail),
       },
       {
+        path: 'pos/till',
+        canActivate: [requirePermission('Pos.Receipt.Read')],
+        loadComponent: () => import('./features/pos/till').then((m) => m.Till),
+      },
+      {
+        path: 'pos/sessions',
+        canActivate: [requirePermission('Pos.Session.Read')],
+        loadComponent: () => import('./features/pos/sessions').then((m) => m.PosSessions),
+      },
+      {
         path: 'inventory/transfers',
         canActivate: [requirePermission('Inventory.Transfer.Read')],
         loadComponent: () => import('./features/inventory/transfers').then((m) => m.Transfers),

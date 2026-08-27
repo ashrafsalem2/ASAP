@@ -1,0 +1,103 @@
+/* The sale on one side, what is owed on the other. On a narrow screen they stack, sale first:
+   a cashier scanning needs the list, and the total follows it down the page. */
+.till {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: 1fr;
+}
+
+@media (min-width: 60rem) {
+  .till {
+    grid-template-columns: 2fr 1fr;
+    align-items: start;
+  }
+}
+
+.till__scan {
+  flex: 1 1 18rem;
+}
+
+.till__narrow {
+  flex: 0 0 8rem;
+}
+
+.till__desc {
+  color: var(--text-muted);
+  margin-inline-start: 0.5rem;
+}
+
+.till__discount {
+  color: var(--caution);
+}
+
+.till__owing {
+  color: var(--caution);
+  font-weight: 600;
+}
+
+/* Card takings sit beside the drawer rather than in it. Muted so the eye does not add them to
+   the cash total, which is the mistake that makes every till look short. */
+.till__aside {
+  color: var(--text-muted);
+}
+
+.till__hint {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  max-width: none;
+}
+
+.till__tenders {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.till__tender {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.totals {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.35rem 1rem;
+  margin: 0;
+}
+
+.totals dt {
+  color: var(--text-muted);
+}
+
+.totals dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The figure the customer is told. Large enough to read across a counter. */
+.totals__grand {
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--text);
+  padding-top: 0.35rem;
+  border-top: 1px solid var(--border);
+}
+
+.draft {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.draft__actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.input--compact {
+  max-width: 7rem;
+}

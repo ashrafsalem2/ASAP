@@ -146,6 +146,9 @@ export interface Item {
   quantityOnHand: number;
   reorderPoint: number;
   allowNegativeInventory?: boolean | null;
+
+  /** Withdrawn from use. Still valued and still reportable; simply not sellable. */
+  isBlocked: boolean;
 }
 
 /** A place stock is held. */
@@ -637,5 +640,121 @@ export interface SalesInvoiceResult {
   taxAmount: number;
   totalAmount: number;
   status: SalesOrderStatus;
+  messages?: AsapMessage[];
+}
+
+/** How a receipt was paid for. */
+export type TenderKind = 'Cash' | 'Card' | 'Voucher' | 'OnAccount';
+
+/** Where a till session stands. */
+export type PosSessionStatus = 'Open' | 'Closed';
+
+/** A till. */
+export interface PosStation {
+  code: string;
+  name: string;
+  nameArabic?: string;
+  locationCode: string;
+  defaultCustomerNo: string;
+  isBlocked: boolean;
+
+  /** The session open on it, or null when nobody is trading. */
+  openSessionNo: string | null;
+}
+
+/** One cashier's turn at one till. */
+export interface PosSession {
+  no: string;
+  stationCode: string;
+  cashierName?: string;
+  openedAtUtc: string;
+  businessDate: string;
+  status: PosSessionStatus;
+  openingFloat: number;
+  cashTendered: number;
+  changeGiven: number;
+  cashRefunded: number;
+
+  /** Taken by card, which never reaches the drawer. */
+  cardTaken: number;
+  onAccountTaken: number;
+  netSales: number;
+  taxAmount: number;
+  grossSales: number;
+  receiptCount: number;
+  readingCount: number;
+
+  /** What should be in the drawer: float plus cash in, less change and refunds out. */
+  expectedCash: number;
+  declaredCash: number | null;
+
+  /** Counted less expected. Negative is short, positive is over, null while still open. */
+  variance: number | null;
+  closedAtUtc?: string;
+  closingTransactionNo?: number;
+}
+
+/** One receipt as the session screen lists it. */
+export interface PosReceiptSummary {
+  no: string;
+  customerName: string;
+  netAmount: number;
+  taxAmount: number;
+  roundingAmount: number;
+  costAmount: number;
+  changeGiven: number;
+  status: string;
+  transactionNo?: number;
+}
+
+/** A session with the receipts taken against it. */
+export interface PosSessionDetail {
+  session: PosSession;
+  receipts: PosReceiptSummary[];
+}
+
+/** What a session looks like at a moment in time, without closing it. */
+export interface PosReading {
+  sessionNo: string;
+  stationCode: string;
+  cashierName?: string;
+  openedAtUtc: string;
+  receiptCount: number;
+  netSales: number;
+  taxAmount: number;
+  openingFloat: number;
+  cashTendered: number;
+  changeGiven: number;
+  cashRefunded: number;
+  cardTaken: number;
+  onAccountTaken: number;
+  expectedCash: number;
+
+  /** Which reading this is. A till read four times before a short count is worth noticing. */
+  readingNo: number;
+}
+
+/** What closing a session settled. */
+export interface PosSessionClosed {
+  sessionNo: string;
+  expectedCash: number;
+  declaredCash: number;
+  variance: number;
+  transactionNo?: number;
+  reading: PosReading;
+  messages?: AsapMessage[];
+}
+
+/** What a receipt posted. */
+export interface PosReceiptPosted {
+  receiptNo: string;
+  transactionNo: number;
+  netAmount: number;
+  discountAmount: number;
+  taxAmount: number;
+  roundingAmount: number;
+  totalAmount: number;
+  changeGiven: number;
+  costAmount: number;
   messages?: AsapMessage[];
 }

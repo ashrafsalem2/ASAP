@@ -1,0 +1,139 @@
+<div class="page">
+  <h1>{{ t('pos.sessions.title') }}</h1>
+
+  <section class="panel">
+    <div class="panel__body draft">
+      <div class="field till__narrow">
+        <label class="field__label" for="status">{{ t('pos.sessions.status') }}</label>
+        <select id="status" class="select" [(ngModel)]="status" (ngModelChange)="filter()">
+          <option value="">{{ t('pos.sessions.all') }}</option>
+          <option value="Open">{{ i18n.label('Open') }}</option>
+          <option value="Closed">{{ i18n.label('Closed') }}</option>
+        </select>
+      </div>
+    </div>
+
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('pos.sessions.no') }}</th>
+              <th>{{ t('pos.till.station') }}</th>
+              <th>{{ t('pos.sessions.cashier') }}</th>
+              <th>{{ t('pos.sessions.day') }}</th>
+              <th>{{ t('pos.sessions.status') }}</th>
+              <th class="numeric">{{ t('pos.sessions.receipts') }}</th>
+              <th class="numeric">{{ t('pos.sessions.gross') }}</th>
+              <th class="numeric">{{ t('pos.session.expected') }}</th>
+              <th class="numeric">{{ t('pos.sessions.counted') }}</th>
+              <th class="numeric">{{ t('pos.sessions.variance') }}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (session of sessions(); track session.no) {
+              <tr>
+                <td class="code">{{ session.no }}</td>
+                <td class="code">{{ session.stationCode }}</td>
+                <td>{{ session.cashierName }}</td>
+                <td class="code">{{ session.businessDate }}</td>
+                <td><span class="tag">{{ i18n.label(session.status) }}</span></td>
+                <td class="numeric">{{ session.receiptCount }}</td>
+                <td class="numeric">{{ i18n.total(session.grossSales) }}</td>
+                <td class="numeric">{{ i18n.total(session.expectedCash) }}</td>
+
+                <!-- Blank rather than zero while the drawer is still open. Nobody has counted it,
+                     which is not the same as counting it and finding it right. -->
+                <td class="numeric">{{ i18n.amount(session.declaredCash) }}</td>
+                <td class="numeric" [class.till__owing]="session.variance !== null && session.variance !== 0">
+                  {{ i18n.amount(session.variance) }}
+                </td>
+                <td>
+                  <button type="button" class="button button--quiet" (click)="select(session)">
+                    {{ selected()?.no === session.no ? t('pos.sessions.hide') : t('pos.sessions.show') }}
+                  </button>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="11" class="empty">{{ t('pos.sessions.nothingYet') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+
+  @if (selected(); as session) {
+    <section class="panel">
+      <div class="panel__header">
+        <h2>{{ session.no }}</h2>
+      </div>
+
+      <div class="panel__body">
+        <dl class="totals">
+          <dt>{{ t('pos.session.float') }}</dt>
+          <dd class="numeric">{{ i18n.total(session.openingFloat) }}</dd>
+
+          <dt>{{ t('pos.session.cashTaken') }}</dt>
+          <dd class="numeric">{{ i18n.total(session.cashTendered) }}</dd>
+
+          <dt>{{ t('pos.session.changeGiven') }}</dt>
+          <dd class="numeric">{{ i18n.total(session.changeGiven) }}</dd>
+
+          <dt class="till__aside">{{ t('pos.session.cardTaken') }}</dt>
+          <dd class="numeric till__aside">{{ i18n.total(session.cardTaken) }}</dd>
+
+          <dt class="till__aside">{{ t('pos.session.onAccount') }}</dt>
+          <dd class="numeric till__aside">{{ i18n.total(session.onAccountTaken) }}</dd>
+
+          <dt class="totals__grand">{{ t('pos.session.expected') }}</dt>
+          <dd class="numeric totals__grand">{{ i18n.total(session.expectedCash) }}</dd>
+        </dl>
+      </div>
+
+      @if (session.readingCount > 0) {
+        <p class="panel__body till__hint">
+          {{ t('pos.sessions.readings', { Count: session.readingCount }) }}
+        </p>
+      }
+
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('pos.sessions.receipt') }}</th>
+              <th>{{ t('pos.sessions.customer') }}</th>
+              <th class="numeric">{{ t('pos.till.net') }}</th>
+              <th class="numeric">{{ t('pos.till.tax') }}</th>
+              <th class="numeric">{{ t('pos.sessions.cost') }}</th>
+              <th class="numeric">{{ t('pos.session.changeGiven') }}</th>
+              <th>{{ t('pos.sessions.status') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (receipt of receipts(); track receipt.no) {
+              <tr>
+                <td class="code">{{ receipt.no }}</td>
+                <td>{{ receipt.customerName }}</td>
+                <td class="numeric">{{ i18n.total(receipt.netAmount) }}</td>
+                <td class="numeric">{{ i18n.total(receipt.taxAmount) }}</td>
+                <td class="numeric">{{ i18n.total(receipt.costAmount) }}</td>
+                <td class="numeric">{{ i18n.amount(receipt.changeGiven) }}</td>
+                <td><span class="tag">{{ i18n.label(receipt.status) }}</span></td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="7" class="empty">{{ t('pos.sessions.noReceipts') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+</div>

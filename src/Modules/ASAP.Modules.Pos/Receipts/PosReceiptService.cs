@@ -332,6 +332,21 @@ public sealed class PosReceiptService(
                     found.Add(messages.Render(PosMessages.ItemNotFound, arguments, target));
                     continue;
                 }
+
+                // Withdrawn from use. A till is the easiest place in the system to sell something
+                // from -- it takes one scan -- so it is the place this most needs asking, and it
+                // was the one place nothing did.
+                if (item.IsBlocked && line.Quantity > 0m)
+                {
+                    arguments["Description"] = item.Description;
+
+                    found.Add(messages.Render(
+                        Inventory.InventoryMessages.ItemBlocked,
+                        arguments,
+                        target));
+
+                    continue;
+                }
             }
 
             // Zero means the shelf price, which is what a cashier scanning something means.

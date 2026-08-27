@@ -24,6 +24,7 @@ namespace ASAP.Api.Endpoints;
 /// <param name="QuantityOnHand">Total across every location.</param>
 /// <param name="ReorderPoint">Level at which it should be reordered.</param>
 /// <param name="AllowNegativeInventory">Whether it may go below zero, or null to follow the company.</param>
+/// <param name="IsBlocked">Whether it has been withdrawn from use.</param>
 public sealed record ItemSummary(
     string No,
     string Description,
@@ -33,7 +34,8 @@ public sealed record ItemSummary(
     decimal UnitPrice,
     decimal QuantityOnHand,
     decimal ReorderPoint,
-    bool? AllowNegativeInventory);
+    bool? AllowNegativeInventory,
+    bool IsBlocked);
 
 /// <summary>What is on hand for one item at one location.</summary>
 /// <param name="ItemNo">The item.</param>
@@ -118,7 +120,8 @@ public static class InventoryEndpoints
                 i.UnitPrice,
                 i.QuantityOnHand,
                 i.ReorderPoint,
-                i.AllowNegativeInventory))
+                i.AllowNegativeInventory,
+                i.IsBlocked))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false));
 

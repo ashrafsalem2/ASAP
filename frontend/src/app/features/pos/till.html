@@ -1,0 +1,348 @@
+<div class="page">
+  <h1>{{ t('pos.till.title') }}</h1>
+
+  @if (loading()) {
+    <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+  } @else if (session(); as open) {
+    <p class="page__intro">
+      <span class="tag">{{ open.no }}</span>
+      {{ open.stationCode }}
+      @if (open.cashierName) {
+        · {{ open.cashierName }}
+      }
+      · {{ t('pos.session.receiptsSoFar', { Count: open.receiptCount }) }}
+      · <strong class="numeric">{{ i18n.total(open.grossSales) }}</strong>
+    </p>
+
+    <div class="till">
+      <section class="panel till__sale">
+        <div class="panel__header">
+          <h2>{{ t('pos.till.sale') }}</h2>
+        </div>
+
+        @if (canSell()) {
+          <div class="panel__body draft">
+            <div class="field till__scan">
+              <label class="field__label" for="scanned">{{ t('pos.till.scan') }}</label>
+              <select id="scanned" class="select" [(ngModel)]="scanned">
+                <option value=""></option>
+                @for (item of items(); track item.no) {
+                  <option [value]="item.no">{{ itemLabel(item) }}</option>
+                }
+              </select>
+            </div>
+
+            <div class="field till__narrow">
+              <label class="field__label" for="scannedQuantity">{{ t('pos.till.quantity') }}</label>
+              <input
+                id="scannedQuantity"
+                class="input input--number"
+                type="number"
+                inputmode="decimal"
+                min="0"
+                placeholder="1"
+                [(ngModel)]="scannedQuantity"
+              />
+            </div>
+
+            <div class="field till__narrow">
+              <label class="field__label" for="scannedDiscount">{{ t('pos.till.discount') }}</label>
+              <input
+                id="scannedDiscount"
+                class="input input--number"
+                type="number"
+                inputmode="decimal"
+                min="0"
+                max="100"
+                placeholder="0"
+                [(ngModel)]="scannedDiscount"
+              />
+            </div>
+
+            <button
+              type="button"
+              class="button button--primary"
+              [disabled]="!scanned || busy() !== null"
+              (click)="addScanned()"
+            >
+              {{ t('pos.till.add') }}
+            </button>
+          </div>
+        }
+
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('pos.till.item') }}</th>
+                <th class="numeric">{{ t('pos.till.quantity') }}</th>
+                <th class="numeric">{{ t('pos.till.price') }}</th>
+                <th class="numeric">{{ t('pos.till.discount') }}</th>
+                <th class="numeric">{{ t('pos.till.lineTotal') }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (line of lines(); track $index) {
+                <tr>
+                  <td>
+                    <span class="code">{{ line.itemNo }}</span>
+                    <span class="till__desc">{{ line.description }}</span>
+                  </td>
+                  <td class="numeric">
+                    <input
+                      class="input input--number input--compact"
+                      type="number"
+                      inputmode="decimal"
+                      min="0"
+                      [ngModel]="line.quantity"
+                      (ngModelChange)="setQuantity($index, $event)"
+                    />
+                  </td>
+                  <td class="numeric">{{ i18n.total(line.unitPrice) }}</td>
+                  <td class="numeric" [class.till__discount]="line.discountPercent > 0">
+                    @if (line.discountPercent > 0) {
+                      {{ line.discountPercent }}%
+                    }
+                  </td>
+                  <td class="numeric">{{ i18n.total(lineAmountOf(line)) }}</td>
+                  <td>
+                    <button
+                      type="button"
+                      class="button button--quiet"
+                      (click)="removeLine($index)"
+                    >
+                      {{ t('pos.till.void') }}
+                    </button>
+                  </td>
+                </tr>
+              } @empty {
+                <tr>
+                  <td colspan="6" class="empty">{{ t('pos.till.nothingScanned') }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel till__totals">
+        <div class="panel__header">
+          <h2>{{ t('pos.till.due') }}</h2>
+        </div>
+
+        <div class="panel__body">
+          <dl class="totals">
+            <dt>{{ t('pos.till.net') }}</dt>
+            <dd class="numeric">{{ i18n.total(net()) }}</dd>
+
+            @if (discount() > 0) {
+              <dt class="till__discount">{{ t('pos.till.discountGiven') }}</dt>
+              <dd class="numeric till__discount">{{ i18n.total(discount()) }}</dd>
+            }
+
+            <dt>{{ t('pos.till.tax') }}</dt>
+            <dd class="numeric">{{ i18n.total(tax()) }}</dd>
+
+            <dt class="totals__grand">{{ t('pos.till.total') }}</dt>
+            <dd class="numeric totals__grand">{{ i18n.total(total()) }}</dd>
+          </dl>
+        </div>
+
+        @if (canSell()) {
+          <div class="panel__body till__tenders">
+            <button type="button" class="button" [disabled]="lines().length === 0" (click)="addTender('Cash')">
+              {{ t('pos.tender.Cash') }}
+            </button>
+            <button type="button" class="button" [disabled]="lines().length === 0" (click)="addTender('Card')">
+              {{ t('pos.tender.Card') }}
+            </button>
+            <button type="button" class="button" [disabled]="lines().length === 0" (click)="addTender('Voucher')">
+              {{ t('pos.tender.Voucher') }}
+            </button>
+          </div>
+
+          @for (tender of tenders(); track $index) {
+            <div class="panel__body till__tender">
+              <span class="tag">{{ tenderLabel(tender.kind) }}</span>
+              <input
+                class="input input--number input--compact"
+                type="number"
+                inputmode="decimal"
+                [ngModel]="tender.amount"
+                (ngModelChange)="setTenderAmount($index, $event)"
+              />
+              <button type="button" class="button button--quiet" (click)="removeTender($index)">
+                {{ t('pos.till.void') }}
+              </button>
+            </div>
+          }
+
+          <div class="panel__body">
+            <dl class="totals">
+              <dt>{{ t('pos.till.tendered') }}</dt>
+              <dd class="numeric">{{ i18n.total(tendered()) }}</dd>
+
+              @if (outstanding() > 0) {
+                <dt class="till__owing">{{ t('pos.till.outstanding') }}</dt>
+                <dd class="numeric till__owing">{{ i18n.total(outstanding()) }}</dd>
+              } @else if (change() > 0) {
+                <!-- Worked out as the money is keyed, not after. It is the one number a cashier
+                     cannot proceed without and the one they should never have to do in their
+                     head with somebody waiting. -->
+                <dt class="totals__grand">{{ t('pos.till.change') }}</dt>
+                <dd class="numeric totals__grand">{{ i18n.total(change()) }}</dd>
+              }
+            </dl>
+          </div>
+
+          @if (change() > cashOffered()) {
+            <p class="panel__body till__hint">{{ t('pos.till.changeNeedsCash') }}</p>
+          }
+
+          <div class="panel__body draft__actions">
+            <button
+              type="button"
+              class="button button--primary"
+              [disabled]="!canTakePayment() || busy() !== null"
+              (click)="takePayment()"
+            >
+              @if (busy() === 'pay') {
+                <span class="spinner"></span>
+                {{ t('pos.receipt.taking') }}
+              } @else {
+                {{ t('pos.receipt.take') }}
+              }
+            </button>
+
+            @if (lines().length > 0 || tenders().length > 0) {
+              <button type="button" class="button button--quiet" (click)="clearSale()">
+                {{ t('pos.till.clear') }}
+              </button>
+            }
+          </div>
+        }
+      </section>
+    </div>
+
+    <section class="panel">
+      <div class="panel__header">
+        <h2>{{ t('pos.session.drawer') }}</h2>
+      </div>
+
+      <div class="panel__body">
+        <dl class="totals">
+          <dt>{{ t('pos.session.float') }}</dt>
+          <dd class="numeric">{{ i18n.total(open.openingFloat) }}</dd>
+
+          <dt>{{ t('pos.session.cashTaken') }}</dt>
+          <dd class="numeric">{{ i18n.total(open.cashTendered) }}</dd>
+
+          <dt>{{ t('pos.session.changeGiven') }}</dt>
+          <dd class="numeric">{{ i18n.total(open.changeGiven) }}</dd>
+
+          <!-- Shown beside the drawer and excluded from it, because a till counted as though card
+               takings were in the drawer is short by exactly the day's card sales. -->
+          <dt class="till__aside">{{ t('pos.session.cardTaken') }}</dt>
+          <dd class="numeric till__aside">{{ i18n.total(open.cardTaken) }}</dd>
+
+          <dt class="totals__grand">{{ t('pos.session.expected') }}</dt>
+          <dd class="numeric totals__grand">{{ i18n.total(open.expectedCash) }}</dd>
+        </dl>
+      </div>
+
+      <div class="panel__body draft">
+        <button type="button" class="button" [disabled]="busy() !== null" (click)="read()">
+          @if (busy() === 'read') {
+            <span class="spinner"></span>
+          }
+          {{ t('pos.session.read') }}
+        </button>
+
+        @if (canClose()) {
+          <div class="field till__narrow">
+            <label class="field__label" for="declaredCash">{{ t('pos.session.counted') }}</label>
+            <input
+              id="declaredCash"
+              class="input input--number"
+              type="number"
+              inputmode="decimal"
+              min="0"
+              [(ngModel)]="declaredCash"
+            />
+          </div>
+
+          <button
+            type="button"
+            class="button"
+            [disabled]="declaredCash === null || busy() !== null"
+            (click)="close()"
+          >
+            @if (busy() === 'close') {
+              <span class="spinner"></span>
+              {{ t('pos.session.closing') }}
+            } @else {
+              {{ t('pos.session.close') }}
+            }
+          </button>
+        }
+      </div>
+
+      <p class="panel__body till__hint">{{ t('pos.session.countHint') }}</p>
+    </section>
+  } @else {
+    <section class="panel">
+      <div class="panel__header">
+        <h2>{{ t('pos.session.open') }}</h2>
+      </div>
+
+      <p class="panel__body page__intro">{{ t('pos.session.openIntro') }}</p>
+
+      @if (canOpen()) {
+        <div class="panel__body draft">
+          <div class="field till__scan">
+            <label class="field__label" for="stationCode">{{ t('pos.till.station') }}</label>
+            <select id="stationCode" class="select" [(ngModel)]="stationCode">
+              <option value=""></option>
+              @for (station of stations(); track station.code) {
+                <option [value]="station.code" [disabled]="!!station.openSessionNo">
+                  {{ station.code }} —
+                  {{ i18n.language() === 'ar' && station.nameArabic ? station.nameArabic : station.name }}
+                  @if (station.openSessionNo) {
+                    ({{ station.openSessionNo }})
+                  }
+                </option>
+              }
+            </select>
+          </div>
+
+          <div class="field till__narrow">
+            <label class="field__label" for="openingFloat">{{ t('pos.session.float') }}</label>
+            <input
+              id="openingFloat"
+              class="input input--number"
+              type="number"
+              inputmode="decimal"
+              min="0"
+              [(ngModel)]="openingFloat"
+            />
+          </div>
+
+          <button
+            type="button"
+            class="button button--primary"
+            [disabled]="!stationCode || busy() !== null"
+            (click)="open()"
+          >
+            @if (busy() === 'open') {
+              <span class="spinner"></span>
+              {{ t('pos.session.opening') }}
+            } @else {
+              {{ t('pos.session.open') }}
+            }
+          </button>
+        </div>
+      }
+    </section>
+  }
+</div>

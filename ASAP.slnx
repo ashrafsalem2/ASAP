@@ -19,5 +19,6 @@
     <Project Path="tests/ASAP.Platform.Tests/ASAP.Platform.Tests.csproj" />
     <Project Path="tests/ASAP.Modules.Finance.Tests/ASAP.Modules.Finance.Tests.csproj" />
     <Project Path="tests/ASAP.Modules.Inventory.Tests/ASAP.Modules.Inventory.Tests.csproj" />
+    <Project Path="tests/ASAP.Conformance.Tests/ASAP.Conformance.Tests.csproj" />
   </Folder>
 </Solution>

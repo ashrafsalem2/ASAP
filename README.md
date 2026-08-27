@@ -29,6 +29,25 @@ And adds the things this business actually needs:
   refuses a margin-destroying offer, naming the item and the shortfall.
 - **Branches that sync both ways.** Head office and shop exchange data over a defined contract
   rather than an ad-hoc export.
+- **Arabic and English, equally.** Not an English product with a translation file bolted on: every
+  message, permission, setting and menu entry is declared in both languages at the point it is
+  written, the client mirrors the right-to-left layout rather than reversing an English one, and
+  server-rendered text follows the reader's language rather than the language they signed in with.
+
+### On the two languages
+
+This is a first-class requirement rather than a nicety, so it is enforced rather than trusted.
+Bilingual support decays quietly — nobody decides to drop it; somebody adds one message in a
+hurry, the English falls through as the Arabic fallback, and the gap stays invisible until a user
+working in Arabic hits exactly that message, which for most of these is on the worst day they were
+going to have anyway.
+
+`tests/ASAP.Conformance.Tests` therefore holds the whole system to it: every message, permission,
+setting and menu entry across every module must carry Arabic; the Arabic must not be the English
+copied across, and must actually contain Arabic letters; the client's two dictionaries must define
+the same keys; and a translated string must carry the same `{Placeholders}` as its English
+original, because a sentence that loses `{No}` still reads as a sentence while no longer telling
+anyone which transaction it means.
 
 ---
 

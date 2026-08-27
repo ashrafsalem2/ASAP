@@ -34,6 +34,9 @@ export interface AsapMessage {
    */
   wasOverridden?: boolean;
 
+  /** The page explaining the rule. Followed at the moment somebody is already stuck. */
+  helpTopic?: string;
+
   /** What the message is about, so the offending input can be marked up. */
   target?: {
     field?: string;
@@ -93,6 +96,10 @@ export function messagesFromError(error: unknown, fallbackTitle: string): AsapMe
         title: problem.title,
         detail: problem.detail,
         resolution: problem.resolution,
+
+        // Carried across, because a problem built from the top-level fields loses everything the
+        // messages array would have brought with it -- and the topic is the useful part.
+        helpTopic: problem.helpTopic,
       },
     ];
   }

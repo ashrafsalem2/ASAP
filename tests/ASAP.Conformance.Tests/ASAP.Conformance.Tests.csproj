@@ -18,6 +18,9 @@
     <ProjectReference Include="..\..\src\Modules\ASAP.Modules.Hr\ASAP.Modules.Hr.csproj" />
     <ProjectReference Include="..\..\src\Modules\ASAP.Modules.Pos\ASAP.Modules.Pos.csproj" />
     <ProjectReference Include="..\..\src\Platform\ASAP.Platform.Core\ASAP.Platform.Core.csproj" />
+
+    <!-- The host, so the wire shape of a message can be held to the message itself. -->
+    <ProjectReference Include="..\..\src\ASAP.Api\ASAP.Api.csproj" />
   </ItemGroup>
 
   <ItemGroup>

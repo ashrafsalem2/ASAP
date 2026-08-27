@@ -228,7 +228,7 @@ public sealed class OfferService(
         {
             ["OfferCode"] = offer.Code,
             ["Scope"] = offer.Scope.ToString(),
-            ["Value"] = offer.Value,
+            ["Percentage"] = offer.Value,
             ["BuyQuantity"] = offer.BuyQuantity,
             ["GetQuantity"] = offer.GetQuantity,
             ["StartsOn"] = offer.StartsOn,

@@ -29,4 +29,11 @@
       <PrivateAssets>all</PrivateAssets>
     </PackageReference>
   </ItemGroup>
+
+  <!-- The help topics travel with the application. A refusal that links to a page the deployed
+       host does not have is worse than one that links nowhere. -->
+  <ItemGroup>
+    <Content Include="$(MSBuildProjectDirectory)/../../docs/help/**/*.md" LinkBase="help" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>

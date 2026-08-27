@@ -37,6 +37,19 @@ public sealed partial class MessageFormattingTests
         new ASAP.Modules.Pos.PosModule(),
     ];
 
+    /// <summary>
+    /// Every module, plus the platform's own messages, paired with the name to report them under.
+    /// </summary>
+    /// <remarks>
+    /// The platform declares its messages directly rather than through a module, and the host
+    /// concatenates the two when it builds the catalogue. Walking only the modules left every
+    /// message about users, permissions and setup outside this check.
+    /// </remarks>
+    private static IEnumerable<(string ModuleId, IReadOnlyCollection<MessageDefinition> Messages)> Sources()
+        => Modules
+            .Select(static m => (m.ModuleId, m.Messages))
+            .Prepend(("Platform", ASAP.Platform.Core.Messaging.PlatformMessages.All));
+
     /// <summary>One placeholder as it appears in one message.</summary>
     private sealed record Use(string Module, string Code, string Field, string Name, string? Format);
 
@@ -44,9 +57,9 @@ public sealed partial class MessageFormattingTests
     {
         var uses = new List<Use>();
 
-        foreach (var module in Modules)
+        foreach (var (moduleId, messages) in Sources())
         {
-            foreach (var message in module.Messages)
+            foreach (var message in messages)
             {
                 Collect(message.Title, "Title");
                 Collect(message.Detail, "Detail");
@@ -69,7 +82,7 @@ public sealed partial class MessageFormattingTests
                         foreach (Match match in PlaceholderPattern().Matches(template))
                         {
                             uses.Add(new Use(
-                                module.ModuleId,
+                                moduleId,
                                 message.Code.Value,
                                 field,
                                 match.Groups["name"].Value,
@@ -114,9 +127,9 @@ public sealed partial class MessageFormattingTests
         // that is only half fixed, and only half the users notice.
         var mismatched = new List<string>();
 
-        foreach (var module in Modules)
+        foreach (var (moduleId, messages) in Sources())
         {
-            foreach (var message in module.Messages)
+            foreach (var message in messages)
             {
                 Check(message.Title, "Title");
                 Check(message.Detail, "Detail");
@@ -137,7 +150,7 @@ public sealed partial class MessageFormattingTests
                         if (arabic.TryGetValue(name, out var other) && other != format)
                         {
                             mismatched.Add(
-                                $"{module.ModuleId}/{message.Code.Value} {field}: {{{name}}} is "
+                                $"{moduleId}/{message.Code.Value} {field}: {{{name}}} is "
                                 + $"'{format ?? "(none)"}' in English and '{other ?? "(none)"}' in Arabic");
                         }
                     }

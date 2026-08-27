@@ -787,6 +787,13 @@ export const TRANSLATIONS = {
     'admin.numbers.addLineWhy': 'A line applies from its date until the next one starts. Adding next year\u2019s takes ten seconds; finding out you needed it takes a morning, on the busiest day of the year. What has already been issued is never rewritten \u2014 it is the record of which numbers are gone.',
     'admin.numbers.added': 'Line added to {code}.',
 
+    'help.title': 'Help',
+    'help.search': 'Search',
+    'help.choose': 'Choose a topic.',
+    'help.noMatch': 'No topic matches that.',
+    'help.onlyInEnglish': 'This topic has not been translated yet, so it is shown in English.',
+    'help.explain': 'Why this happens',
+
     'common.loading': 'Loading…',
     'common.nothingHere': 'Nothing to show yet.',
     'common.retry': 'Try again',
@@ -1575,6 +1582,13 @@ export const TRANSLATIONS = {
     'admin.numbers.addLine': 'إضافة السطر',
     'admin.numbers.addLineWhy': 'يسري السطر من تاريخه حتى يبدأ الذي يليه. وإضافة سطر العام القادم تستغرق عشر ثوانٍ، أما اكتشاف الحاجة إليه فيستغرق صباحًا كاملاً في أكثر أيام السنة ازدحامًا. وما صدر فعلاً لا يُعاد كتابته، فهو سجل الأرقام التي استُهلكت.',
     'admin.numbers.added': 'أُضيف سطر إلى {code}.',
+
+    'help.title': 'المساعدة',
+    'help.search': 'بحث',
+    'help.choose': 'اختر موضوعًا.',
+    'help.noMatch': 'لا يوجد موضوع مطابق.',
+    'help.onlyInEnglish': 'لم يُترجم هذا الموضوع بعد، فهو معروض بالإنجليزية.',
+    'help.explain': 'لماذا يحدث هذا',
 
     'common.loading': 'جارٍ التحميل…',
     'common.nothingHere': 'لا يوجد ما يُعرض بعد.',

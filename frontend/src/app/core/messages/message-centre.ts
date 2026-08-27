@@ -1,4 +1,5 @@
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { Router } from '@angular/router';
 import { I18nService } from '../i18n/i18n.service';
 import { ActiveMessage, MessageService } from './message.service';
 
@@ -32,6 +33,14 @@ import { ActiveMessage, MessageService } from './message.service';
                 </p>
               }
 
+              <!-- The topic is followed at the moment somebody is already stuck, so it is a
+                   link rather than a code they would have to look up. -->
+              @if (message.helpTopic) {
+                <button type="button" class="message__help" (click)="explain(message)">
+                  {{ t('help.explain') }}
+                </button>
+              }
+
               @if (!isClientCode(message.code)) {
                 <p class="message__code">{{ message.code }}</p>
               }
@@ -55,6 +64,18 @@ import { ActiveMessage, MessageService } from './message.service';
 export class MessageCentre {
   protected readonly messages = inject(MessageService);
   private readonly i18n = inject(I18nService);
+  private readonly router = inject(Router);
+
+  /**
+   * Opens the topic behind a message, and dismisses the message.
+   *
+   * Dismissed because it has been read: leaving it behind the page that explains it means
+   * arriving at an explanation with the complaint still on top of it.
+   */
+  protected explain(message: ActiveMessage): void {
+    this.messages.dismiss(message.key);
+    void this.router.navigate(['/help', message.helpTopic]);
+  }
 
   protected t(key: Parameters<I18nService['translate']>[0]): string {
     return this.i18n.translate(key);

@@ -27,6 +27,7 @@ namespace ASAP.Api.Infrastructure;
 /// <param name="OverridePermission">The permission that would let someone push past it.</param>
 /// <param name="WasOverridden">Whether it was a refusal the caller was entitled to override.</param>
 /// <param name="Target">The field or record at fault.</param>
+/// <param name="HelpTopic">The page explaining the rule, for the client to link to.</param>
 /// <param name="Arguments">The raw values behind the text, for the client to re-format.</param>
 public sealed record MessagePayload(
     string Code,
@@ -37,6 +38,7 @@ public sealed record MessagePayload(
     string? OverridePermission,
     bool WasOverridden,
     MessageTargetPayload? Target,
+    string? HelpTopic,
     IReadOnlyDictionary<string, object?> Arguments)
 {
     /// <summary>Projects one message.</summary>
@@ -60,6 +62,7 @@ public sealed record MessagePayload(
                     message.Target.Field,
                     message.Target.EntityType,
                     message.Target.DisplayNo),
+            message.HelpTopic,
             message.Arguments);
     }
 

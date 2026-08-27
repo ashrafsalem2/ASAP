@@ -233,6 +233,14 @@ export const routes: Routes = [
         loadComponent: () => import('./features/setup/setup').then((m) => m.Setup),
       },
       {
+        path: 'help',
+        loadComponent: () => import('./features/help/help').then((m) => m.Help),
+      },
+      {
+        path: 'help/:topic',
+        loadComponent: () => import('./features/help/help').then((m) => m.Help),
+      },
+      {
         path: '**',
         redirectTo: '',
       },

@@ -1326,3 +1326,25 @@ export interface NumberSeriesInfo {
   isActive: boolean;
   lines: NumberSeriesLineInfo[];
 }
+
+/** One help topic in the index. */
+export interface HelpTopicSummary {
+  topic: string;
+
+  /** The module or area it belongs to, which is how the index is grouped. */
+  area: string;
+  title: string;
+}
+
+/** One help topic, as written. */
+export interface HelpPage {
+  topic: string;
+
+  /** The language it actually came back in. */
+  language: string;
+
+  /** The language that was asked for. Different means it has not been translated yet. */
+  requestedLanguage: string;
+  title: string;
+  markdown: string;
+}

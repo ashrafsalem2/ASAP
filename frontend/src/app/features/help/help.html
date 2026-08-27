@@ -1,0 +1,84 @@
+<div class="page help">
+  <div class="help__index">
+    <h1>{{ t('help.title') }}</h1>
+
+    <div class="field">
+      <label class="field__label" for="filter">{{ t('help.search') }}</label>
+      <input
+        id="filter"
+        class="input"
+        [value]="filter()"
+        (input)="filter.set($any($event.target).value)"
+      />
+    </div>
+
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else {
+      @for (area of areas(); track area.area) {
+        <div class="help__area">
+          <h2 class="help__area-name">{{ area.area }}</h2>
+
+          <ul class="help__list">
+            @for (topic of area.topics; track topic.topic) {
+              <li>
+                <button
+                  type="button"
+                  class="help__link"
+                  [class.help__link--open]="page()?.topic === topic.topic"
+                  (click)="open(topic.topic)"
+                >
+                  {{ topic.title }}
+                </button>
+              </li>
+            }
+          </ul>
+        </div>
+      } @empty {
+        <p class="empty">{{ t('help.noMatch') }}</p>
+      }
+    }
+  </div>
+
+  <article class="help__page">
+    @if (page(); as p) {
+      @if (translated()) {
+        <!-- Said rather than left to be noticed. A page silently in the wrong language reads as
+             a translation nobody bothered with. -->
+        <p class="help__fallback">{{ t('help.onlyInEnglish') }}</p>
+      }
+
+      @for (block of blocks(); track $index) {
+        @switch (block.kind) {
+          @case ('h1') {
+            <h1>{{ block.text }}</h1>
+          }
+          @case ('h2') {
+            <h2>{{ block.text }}</h2>
+          }
+          @default {
+            <p>
+              @for (run of runs(block.text); track $index) {
+                @switch (run.emphasis) {
+                  @case ('strong') {
+                    <strong>{{ run.text }}</strong>
+                  }
+                  @case ('em') {
+                    <em>{{ run.text }}</em>
+                  }
+                  @default {
+                    {{ run.text }}
+                  }
+                }
+              }
+            </p>
+          }
+        }
+      }
+
+      <p class="help__topic-code code">{{ p.topic }}</p>
+    } @else if (!loading()) {
+      <p class="empty">{{ t('help.choose') }}</p>
+    }
+  </article>
+</div>

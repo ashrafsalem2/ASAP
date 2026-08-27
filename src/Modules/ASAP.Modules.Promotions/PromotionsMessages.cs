@@ -155,9 +155,9 @@ public static class PromotionsMessages
             Severity = MessageSeverity.Error,
             Title = new LocalizedText("That percentage is not possible", "نسبة غير ممكنة"),
             Detail = new LocalizedText(
-                "{OfferCode} takes {Value:N2}% off. A discount below nought adds to the price, and "
+                "{OfferCode} takes {Percentage:N2}% off. A discount below nought adds to the price, and "
                 + "one above a hundred pays the customer to shop.",
-                "العرض {OfferCode} يخصم {Value:N2}%. والخصم دون الصفر يزيد السعر، وما يتجاوز المئة "
+                "العرض {OfferCode} يخصم {Percentage:N2}%. والخصم دون الصفر يزيد السعر، وما يتجاوز المئة "
                 + "يجعل الشركة تدفع للعميل ليشتري."),
             Resolution = new LocalizedText(
                 "Enter a percentage between nought and a hundred.",

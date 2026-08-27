@@ -1,0 +1,84 @@
+/* Index on one side, page on the other. The page column is capped at a readable measure:
+   these are paragraphs to be read, not a table to be scanned. */
+.help {
+  display: grid;
+  grid-template-columns: minmax(14rem, 20rem) 1fr;
+  gap: 2rem;
+  align-items: start;
+}
+
+@media (max-width: 60rem) {
+  .help {
+    grid-template-columns: 1fr;
+  }
+}
+
+.help__area {
+  margin-top: 1.25rem;
+}
+
+.help__area-name {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin: 0 0 0.4rem;
+}
+
+.help__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.help__link {
+  background: none;
+  border: none;
+  padding: 0.25rem 0.4rem;
+  text-align: start;
+  cursor: pointer;
+  color: var(--text);
+  font: inherit;
+  border-radius: 0.25rem;
+  width: 100%;
+}
+
+.help__link:hover {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}
+
+.help__link--open {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
+  font-weight: 600;
+}
+
+.help__page {
+  max-width: 68ch;
+}
+
+.help__page h1 {
+  margin-top: 0;
+}
+
+.help__page h2 {
+  margin-top: 2rem;
+  font-size: 1.05rem;
+}
+
+.help__page p {
+  line-height: 1.65;
+}
+
+.help__fallback {
+  color: var(--caution);
+  font-size: 0.9rem;
+}
+
+.help__topic-code {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-top: 2.5rem;
+}

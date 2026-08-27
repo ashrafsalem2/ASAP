@@ -211,7 +211,11 @@ Everything else posts here, so it goes first.
 - The extension SDK published as a NuGet package
 - A worked sample extension, built end to end
 - Generated developer reference: every event, message code, permission and setting ASAP declares
-- End-user guides per module, bilingual
+- **done** End-user guides per module, bilingual. Forty-one topics, one for every help topic a
+  message or a setting points at, served in the reader's language and linked from the refusal
+  itself. A conformance test refuses to let a message point at a topic that is missing, too short
+  to be an explanation, or written in only one language — and refuses to let a topic exist that
+  nothing points at, which is how a renamed message leaves its documentation behind
 - Upgrade and compatibility policy for extension authors
 
 ---

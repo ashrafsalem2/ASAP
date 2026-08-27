@@ -270,6 +270,20 @@ public sealed class PlatformModule : IAsapModule
         },
         new()
         {
+            Id = "Platform.Help",
+            Module = Id,
+            ParentId = "Platform.Administration",
+            DisplayName = new LocalizedText("Help", "المساعدة"),
+            Kind = NavigationKind.Page,
+            Route = "/help",
+            Icon = "help",
+
+            // No permission. Every refusal in the system links here, and a link that refuses the
+            // person following it is worse than no link.
+            Order = 95,
+        },
+        new()
+        {
             Id = "Platform.Extensions",
             Module = Id,
             ParentId = "Platform.Administration",

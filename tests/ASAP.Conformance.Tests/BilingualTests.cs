@@ -36,6 +36,19 @@ public sealed class BilingualTests
         new ASAP.Modules.Pos.PosModule(),
     ];
 
+    /// <summary>
+    /// Every message the installation can raise.
+    /// </summary>
+    /// <remarks>
+    /// The platform declares its own directly rather than through a module, and the host
+    /// concatenates the two when it builds the catalogue. Walking only the modules leaves every
+    /// message about users, permissions and setup outside these checks — which is how a rule
+    /// passes for months while the thing it is meant to hold quietly does not.
+    /// </remarks>
+    private static IEnumerable<MessageDefinition> AllMessages()
+        => ASAP.Platform.Core.Messaging.PlatformMessages.All
+            .Concat(Modules.SelectMany(static m => m.Messages));
+
     /// <summary>Collects the English text of anything missing its Arabic.</summary>
     private static List<string> Missing(IEnumerable<(string Where, LocalizedText? Text)> candidates)
         =>
@@ -54,8 +67,7 @@ public sealed class BilingualTests
         // Title, detail and resolution alike. A message whose title translates but whose
         // resolution does not is the worse case of the two: the user is told in Arabic that
         // something went wrong, then told in English what to do about it.
-        var missing = Missing(Modules
-            .SelectMany(static m => m.Messages)
+        var missing = Missing(AllMessages()
             .SelectMany(static d => new (string, LocalizedText?)[]
             {
                 ($"{d.Code} title", d.Title),
@@ -121,8 +133,7 @@ public sealed class BilingualTests
         // Catches the other way this decays: pasting the English into the Arabic slot to satisfy
         // a check like the ones above. Codes, numbers and account references are legitimately
         // identical, so only text with letters in it is judged.
-        var suspicious = Modules
-            .SelectMany(static m => m.Messages)
+        var suspicious = AllMessages()
             .SelectMany(static d => new (string Where, LocalizedText? Text)[]
             {
                 ($"{d.Code} title", d.Title),
@@ -144,8 +155,7 @@ public sealed class BilingualTests
     {
         // The cheapest possible check that somebody filled the slot with a translation rather
         // than with anything at all: Arabic text should contain Arabic letters.
-        var notArabic = Modules
-            .SelectMany(static m => m.Messages)
+        var notArabic = AllMessages()
             .SelectMany(static d => new (string Where, LocalizedText? Text)[]
             {
                 ($"{d.Code} title", d.Title),

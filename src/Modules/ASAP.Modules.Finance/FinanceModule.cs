@@ -85,6 +85,11 @@ public sealed class FinanceModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISync
                 Posting.ReverseTransactionCommand,
                 ASAP.Platform.Kernel.Results.Result<Posting.PostingReceipt>>,
             Posting.ReverseTransactionCommandHandler>();
+        services.AddScoped<
+            ASAP.Platform.Kernel.Cqrs.IRequestHandler<
+                Periods.CloseFiscalYearCommand,
+                ASAP.Platform.Kernel.Results.Result<Periods.YearEndReceipt>>,
+            Periods.CloseFiscalYearCommandHandler>();
         services.AddScoped<Reporting.LedgerBalances>();
         services.AddScoped<
             ASAP.Platform.Kernel.Cqrs.IRequestHandler<Reporting.TrialBalanceQuery, Reporting.TrialBalance>,

@@ -58,7 +58,10 @@ Everything else posts here, so it goes first.
   analysis done**; cash flow to come. The balance sheet carries the result for the year as its own
   computed line, so it balances before the year-end transfer exists
 - Account schedules — the report builder that lets a user define statements without code
-- Year-end closing and retained earnings transfer
+- **done** Year-end close: the result transferred to retained earnings on the year's last day,
+  every income statement account cleared per branch so no shop keeps a balance the company total
+  says is zero, and the year locked behind it. Refuses to run twice, refuses while an earlier year
+  is still untransferred, and refuses on a year somebody locked before running it
 
 ## Phase 2 — Inventory
 

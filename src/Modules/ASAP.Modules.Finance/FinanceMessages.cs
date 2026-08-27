@@ -59,6 +59,24 @@ public static class FinanceMessages
     /// <summary>The period covering the posting date is closed.</summary>
     public static readonly MessageCode PeriodClosed = new("FIN.PERIOD.CLOSED");
 
+    /// <summary>The financial year named does not exist.</summary>
+    public static readonly MessageCode FiscalYearNotFound = new("FIN.YEAREND.YEAR_NOT_FOUND");
+
+    /// <summary>The year's result has already been moved to retained earnings.</summary>
+    public static readonly MessageCode YearAlreadyTransferred = new("FIN.YEAREND.ALREADY_TRANSFERRED");
+
+    /// <summary>The year was locked before its result was moved.</summary>
+    public static readonly MessageCode YearLockedBeforeTransfer = new("FIN.YEAREND.LOCKED_BEFORE_TRANSFER");
+
+    /// <summary>An earlier year's result is still sitting in the income statement accounts.</summary>
+    public static readonly MessageCode EarlierYearNotTransferred = new("FIN.YEAREND.EARLIER_YEAR_OPEN");
+
+    /// <summary>No account is set up for retained earnings.</summary>
+    public static readonly MessageCode NoRetainedEarningsAccount = new("FIN.YEAREND.NO_RETAINED_EARNINGS");
+
+    /// <summary>The year had nothing to transfer.</summary>
+    public static readonly MessageCode NothingToTransfer = new("FIN.YEAREND.NOTHING_TO_TRANSFER");
+
     /// <summary>The financial year covering the posting date is closed.</summary>
     public static readonly MessageCode YearClosed = new("FIN.YEAR.CLOSED");
 
@@ -251,6 +269,111 @@ public static class FinanceMessages
                 "رحّل إلى الفترة الحالية بدلاً من ذلك، أو اطلب من صاحب صلاحية إعادة فتح {PeriodName}."),
             OverridePermission = "Finance.Period.Override",
             HelpTopic = "finance/fiscal-periods",
+        },
+        new()
+        {
+            Code = FiscalYearNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such financial year", "لا توجد سنة مالية بهذا الرمز"),
+            Detail = new LocalizedText(
+                "No financial year in this company is coded {YearCode}.",
+                "لا توجد في هذه الشركة سنة مالية بالرمز {YearCode}."),
+            Resolution = new LocalizedText(
+                "Check the code against the fiscal calendar.",
+                "تحقق من الرمز في التقويم المالي."),
+            HelpTopic = "finance/year-end",
+        },
+        new()
+        {
+            Code = YearAlreadyTransferred,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("That year has already been closed", "تم إقفال السنة بالفعل"),
+            Detail = new LocalizedText(
+                "The result of {YearCode} was transferred to retained earnings on {EndDate:d}. "
+                + "Running it again would move a result that is no longer there and take retained "
+                + "earnings the same distance in the wrong direction.",
+                "رُحّلت نتيجة السنة {YearCode} إلى الأرباح المبقاة في {EndDate:d}. وإعادة تشغيل "
+                + "الإقفال تنقل نتيجة لم تعد قائمة وتحرّك الأرباح المبقاة بنفس المقدار في الاتجاه "
+                + "الخطأ."),
+
+            // No override. There is no version of running this twice that is right, so there is
+            // nothing for a permission to unlock.
+            Resolution = new LocalizedText(
+                "If the result itself was wrong, correct it with an entry in the current year. A "
+                + "prior-period adjustment belongs in this year's books.",
+                "إن كانت النتيجة نفسها خاطئة فصحّحها بقيد في السنة الحالية، فتعديل الفترات "
+                + "السابقة مكانه دفاتر السنة الجارية."),
+            HelpTopic = "finance/year-end",
+        },
+        new()
+        {
+            Code = YearLockedBeforeTransfer,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText(
+                "That year is locked and its result is still in it",
+                "السنة مقفلة ونتيجتها ما زالت فيها"),
+            Detail = new LocalizedText(
+                "{YearCode} was locked against posting before the year-end transfer was run, so "
+                + "the transfer cannot be posted and the result cannot leave the income statement "
+                + "accounts.",
+                "أُقفلت السنة {YearCode} أمام الترحيل قبل تشغيل قيد الإقفال، فلا يمكن ترحيل القيد "
+                + "ولا يمكن للنتيجة أن تغادر حسابات قائمة الدخل."),
+            Resolution = new LocalizedText(
+                "Reopen {YearCode}, run the transfer, and let the transfer lock it.",
+                "أعد فتح السنة {YearCode} وشغّل قيد الإقفال، ودع الإقفال هو ما يغلقها."),
+            HelpTopic = "finance/year-end",
+        },
+        new()
+        {
+            Code = EarlierYearNotTransferred,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("An earlier year is still open", "سنة سابقة لم تُقفل بعد"),
+            Detail = new LocalizedText(
+                "{EarlierYearCode} ends before {YearCode} begins and its result was never "
+                + "transferred, so it is still sitting in the income statement accounts. Closing "
+                + "{YearCode} now would sweep it up and report it as part of this year.",
+                "السنة {EarlierYearCode} تنتهي قبل بداية {YearCode} ولم تُرحّل نتيجتها، فهي ما "
+                + "زالت في حسابات قائمة الدخل. وإقفال {YearCode} الآن يجمعها معها ويعرضها كجزء من "
+                + "نتيجة هذه السنة."),
+            Resolution = new LocalizedText(
+                "Close {EarlierYearCode} first. Years are closed in the order they happened, for "
+                + "the same reason they are reported in it.",
+                "أقفل السنة {EarlierYearCode} أولاً. فالسنوات تُقفل بترتيب حدوثها، للسبب نفسه "
+                + "الذي تُعرض به بذلك الترتيب."),
+            HelpTopic = "finance/year-end",
+        },
+        new()
+        {
+            Code = NoRetainedEarningsAccount,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Nowhere to put the result", "لا يوجد حساب لنتيجة السنة"),
+            Detail = new LocalizedText(
+                "No retained earnings account is set up, so the result of {YearCode} has nowhere "
+                + "to go.",
+                "لا يوجد حساب للأرباح المبقاة، فنتيجة السنة {YearCode} بلا وجهة."),
+            Resolution = new LocalizedText(
+                "Set Finance.General.RetainedEarningsAccount in setup. It is an equity account: "
+                + "what the company earned belongs to its owners.",
+                "حدّد الإعداد Finance.General.RetainedEarningsAccount. وهو حساب ضمن حقوق الملكية، "
+                + "فما كسبته الشركة يعود لأصحابها."),
+            HelpTopic = "finance/year-end",
+        },
+        new()
+        {
+            Code = NothingToTransfer,
+            Severity = MessageSeverity.Warning,
+            Title = new LocalizedText("That year had no trading", "لا حركة في هذه السنة"),
+            Detail = new LocalizedText(
+                "Nothing was posted to an income statement account in {YearCode}, so the transfer "
+                + "posted no entries.",
+                "لم يُرحّل شيء إلى حسابات قائمة الدخل في السنة {YearCode}، فلم ينشئ الإقفال أي قيد."),
+            Resolution = new LocalizedText(
+                "The year is marked closed regardless, which is what stops it being asked about "
+                + "again. Nothing is wrong; it is worth saying because a year end that posts "
+                + "nothing usually means the wrong year was chosen.",
+                "وضعت السنة كمقفلة على أي حال، وهو ما يمنع السؤال عنها ثانية. لا خطأ في ذلك، لكنه "
+                + "يستحق التنبيه لأن إقفالاً بلا قيود يعني عادةً اختيار السنة الخطأ."),
+            HelpTopic = "finance/year-end",
         },
         new()
         {

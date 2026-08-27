@@ -2,6 +2,7 @@ using ASAP.Api.Infrastructure;
 using ASAP.Modules.Finance.Accounts;
 using ASAP.Modules.Finance.Journals;
 using ASAP.Modules.Finance.Ledger;
+using ASAP.Modules.Finance.Periods;
 using ASAP.Modules.Finance.Posting;
 using ASAP.Modules.Finance.Reporting;
 using ASAP.Modules.Finance.Tax;
@@ -12,6 +13,11 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace ASAP.Api.Endpoints;
+
+/// <summary>What a client sends to close a financial year.</summary>
+/// <param name="LockTheYear">Whether to stop the year accepting further postings once it is done.</param>
+/// <param name="Reason">What the entries should say beyond that they are the year-end transfer.</param>
+public sealed record CloseYearRequest(bool LockTheYear = true, string? Reason = null);
 
 /// <summary>An account as the client sees it.</summary>
 /// <param name="Id">The account key.</param>
@@ -91,6 +97,14 @@ public static class FinanceEndpoints
         group.MapGet("/reports/income-statement", IncomeStatementAsync)
              .WithName("IncomeStatement")
              .WithSummary("Reports revenue, cost of sales and expenses over a range.");
+
+        group.MapGet("/fiscal-years", FiscalYearsAsync)
+             .WithName("FiscalYears")
+             .WithSummary("Lists the financial years, and whether each has been closed.");
+
+        group.MapPost("/fiscal-years/{yearCode}/close", CloseFiscalYearAsync)
+             .WithName("CloseFiscalYear")
+             .WithSummary("Transfers a year's result to retained earnings and locks the year.");
 
         group.MapGet("/reports/branch-performance", BranchPerformanceAsync)
              .WithName("BranchPerformance")
@@ -280,6 +294,63 @@ public static class FinanceEndpoints
             includeAll ?? false);
 
         return Results.Ok(await dispatcher.SendAsync(query, cancellationToken).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> FiscalYearsAsync(
+        AsapDbContext context,
+        CancellationToken cancellationToken)
+    {
+        var years = await context.Set<FiscalYear>()
+            .AsNoTracking()
+            .OrderByDescending(static y => y.StartDate)
+            .Select(static y => new
+            {
+                code = y.Code,
+                startDate = y.StartDate,
+                endDate = y.EndDate,
+
+                // Two different things, and conflating them is how a year gets locked with its
+                // result still inside it. Locked stops posting; transferred is the entry that
+                // moves the result out.
+                isClosed = y.IsClosed,
+                incomeTransferred = y.IncomeTransferred,
+                closedAtUtc = y.ClosedAtUtc,
+                periods = y.Periods
+                    .OrderBy(p => p.StartDate)
+                    .Select(p => new { p.Name, p.StartDate, p.EndDate, p.IsClosed }),
+            })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return Results.Ok(years);
+    }
+
+    private static async Task<IResult> CloseFiscalYearAsync(
+        string yearCode,
+        CloseYearRequest? request,
+        IDispatcher dispatcher,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        var command = new CloseFiscalYearCommand(
+            yearCode,
+            request?.LockTheYear ?? true,
+            request?.Reason);
+
+        var result = await dispatcher.SendAsync(command, cancellationToken).ConfigureAwait(false);
+
+        if (result.Failed)
+        {
+            return Results.Json(
+                AsapProblem.From(result, AsapProblem.StatusFor(result.Messages), http.Request.Path),
+                statusCode: AsapProblem.StatusFor(result.Messages));
+        }
+
+        return Results.Ok(new
+        {
+            receipt = result.Value,
+            messages = MessagePayload.FromAll(result.Messages),
+        });
     }
 
     private static async Task<IResult> BranchPerformanceAsync(

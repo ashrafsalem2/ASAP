@@ -73,6 +73,8 @@ public sealed class PosModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISyncCont
         services.AddScoped<Seed.PosSeeder>();
         services.AddScoped<Sessions.PosSessionService>();
         services.AddScoped<Receipts.PosReceiptService>();
+        services.AddScoped<Reporting.PromotionUptakeReport>();
+        services.AddScoped<Reporting.PromotionUptakeReport>();
     }
 
     /// <inheritdoc />
@@ -353,6 +355,28 @@ public sealed class PosModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISyncCont
             Route = "/pos/sessions",
             RequiresPermission = $"{Id}.Session.Read",
             Order = 20,
+        },
+        new()
+        {
+            Id = "Pos.Promotions",
+            Module = Id,
+            ParentId = "Pos.Root",
+            DisplayName = new LocalizedText("What the offers did", "أثر العروض"),
+            Kind = NavigationKind.Report,
+            Route = "/pos/promotions",
+            RequiresPermission = $"{Id}.Report.Read",
+            Order = 25,
+        },
+        new()
+        {
+            Id = "Pos.Promotions",
+            Module = Id,
+            ParentId = "Pos.Root",
+            DisplayName = new LocalizedText("What the offers did", "أثر العروض"),
+            Kind = NavigationKind.Report,
+            Route = "/pos/promotions",
+            RequiresPermission = $"{Id}.Report.Read",
+            Order = 25,
         },
         new()
         {

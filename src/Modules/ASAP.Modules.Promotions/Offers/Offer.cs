@@ -187,11 +187,14 @@ public sealed class Offer : CompanyEntity
     /// <summary>Whether it may be applied at all.</summary>
     public bool IsActive { get; set; } = true;
 
-    /// <summary>How many times it has been applied, for the uptake report.</summary>
-    public int TimesApplied { get; set; }
-
-    /// <summary>What it has given away in total.</summary>
-    public decimal TotalGivenAway { get; set; }
+    // There were counters here — times applied, total given away — and nothing ever wrote to
+    // them. They sat on the offer screen reading zero beside an offer that had been used, which
+    // is worse than not showing them: a figure that is present and wrong is believed.
+    //
+    // Removed rather than incremented. Receipt lines already record which offer applied and what
+    // it took off, so they are the source of truth, and a counter beside them is a second answer
+    // that can only ever drift from the first. Reading it from the lines also answers "this
+    // month" and "at this branch", which no counter on the offer can.
 
     /// <summary>What it applies to, when the scope is not everything.</summary>
     public ICollection<OfferTarget> Targets { get; set; } = [];

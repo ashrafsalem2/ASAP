@@ -33,7 +33,6 @@ public sealed class PromotionsSchema : IModuleSchema
             builder.Property(o => o.CouponCode).HasMaxLength(40);
 
             builder.Property(o => o.Value).HasColumnType(DecimalPrecisionConventions.Money);
-            builder.Property(o => o.TotalGivenAway).HasColumnType(DecimalPrecisionConventions.Money);
             builder.Property(o => o.BuyQuantity).HasColumnType(DecimalPrecisionConventions.Quantity);
             builder.Property(o => o.GetQuantity).HasColumnType(DecimalPrecisionConventions.Quantity);
             builder.Property(o => o.GetDiscountPercent).HasColumnType(DecimalPrecisionConventions.Percentage);

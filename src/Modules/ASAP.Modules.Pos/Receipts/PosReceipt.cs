@@ -220,6 +220,27 @@ public sealed class PosReceiptLine : CompanyEntity
     /// <summary>The tax charged.</summary>
     public string? TaxCode { get; set; }
 
+    /// <summary>
+    /// What the goods cost when they went out, per unit.
+    /// </summary>
+    /// <remarks>
+    /// Kept on the line because a margin is only answerable against the cost at the time. Costs
+    /// move; reporting last quarter's promotion against today's cost would say the campaign lost
+    /// money it never lost, or made money it never made.
+    /// <para>
+    /// This is what the costing engine said at the moment of sale, which for an item going
+    /// negative is an estimate until a receipt settles it. That is the same figure the margin
+    /// floor was checked against, so a report and a refusal can never disagree.
+    /// </para>
+    /// <para>
+    /// Null where nobody recorded it — a receipt written before this column existed, or a charge
+    /// line with no goods behind it. Deliberately not zero: a margin report that could not tell
+    /// "cost nothing" from "cost unknown" reported a hundred per cent on every historic receipt,
+    /// which is a confident answer produced entirely by missing data.
+    /// </para>
+    /// </remarks>
+    public decimal? UnitCostAtSale { get; set; }
+
 
     /// <summary>What each unit actually goes for.</summary>
     public decimal NetUnitPrice => UnitPrice * (1m - (DiscountPercent / 100m));

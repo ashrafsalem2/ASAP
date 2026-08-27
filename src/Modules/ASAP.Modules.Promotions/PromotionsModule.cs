@@ -59,19 +59,10 @@ public sealed class PromotionsModule : IAsapModule, ISyncContributor
     /// A shop must not invent its own offers. The whole value of a promotion is that head office
     /// knows what it cost, and a branch that could write one would be a branch whose margin nobody
     /// can explain.
-    /// <para>
-    /// The counters are volatile: they move every time anybody buys anything on the offer, and no
-    /// branch holds a copy of an offer to find out how another shop is doing with it.
-    /// </para>
     /// </remarks>
     public IReadOnlyCollection<SyncEntityDescriptor> SyncEntities =>
     [
-        new(
-            "Promotions.Offer",
-            typeof(Offers.Offer),
-            SyncDirection.Down,
-            Id,
-            [nameof(Offers.Offer.TimesApplied), nameof(Offers.Offer.TotalGivenAway)]),
+        new("Promotions.Offer", typeof(Offers.Offer), SyncDirection.Down, Id),
         new("Promotions.OfferTarget", typeof(Offers.OfferTarget), SyncDirection.Down, Id),
     ];
 

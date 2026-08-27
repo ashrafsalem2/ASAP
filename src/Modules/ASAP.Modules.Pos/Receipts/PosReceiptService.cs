@@ -672,6 +672,9 @@ public sealed class PosReceiptService(
         decimal DiscountPercent,
         string? TaxCode)
     {
+        /// <summary>What the goods cost per unit, or null on a line with no goods behind it.</summary>
+        public decimal? UnitCostAtSale { get; init; }
+
         /// <summary>The offer that applied, when one did.</summary>
         public string? OfferCode { get; init; }
 
@@ -809,7 +812,10 @@ public sealed class PosReceiptService(
                 line.Quantity,
                 unitPrice,
                 discountPercent,
-                line.TaxCode ?? sold?.TaxCode));
+                line.TaxCode ?? sold?.TaxCode)
+            {
+                UnitCostAtSale = item?.UnitCost,
+            });
         }
 
         return built;
@@ -1364,6 +1370,7 @@ public sealed class PosReceiptService(
                 DiscountPercent = line.DiscountPercent,
                 OfferCode = line.OfferCode,
                 OfferDiscountAmount = line.OfferDiscountAmount,
+                UnitCostAtSale = line.UnitCostAtSale,
                 TaxCode = line.TaxCode,
             });
         }

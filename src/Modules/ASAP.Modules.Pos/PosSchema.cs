@@ -150,6 +150,7 @@ public sealed class PosSchema : IModuleSchema
             builder.Property(l => l.TaxCode).HasMaxLength(20);
             builder.Property(l => l.OfferCode).HasMaxLength(20);
             builder.Property(l => l.OfferDiscountAmount).HasColumnType(DecimalPrecisionConventions.Money);
+            builder.Property(l => l.UnitCostAtSale).HasColumnType(DecimalPrecisionConventions.UnitAmount);
 
             // "What did this campaign cost us?" reads this one.
             builder.HasIndex(l => new { l.CompanyId, l.OfferCode });

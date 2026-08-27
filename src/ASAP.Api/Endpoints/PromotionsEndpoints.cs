@@ -253,8 +253,6 @@ public static class PromotionsEndpoints
             stacking = offer.Stacking.ToString(),
             priority = offer.Priority,
             isActive = offer.IsActive,
-            timesApplied = offer.TimesApplied,
-            totalGivenAway = offer.TotalGivenAway,
             targets = offer.Targets.Select(static t => new OfferTargetPayload(t.ItemNo, t.CategoryId)),
         };
 

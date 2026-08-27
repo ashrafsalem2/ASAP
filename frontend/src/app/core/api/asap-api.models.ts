@@ -881,3 +881,39 @@ export interface OfferSaved {
   offer: Offer;
   messages?: AsapMessage[];
 }
+
+/** How one offer did over a period. */
+export interface OfferUptakeRow {
+  offerCode: string;
+  receipts: number;
+  units: number;
+  givenAway: number;
+  revenueAtList: number;
+  netRevenue: number;
+  costOfGoods: number;
+
+  /** Null where any line counted had no cost recorded. Not the same as nothing. */
+  grossProfit: number | null;
+
+  /** What was left, as a percentage of what was charged, or null where the cost is not known. */
+  realisedMarginPercent: number | null;
+
+  /** How much of the shelf price was given away. */
+  discountPercent: number;
+}
+
+/** What every offer did, and what the shop sold without one. */
+export interface PromotionUptake {
+  from: string;
+  to: string;
+  totalGivenAway: number;
+  promotedNetRevenue: number;
+  unpromotedNetRevenue: number;
+
+  /**
+   * The margin on everything sold at the ordinary price. Every offer is judged against this: a
+   * promotion's margin on its own is a number nobody can interpret.
+   */
+  unpromotedMarginPercent: number | null;
+  offers: OfferUptakeRow[];
+}

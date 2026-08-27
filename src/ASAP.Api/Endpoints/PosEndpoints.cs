@@ -1,5 +1,6 @@
 using ASAP.Api.Infrastructure;
 using ASAP.Modules.Pos.Receipts;
+using ASAP.Modules.Pos.Reporting;
 using ASAP.Modules.Pos.Sessions;
 using ASAP.Modules.Pos.Stations;
 using ASAP.Platform.Kernel.Security;
@@ -107,6 +108,7 @@ public static class PosEndpoints
     private const string SessionClosePermission = "Pos.Session.Post";
     private const string ReceiptReadPermission = "Pos.Receipt.Read";
     private const string ReceiptPostPermission = "Pos.Receipt.Post";
+    private const string ReportPermission = "Pos.Report.Read";
 
     /// <summary>Maps the point of sale endpoints.</summary>
     /// <param name="app">The route builder.</param>
@@ -160,6 +162,10 @@ public static class PosEndpoints
         group.MapDelete("/parked/{receiptNo}", VoidAsync)
              .WithName("VoidPosSale")
              .WithSummary("Throws a parked sale away. Voided rather than deleted.");
+
+        group.MapGet("/reports/promotions", PromotionsReportAsync)
+             .WithName("PosPromotionUptake")
+             .WithSummary("What each offer moved, gave away and made, beside what the shop makes without one.");
 
         return app;
     }
@@ -480,6 +486,58 @@ public static class PosEndpoints
         var result = await receipts.VoidAsync(receiptNo, cancellationToken).ConfigureAwait(false);
 
         return result.Failed ? Refused(result, http) : Results.Ok(View(result.Value));
+    }
+
+    /// <summary>
+    /// What the promotions actually did.
+    /// </summary>
+    /// <remarks>
+    /// Behind the report permission rather than the receipt one. What a campaign cost is a
+    /// question for whoever runs the shop, not for everybody who can work a till.
+    /// </remarks>
+    private static async Task<IResult> PromotionsReportAsync(
+        PromotionUptakeReport report,
+        IUserContext user,
+        HttpContext http,
+        [FromQuery] DateOnly? from,
+        [FromQuery] DateOnly? to,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, ReportPermission))
+        {
+            return Forbidden(ReportPermission, "run till reports", http);
+        }
+
+        var last = to ?? DateOnly.FromDateTime(DateTime.UtcNow);
+
+        // A month back by default, because that is the period somebody asking this question
+        // almost always means and typing two dates to find out is friction for nothing.
+        var first = from ?? last.AddMonths(-1);
+
+        var uptake = await report.RunAsync(first, last, cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(new
+        {
+            from = uptake.From,
+            to = uptake.To,
+            totalGivenAway = uptake.TotalGivenAway,
+            promotedNetRevenue = uptake.PromotedNetRevenue,
+            unpromotedNetRevenue = uptake.UnpromotedNetRevenue,
+            unpromotedMarginPercent = uptake.UnpromotedMarginPercent,
+            offers = uptake.Offers.Select(static o => new
+            {
+                offerCode = o.OfferCode,
+                receipts = o.Receipts,
+                units = o.Units,
+                givenAway = o.GivenAway,
+                revenueAtList = o.RevenueAtList,
+                netRevenue = o.NetRevenue,
+                costOfGoods = o.CostOfGoods,
+                grossProfit = o.GrossProfit,
+                realisedMarginPercent = o.RealisedMarginPercent,
+                discountPercent = o.DiscountPercent,
+            }),
+        });
     }
 
     private static PosLineRequest Line(PosLinePayload payload)

@@ -1,0 +1,97 @@
+<div class="page">
+  <h1>{{ t('promotions.uptake.title') }}</h1>
+
+  <section class="panel">
+    <div class="panel__body draft">
+      <div class="field">
+        <label class="field__label" for="from">{{ t('promotions.uptake.from') }}</label>
+        <input id="from" class="input" type="date" [(ngModel)]="from" (change)="load()" />
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="to">{{ t('promotions.uptake.to') }}</label>
+        <input id="to" class="input" type="date" [(ngModel)]="to" (change)="load()" />
+      </div>
+    </div>
+
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else if (report(); as r) {
+      <!-- The ordinary margin goes first because every row below is judged against it. A
+           promotion's margin on its own is a number nobody can interpret. -->
+      <div class="panel__body">
+        <dl class="totals">
+          <dt>{{ t('promotions.uptake.ordinaryMargin') }}</dt>
+          <dd class="numeric totals__grand">{{ percent(r.unpromotedMarginPercent) }}</dd>
+
+          <dt>{{ t('promotions.uptake.soldPlain') }}</dt>
+          <dd class="numeric">{{ i18n.total(r.unpromotedNetRevenue) }}</dd>
+
+          <dt>{{ t('promotions.uptake.soldOnOffer') }}</dt>
+          <dd class="numeric">{{ i18n.total(r.promotedNetRevenue) }}</dd>
+
+          <dt>{{ t('promotions.uptake.givenAway') }}</dt>
+          <dd class="numeric till__discount">{{ i18n.total(r.totalGivenAway) }}</dd>
+        </dl>
+      </div>
+
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('promotions.uptake.offer') }}</th>
+              <th class="numeric">{{ t('promotions.uptake.receipts') }}</th>
+              <th class="numeric">{{ t('promotions.uptake.units') }}</th>
+              <th class="numeric">{{ t('promotions.uptake.atList') }}</th>
+              <th class="numeric">{{ t('promotions.uptake.givenAway') }}</th>
+              <th class="numeric">{{ t('promotions.uptake.discount') }}</th>
+              <th class="numeric">{{ t('promotions.uptake.charged') }}</th>
+              <th class="numeric">{{ t('promotions.uptake.cost') }}</th>
+              <th class="numeric">{{ t('promotions.uptake.profit') }}</th>
+              <th class="numeric">{{ t('promotions.uptake.margin') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of rows(); track row.offerCode) {
+              <tr>
+                <td class="code">{{ row.offerCode }}</td>
+                <td class="numeric">{{ row.receipts }}</td>
+                <td class="numeric">{{ quantity(row.units) }}</td>
+                <td class="numeric">{{ i18n.total(row.revenueAtList) }}</td>
+                <td class="numeric till__discount">{{ i18n.total(row.givenAway) }}</td>
+                <td class="numeric">{{ percent(row.discountPercent) }}</td>
+                <td class="numeric">{{ i18n.total(row.netRevenue) }}</td>
+                <td class="numeric">{{ i18n.total(row.costOfGoods) }}</td>
+                <td class="numeric">
+                  @if (row.grossProfit !== null) {
+                    {{ i18n.total(row.grossProfit) }}
+                  } @else {
+                    {{ t('promotions.uptake.notKnown') }}
+                  }
+                </td>
+
+                <!-- Coloured against the ordinary margin, not against zero. An offer can be
+                     perfectly profitable and still have been a bad idea, and that is the
+                     comparison worth making visible. -->
+                <td
+                  class="numeric"
+                  [class.till__owing]="isBelowOrdinary(row.realisedMarginPercent)"
+                >
+                  {{ percent(row.realisedMarginPercent) }}
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="10" class="empty">{{ t('promotions.uptake.nothing') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (rows().length > 0) {
+        <p class="panel__body till__hint">{{ t('promotions.uptake.hint') }}</p>
+      }
+    }
+  </section>
+</div>

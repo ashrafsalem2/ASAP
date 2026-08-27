@@ -4,6 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   ParkedSale,
+  PromotionUptake,
   PosReading,
   PosReceiptPosted,
   PosSession,
@@ -94,6 +95,17 @@ export class PosService {
         `${this.base}/sessions/${encodeURIComponent(sessionNo)}/close`,
         { declaredCash, overrideReason },
       ),
+    );
+  }
+
+  /**
+   * What each offer moved, gave away and made, beside what the shop makes without one.
+   */
+  promotionUptake(from: string, to: string): Promise<PromotionUptake> {
+    const params = new HttpParams().set('from', from).set('to', to);
+
+    return firstValueFrom(
+      this.http.get<PromotionUptake>(`${this.base}/reports/promotions`, { params }),
     );
   }
 

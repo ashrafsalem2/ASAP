@@ -1297,3 +1297,32 @@ export interface AuditPage {
   limit: number;
   rows: AuditEntry[];
 }
+
+/** One dated range of numbers a series issues from. */
+export interface NumberSeriesLineInfo {
+  startingDate: string;
+  startingNumber: string;
+  endingNumber: string | null;
+  lastNumberUsed: string | null;
+  lastDateUsed: string | null;
+  increment: number;
+  warnWhenRemainingBelow: number | null;
+  isOpen: boolean;
+
+  /** How many are left, or null where the line has no ceiling. */
+  remaining: number | null;
+}
+
+/** A series every document number of one kind comes out of. */
+export interface NumberSeriesInfo {
+  code: string;
+  description: string;
+  descriptionArabic: string | null;
+
+  /** Off means gapless, which a tax invoice sequence has to be. */
+  allowGaps: boolean;
+  allowManualEntry: boolean;
+  enforceDateOrder: boolean;
+  isActive: boolean;
+  lines: NumberSeriesLineInfo[];
+}

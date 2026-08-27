@@ -190,6 +190,12 @@ export const routes: Routes = [
         loadComponent: () => import('./features/hr/entitlements').then((m) => m.Entitlements),
       },
       {
+        path: 'admin/number-series',
+        canActivate: [requirePermission('Platform.NumberSeries.Read')],
+        loadComponent: () =>
+          import('./features/admin/number-series').then((m) => m.NumberSeriesScreen),
+      },
+      {
         path: 'admin/companies',
         canActivate: [requirePermission('Platform.Company.Read')],
         data: { kind: 'companies' },

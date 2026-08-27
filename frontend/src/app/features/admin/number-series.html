@@ -1,0 +1,121 @@
+<div class="page">
+  <h1>{{ t('admin.numbers.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('admin.numbers.intro') }}</p>
+
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('admin.numbers.code') }}</th>
+              <th>{{ t('admin.numbers.description') }}</th>
+              <th>{{ t('admin.numbers.gaps') }}</th>
+              <th>{{ t('admin.numbers.manual') }}</th>
+              <th>{{ t('admin.numbers.dateOrder') }}</th>
+              <th class="numeric">{{ t('admin.numbers.lines') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of series(); track item.code) {
+              <tr
+                class="admin__row"
+                [class.admin__row--selected]="selected()?.code === item.code"
+                (click)="select(item)"
+              >
+                <td class="code">{{ item.code }}</td>
+                <td>{{ item.description }}</td>
+
+                <!-- The setting that matters. A tax invoice sequence with holes in it is a
+                     question from the authority; an internal number with holes is nothing. -->
+                <td>
+                  <span class="tag">
+                    {{ item.allowGaps ? t('admin.numbers.gapsAllowed') : t('admin.numbers.gapless') }}
+                  </span>
+                </td>
+                <td>{{ item.allowManualEntry ? t('admin.numbers.yes') : t('admin.numbers.no') }}</td>
+                <td>{{ item.enforceDateOrder ? t('admin.numbers.yes') : t('admin.numbers.no') }}</td>
+                <td class="numeric">{{ item.lines.length }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+
+  @if (selected(); as item) {
+    <section class="panel">
+      <div class="panel__header">
+        <h2>{{ item.code }} — {{ item.description }}</h2>
+      </div>
+
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('admin.numbers.from') }}</th>
+              <th>{{ t('admin.numbers.first') }}</th>
+              <th>{{ t('admin.numbers.last') }}</th>
+              <th>{{ t('admin.numbers.used') }}</th>
+              <th class="numeric">{{ t('admin.numbers.remaining') }}</th>
+              <th>{{ t('admin.numbers.open') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (line of item.lines; track line.startingDate) {
+              <tr [class.admin__override]="running(line)">
+                <td class="code">{{ line.startingDate }}</td>
+                <td class="code">{{ line.startingNumber }}</td>
+                <td class="code">{{ line.endingNumber }}</td>
+                <td class="code">{{ line.lastNumberUsed }}</td>
+
+                <!-- Blank where there is no ceiling. A dash would read as none left, which is
+                     the opposite of what it means. -->
+                <td class="numeric">{{ line.remaining }}</td>
+                <td>{{ line.isOpen ? t('admin.numbers.yes') : t('admin.numbers.no') }}</td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="6" class="empty">{{ t('admin.numbers.noLines') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (canWrite()) {
+        <div class="panel__body draft">
+          <div class="field">
+            <label class="field__label" for="newStartingDate">{{ t('admin.numbers.from') }}</label>
+            <input id="newStartingDate" class="input" type="date" [(ngModel)]="newStartingDate" />
+          </div>
+
+          <div class="field admin__wide">
+            <label class="field__label" for="newStartingNumber">{{ t('admin.numbers.first') }}</label>
+            <input id="newStartingNumber" class="input code" [(ngModel)]="newStartingNumber" />
+          </div>
+
+          <div class="field admin__wide">
+            <label class="field__label" for="newEndingNumber">{{ t('admin.numbers.last') }}</label>
+            <input id="newEndingNumber" class="input code" [(ngModel)]="newEndingNumber" />
+          </div>
+
+          <button
+            type="button"
+            class="button button--primary"
+            [disabled]="!newStartingDate || !newStartingNumber.trim() || busy()"
+            (click)="addLine()"
+          >
+            {{ t('admin.numbers.addLine') }}
+          </button>
+        </div>
+
+        <p class="panel__body admin__note">{{ t('admin.numbers.addLineWhy') }}</p>
+      }
+    </section>
+  }
+</div>

@@ -58,6 +58,9 @@ public static class PlatformMessages
     /// <summary>A setting cannot be changed now that entries have been posted against it.</summary>
     public static readonly MessageCode SetupLocked = new("PLAT.SETUP.LOCKED_AFTER_POSTING");
 
+    /// <summary>A setting nobody declares.</summary>
+    public static readonly MessageCode SetupUnknownKey = new("PLAT.SETUP.UNKNOWN_KEY");
+
     /// <summary>Every message the platform declares.</summary>
     public static IReadOnlyCollection<MessageDefinition> All { get; } =
     [
@@ -253,6 +256,22 @@ public static class PlatformMessages
             Resolution = new LocalizedText(
                 "Enter a value matching {Expected}.",
                 "أدخل قيمة تتوافق مع {Expected}."),
+        },
+        new()
+        {
+            Code = SetupUnknownKey,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such setting", "لا يوجد إعداد بهذا الاسم"),
+            Detail = new LocalizedText(
+                "Nothing loaded here declares a setting called {Setting}.",
+                "لا يوجد بين ما هو محمَّل هنا إعداد باسم {Setting}."),
+            Resolution = new LocalizedText(
+                "Check the name against the setup screen. A setting belonging to a module that is "
+                + "not installed does not exist on this installation, which is a different thing "
+                + "from being unset.",
+                "تحقق من الاسم في شاشة الإعدادات. فالإعداد التابع لوحدة غير مثبّتة لا وجود له في "
+                + "هذا التركيب، وهذا يختلف عن كونه غير محدَّد."),
+            HelpTopic = "platform/setup",
         },
         new()
         {

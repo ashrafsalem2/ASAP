@@ -190,6 +190,11 @@ export const routes: Routes = [
         loadComponent: () => import('./features/hr/entitlements').then((m) => m.Entitlements),
       },
       {
+        path: 'admin/setup',
+        canActivate: [requirePermission('Platform.Setup.Read')],
+        loadComponent: () => import('./features/setup/setup').then((m) => m.Setup),
+      },
+      {
         path: '**',
         redirectTo: '',
       },

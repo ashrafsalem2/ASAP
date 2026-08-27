@@ -1180,3 +1180,42 @@ export interface LeaveSaved {
   request: LeaveRequest;
   messages: AsapMessage[];
 }
+
+/** One permitted value of an option setting. */
+export interface SettingOption {
+  value: string;
+  label: string;
+}
+
+/** One setting a module declares, and what it is currently set to. */
+export interface Setting {
+  key: string;
+  module: string;
+  group: string;
+  displayName: string;
+
+  /** What it actually does. Shown next to the input, not behind a help icon. */
+  description: string;
+  valueType: 'Text' | 'Number' | 'Boolean' | 'Date' | 'Option' | 'EntityReference' | string;
+  scope: string;
+  defaultValue: string | null;
+
+  /** What is in force. Null means nobody has set it and the default applies. */
+  value: string | null;
+  isSet: boolean;
+  referencedEntityType: string | null;
+  allowedValues: SettingOption[];
+  requiresPermission: string | null;
+
+  /** Decided by the server, so the screen cannot disagree with the endpoint. */
+  canChange: boolean;
+  helpTopic: string | null;
+}
+
+/** A setting after it was changed. */
+export interface SettingSaved {
+  key: string;
+  value: string | null;
+  isSet: boolean;
+  messages: AsapMessage[];
+}

@@ -162,6 +162,7 @@ app.MapHrEndpoints();
 app.MapPosEndpoints();
 app.MapSyncEndpoints();
 app.MapOrganisationEndpoints();
+app.MapSetupEndpoints();
 app.MapNavigationEndpoints();
 
 await StartupTasks.RunAsync(app, moduleCatalog).ConfigureAwait(false);

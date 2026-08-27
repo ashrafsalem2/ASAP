@@ -1,0 +1,57 @@
+.setup__wide {
+  flex: 1 1 24rem;
+}
+
+.setup__count {
+  font-size: 1.25rem;
+  font-weight: 600;
+}
+
+/* Explanation on one side, control on the other. The explanation is the wider column on purpose:
+   it is the part somebody needs before they touch anything. */
+.setup__row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  align-items: flex-start;
+  border-top: 1px solid var(--border);
+}
+
+.setup__row:first-of-type {
+  border-top: none;
+}
+
+.setup__label {
+  flex: 2 1 24rem;
+}
+
+.setup__value {
+  flex: 1 1 16rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.setup__key {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  margin-inline-start: 0.5rem;
+}
+
+.setup__description {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  margin: 0.35rem 0 0;
+  max-width: 60ch;
+}
+
+.setup__default {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.setup__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}

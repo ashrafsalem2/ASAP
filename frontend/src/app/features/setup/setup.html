@@ -1,0 +1,155 @@
+<div class="page">
+  <h1>{{ t('setup.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('setup.intro') }}</p>
+
+    <div class="panel__body draft">
+      <div class="field setup__wide">
+        <label class="field__label" for="filter">{{ t('setup.search') }}</label>
+        <input
+          id="filter"
+          class="input"
+          [value]="filter()"
+          (input)="filter.set($any($event.target).value)"
+        />
+      </div>
+
+      <div class="field">
+        <span class="field__label">{{ t('setup.count') }}</span>
+        <span class="setup__count">{{ settings().length }}</span>
+      </div>
+    </div>
+  </section>
+
+  @if (loading()) {
+    <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+  } @else {
+    @for (group of groups(); track group.module + group.group) {
+      <section class="panel">
+        <div class="panel__header">
+          <h2>{{ group.module }} — {{ group.group }}</h2>
+        </div>
+
+        @for (setting of group.settings; track setting.key) {
+          <div class="panel__body setup__row">
+            <div class="setup__label">
+              <label class="field__label" [attr.for]="setting.key">
+                {{ setting.displayName }}
+              </label>
+
+              <span class="setup__key code">{{ setting.key }}</span>
+
+              <!-- Beside the input, not behind an icon. A setting whose effect has to be guessed
+                   at is one somebody changes to see what happens. -->
+              <p class="setup__description">{{ setting.description }}</p>
+            </div>
+
+            <div class="setup__value">
+              @switch (setting.valueType) {
+                @case ('Boolean') {
+                  <label class="setup__toggle">
+                    <input
+                      type="checkbox"
+                      [id]="setting.key"
+                      [disabled]="!setting.canChange"
+                      [checked]="isTrue(setting)"
+                      (change)="onToggle(setting, $any($event.target).checked)"
+                    />
+                    {{ isTrue(setting) ? t('setup.on') : t('setup.off') }}
+                  </label>
+                }
+
+                @case ('Option') {
+                  <select
+                    class="select"
+                    [id]="setting.key"
+                    [disabled]="!setting.canChange"
+                    [value]="shown(setting)"
+                    (change)="onEdit(setting, $any($event.target).value)"
+                  >
+                    @for (option of setting.allowedValues; track option.value) {
+                      <option [value]="option.value">{{ option.label }}</option>
+                    }
+                  </select>
+                }
+
+                @case ('Date') {
+                  <input
+                    class="input"
+                    type="date"
+                    [id]="setting.key"
+                    [disabled]="!setting.canChange"
+                    [value]="shown(setting)"
+                    (input)="onEdit(setting, $any($event.target).value)"
+                  />
+                }
+
+                @case ('Number') {
+                  <input
+                    class="input input--number"
+                    type="number"
+                    inputmode="decimal"
+                    [id]="setting.key"
+                    [disabled]="!setting.canChange"
+                    [value]="shown(setting)"
+                    (input)="onEdit(setting, $any($event.target).value)"
+                  />
+                }
+
+                @default {
+                  <input
+                    class="input"
+                    [id]="setting.key"
+                    [disabled]="!setting.canChange"
+                    [value]="shown(setting)"
+                    (input)="onEdit(setting, $any($event.target).value)"
+                  />
+                }
+              }
+
+              <!-- Said, rather than left to be inferred from an empty box. A setting following
+                   the default and one set to the same text behave differently the day the
+                   default changes. -->
+              @if (!setting.isSet) {
+                <span class="setup__default">{{ t('setup.usingDefault') }}</span>
+              }
+
+              @if (!setting.canChange) {
+                <span class="setup__default">
+                  {{ t('setup.needsPermission', { permission: setting.requiresPermission ?? '' }) }}
+                </span>
+              }
+
+              <div class="draft__actions">
+                @if (setting.canChange && edited(setting)) {
+                  <button
+                    type="button"
+                    class="button button--primary"
+                    [disabled]="busy() !== null"
+                    (click)="save(setting)"
+                  >
+                    {{ t('setup.save') }}
+                  </button>
+                }
+
+                @if (setting.canChange && setting.isSet) {
+                  <button
+                    type="button"
+                    class="button"
+                    [disabled]="busy() !== null"
+                    (click)="clear(setting)"
+                  >
+                    {{ t('setup.clear') }}
+                  </button>
+                }
+              </div>
+            </div>
+          </div>
+        }
+      </section>
+    } @empty {
+      <p class="empty">{{ t('setup.noMatch') }}</p>
+    }
+  }
+</div>

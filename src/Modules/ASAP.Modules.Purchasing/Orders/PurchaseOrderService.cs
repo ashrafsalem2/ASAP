@@ -1,5 +1,7 @@
 using ASAP.Modules.Finance.Parties;
+using ASAP.Modules.Inventory;
 using ASAP.Modules.Inventory.Items;
+using ASAP.Modules.Inventory.Locations;
 using ASAP.Platform.Kernel.Messaging;
 using ASAP.Platform.Kernel.Numbering;
 using ASAP.Platform.Kernel.Results;
@@ -264,6 +266,9 @@ public sealed class PurchaseOrderService(
                 .ToDictionaryAsync(static i => i.No, StringComparer.OrdinalIgnoreCase, cancellationToken)
                 .ConfigureAwait(false);
 
+        var locations = await ResolveLocationsAsync(lines, orderLocationCode, cancellationToken)
+            .ConfigureAwait(false);
+
         for (var index = 0; index < lines.Count; index++)
         {
             var line = lines[index];
@@ -295,14 +300,51 @@ public sealed class PurchaseOrderService(
 
             // Stock has to land somewhere, and finding that out at receipt -- with a lorry at the
             // gate -- is later than anybody wants to find it out.
-            if (string.IsNullOrWhiteSpace(line.LocationCode)
-                && string.IsNullOrWhiteSpace(orderLocationCode))
+            var into = line.LocationCode ?? orderLocationCode;
+
+            if (string.IsNullOrWhiteSpace(into))
             {
                 refusals.Add(messages.Render(PurchasingMessages.NoLocation, arguments, target));
+            }
+            else if (!locations.Contains(into))
+            {
+                // Only that it exists. Unlike a sale, a purchase is entitled to land anywhere --
+                // a warehouse, a quarantine bay, a location nothing may be sold from is exactly
+                // where goods arrive, and refusing those would be refusing the ordinary case.
+                arguments["Location"] = into;
+                refusals.Add(messages.Render(InventoryMessages.LocationNotFound, arguments, target));
             }
         }
 
         return items;
+    }
+
+    /// <summary>The codes of every location that actually exists among those named.</summary>
+    private async Task<HashSet<string>> ResolveLocationsAsync(
+        IReadOnlyList<PurchaseOrderLineRequest> lines,
+        string? orderLocationCode,
+        CancellationToken cancellationToken)
+    {
+        var codes = lines
+            .Select(l => l.LocationCode ?? orderLocationCode)
+            .Where(static code => !string.IsNullOrWhiteSpace(code))
+            .Select(static code => code!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        if (codes.Count == 0)
+        {
+            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        var known = await context.Set<Location>()
+            .AsNoTracking()
+            .Where(l => codes.Contains(l.Code))
+            .Select(static l => l.Code)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return known.ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
     private async Task<string> SeriesCodeAsync(CancellationToken cancellationToken)

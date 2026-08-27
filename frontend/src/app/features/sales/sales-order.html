@@ -1,0 +1,228 @@
+<div class="page">
+  <div class="header">
+    <h1><span class="code">{{ orderNo }}</span></h1>
+
+    <div class="header__actions">
+      @if (canRelease()) {
+        <button type="button" class="button" [disabled]="busy() !== null" (click)="release()">
+          {{ t('sales.orders.release') }}
+        </button>
+      }
+
+      <a class="button button--quiet" routerLink="/sales/orders">
+        {{ t('sales.orders.back') }}
+      </a>
+    </div>
+  </div>
+
+  @if (loading()) {
+    <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+  } @else if (order(); as so) {
+    <p class="page__intro">
+      <span class="tag">{{ i18n.label(so.status) }}</span>
+      {{ so.customerName }}
+      @if (so.customerOrderNo) {
+        · {{ t('sales.orders.customerRef') }} <span class="code">{{ so.customerOrderNo }}</span>
+      }
+      @if (so.locationCode) {
+        · {{ t('sales.orders.location') }} <span class="code">{{ so.locationCode }}</span>
+      }
+      · <strong class="numeric">{{ i18n.total(so.totalAmount) }}</strong>
+
+      <!-- What was given away to win the order. A price netted down would have hidden this, and
+           it is the first thing anybody asks when the margin looks thin. -->
+      @if (discountGiven() > 0) {
+        · <span class="order__discount numeric">
+            {{ t('sales.orders.discountGiven', { Amount: i18n.total(discountGiven()) }) }}
+          </span>
+      }
+    </p>
+
+    <section class="panel">
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('sales.orders.item') }}</th>
+              <th>{{ t('finance.journal.description') }}</th>
+              <th class="numeric">{{ t('sales.orders.ordered') }}</th>
+              <th class="numeric">{{ t('sales.orders.unitPrice') }}</th>
+              <th class="numeric">{{ t('sales.orders.discount') }}</th>
+              <th class="numeric">{{ t('sales.orders.lineAmount') }}</th>
+              <th class="numeric">{{ t('sales.orders.shipped') }}</th>
+              <th class="numeric">{{ t('sales.orders.invoiced') }}</th>
+              <th class="numeric">{{ t('sales.orders.toShip') }}</th>
+              <th class="numeric">{{ t('sales.orders.toInvoice') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (line of so.lines; track line.lineNo) {
+              <tr>
+                <td class="code">{{ line.no }}</td>
+                <td>{{ line.description }}</td>
+                <td class="numeric">{{ quantity(line.quantity) }}</td>
+                <td class="numeric">{{ i18n.total(line.unitPrice) }}</td>
+                <td class="numeric" [class.order__discount]="line.discountPercent > 0">
+                  @if (line.discountPercent > 0) {
+                    {{ percent(line.discountPercent) }}%
+                  }
+                </td>
+                <td class="numeric">{{ i18n.total(line.lineAmount) }}</td>
+                <td class="numeric">{{ quantity(line.quantityShipped) }}</td>
+                <td class="numeric">{{ quantity(line.quantityInvoiced) }}</td>
+                <td class="numeric" [class.order__waiting]="line.outstandingToShip > 0">
+                  {{ quantity(line.outstandingToShip) }}
+                </td>
+
+                <!-- Gone and still unbilled: revenue the company has earned and not yet asked
+                     for, which is the figure nobody misses until the month looks thin. -->
+                <td class="numeric" [class.order__unbilled]="line.shippedNotInvoiced > 0">
+                  {{ quantity(line.shippedNotInvoiced) }}
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    @if ((canShip() && canShipAnything()) || (canInvoice() && canInvoiceAnything())) {
+      <section class="panel">
+        <div class="panel__body draft">
+          <div class="field draft__note">
+            <label class="field__label" for="overrideReason">
+              {{ t('sales.orders.overrideReason') }}
+            </label>
+            <input id="overrideReason" class="input" [(ngModel)]="overrideReason" />
+          </div>
+        </div>
+
+        <p class="panel__body order__hint">{{ t('sales.orders.overrideHint') }}</p>
+      </section>
+    }
+
+    @if (canShip() && canShipAnything()) {
+      <section class="panel">
+        <div class="panel__header">
+          <h2>{{ t('sales.shipment.title') }}</h2>
+        </div>
+
+        <p class="panel__body order__hint">{{ t('sales.shipment.hint') }}</p>
+
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('sales.orders.item') }}</th>
+                <th class="numeric">{{ t('sales.orders.toShip') }}</th>
+                <th class="numeric">{{ t('sales.shipment.going') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (line of so.lines; track line.lineNo) {
+                @if (line.outstandingToShip > 0) {
+                  <tr>
+                    <td class="code">
+                      {{ line.no }} <span class="order__desc">{{ line.description }}</span>
+                    </td>
+                    <td class="numeric">{{ quantity(line.outstandingToShip) }}</td>
+                    <td class="numeric">
+                      <input
+                        class="input input--number input--compact"
+                        type="number"
+                        inputmode="decimal"
+                        min="0"
+                        [placeholder]="quantity(line.outstandingToShip)"
+                        [ngModel]="shipmentOf(line)"
+                        (ngModelChange)="setShipment(line, $event)"
+                      />
+                    </td>
+                  </tr>
+                }
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div class="panel__body draft__actions">
+          <button
+            type="button"
+            class="button button--primary"
+            [disabled]="busy() !== null"
+            (click)="ship()"
+          >
+            @if (busy() === 'ship') {
+              <span class="spinner"></span>
+              {{ t('sales.shipment.working') }}
+            } @else {
+              {{ t('sales.shipment.action') }}
+            }
+          </button>
+        </div>
+      </section>
+    }
+
+    @if (canInvoice() && canInvoiceAnything()) {
+      <section class="panel">
+        <div class="panel__header">
+          <h2>{{ t('sales.invoice.title') }}</h2>
+        </div>
+
+        <p class="panel__body order__hint">{{ t('sales.invoice.hint') }}</p>
+
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('sales.orders.item') }}</th>
+                <th class="numeric">{{ t('sales.orders.toInvoice') }}</th>
+                <th class="numeric">{{ t('sales.orders.unitPrice') }}</th>
+                <th class="numeric">{{ t('sales.invoice.billed') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (line of so.lines; track line.lineNo) {
+                @if (line.shippedNotInvoiced > 0) {
+                  <tr>
+                    <td class="code">
+                      {{ line.no }} <span class="order__desc">{{ line.description }}</span>
+                    </td>
+                    <td class="numeric">{{ quantity(line.shippedNotInvoiced) }}</td>
+                    <td class="numeric">{{ i18n.total(line.unitPrice) }}</td>
+                    <td class="numeric">
+                      <input
+                        class="input input--number input--compact"
+                        type="number"
+                        inputmode="decimal"
+                        min="0"
+                        [placeholder]="quantity(line.shippedNotInvoiced)"
+                        [ngModel]="invoiceQuantityOf(line)"
+                        (ngModelChange)="setInvoiceQuantity(line, $event)"
+                      />
+                    </td>
+                  </tr>
+                }
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div class="panel__body draft__actions">
+          <button
+            type="button"
+            class="button button--primary"
+            [disabled]="busy() !== null"
+            (click)="invoice()"
+          >
+            @if (busy() === 'invoice') {
+              <span class="spinner"></span>
+              {{ t('sales.invoice.working') }}
+            } @else {
+              {{ t('sales.invoice.action') }}
+            }
+          </button>
+        </div>
+      </section>
+    }
+  }
+</div>

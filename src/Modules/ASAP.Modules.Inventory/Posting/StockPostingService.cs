@@ -67,7 +67,6 @@ public readonly record struct StockPostingReceipt(
 /// <param name="events">Gives extensions their say, and announces the result.</param>
 /// <param name="messages">Renders messages.</param>
 /// <param name="tenantContext">Supplies the company and branch.</param>
-/// <param name="userContext">Names who is posting, so an override can be recorded against them.</param>
 /// <param name="overrides">Records every protection this posting pushed past.</param>
 /// <param name="clock">Supplies the time.</param>
 /// <param name="transactionNumbers">Issues the number that groups the entries.</param>
@@ -78,7 +77,6 @@ public sealed partial class StockPostingService(
     IEventPublisher events,
     IMessageCatalog messages,
     ITenantContext tenantContext,
-    IUserContext userContext,
     OverrideAuditor overrides,
     IClock clock,
     ITransactionNumberAllocator transactionNumbers,

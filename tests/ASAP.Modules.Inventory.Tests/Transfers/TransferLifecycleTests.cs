@@ -123,7 +123,6 @@ public sealed class TransferLifecycleTests : IDisposable
             new NullPublisher(),
             catalog,
             _tenancy,
-            new StubUser(),
             new OverrideAuditor(context, _tenancy, new StubUser(), _clock),
             _clock,
             _allocator,

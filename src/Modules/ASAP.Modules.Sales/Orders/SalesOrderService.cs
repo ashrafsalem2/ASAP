@@ -1,5 +1,7 @@
 using ASAP.Modules.Finance.Parties;
+using ASAP.Modules.Inventory;
 using ASAP.Modules.Inventory.Items;
+using ASAP.Modules.Inventory.Locations;
 using ASAP.Platform.Kernel.Messaging;
 using ASAP.Platform.Kernel.Numbering;
 using ASAP.Platform.Kernel.Results;
@@ -113,7 +115,12 @@ public sealed class SalesOrderService(
             found.Add(messages.Render(SalesMessages.OrderHasNoLines, arguments));
         }
 
-        var items = await CheckLinesAsync(wanted, found, locationCode, cancellationToken)
+        var items = await CheckLinesAsync(
+                wanted,
+                found,
+                locationCode,
+                heldOverridePermissions,
+                cancellationToken)
             .ConfigureAwait(false);
 
         if (found.Exists(static m => m.IsFailure))
@@ -238,6 +245,7 @@ public sealed class SalesOrderService(
         IReadOnlyList<SalesOrderLineRequest> lines,
         List<AsapMessage> found,
         string? orderLocationCode,
+        IReadOnlySet<string>? heldOverridePermissions,
         CancellationToken cancellationToken)
     {
         var itemNos = lines
@@ -253,6 +261,9 @@ public sealed class SalesOrderService(
                 .Where(i => itemNos.Contains(i.No))
                 .ToDictionaryAsync(static i => i.No, StringComparer.OrdinalIgnoreCase, cancellationToken)
                 .ConfigureAwait(false);
+
+        var locations = await ResolveLocationsAsync(lines, orderLocationCode, cancellationToken)
+            .ConfigureAwait(false);
 
         for (var index = 0; index < lines.Count; index++)
         {
@@ -283,16 +294,81 @@ public sealed class SalesOrderService(
                 continue;
             }
 
-            if (string.IsNullOrWhiteSpace(line.LocationCode)
-                && string.IsNullOrWhiteSpace(orderLocationCode))
+            var from = line.LocationCode ?? orderLocationCode;
+
+            if (string.IsNullOrWhiteSpace(from))
             {
                 found.Add(messages.Render(SalesMessages.NoLocation, arguments, target));
+            }
+            else
+            {
+                CheckLocation(from, locations, arguments, target, heldOverridePermissions, found);
             }
 
             WarnIfBelowCost(line, item, arguments, target, found);
         }
 
         return items;
+    }
+
+    /// <summary>Loads every location the order or its lines name, in one query.</summary>
+    private async Task<Dictionary<string, Location>> ResolveLocationsAsync(
+        IReadOnlyList<SalesOrderLineRequest> lines,
+        string? orderLocationCode,
+        CancellationToken cancellationToken)
+    {
+        var codes = lines
+            .Select(l => l.LocationCode ?? orderLocationCode)
+            .Where(static code => !string.IsNullOrWhiteSpace(code))
+            .Select(static code => code!)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        return codes.Count == 0
+            ? new Dictionary<string, Location>(StringComparer.OrdinalIgnoreCase)
+            : await context.Set<Location>()
+                .AsNoTracking()
+                .Where(l => codes.Contains(l.Code))
+                .ToDictionaryAsync(static l => l.Code, StringComparer.OrdinalIgnoreCase, cancellationToken)
+                .ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Says so when a line promises goods from somewhere they cannot come from.
+    /// </summary>
+    /// <remarks>
+    /// Asked here rather than left to the shipment, which is where it used to be asked. An order
+    /// naming a location that does not exist was taken happily, and the mistake surfaced at the
+    /// despatch bay days later, in front of a customer who had been promised a date. The person
+    /// who can still fix it cheaply is the one keying the order.
+    /// <para>
+    /// Both messages belong to Inventory, which owns locations and has already worded them for
+    /// exactly this: the sellable one says the stock "must not be promised to a customer", which
+    /// is a sentence about an order and not about a lorry.
+    /// </para>
+    /// </remarks>
+    private void CheckLocation(
+        string code,
+        IReadOnlyDictionary<string, Location> locations,
+        Dictionary<string, object?> arguments,
+        MessageTarget target,
+        IReadOnlySet<string>? held,
+        List<AsapMessage> found)
+    {
+        arguments["Location"] = code;
+
+        if (!locations.TryGetValue(code, out var location))
+        {
+            found.Add(messages.Render(InventoryMessages.LocationNotFound, arguments, target));
+            return;
+        }
+
+        // In transit is not a place goods can be picked from, and saying "not sellable" is the
+        // truthful answer for it as much as for a quarantine bay.
+        if (!location.IsSellable || location.IsInTransit || location.IsBlocked)
+        {
+            found.Add(Raise(InventoryMessages.LocationNotSellable, arguments, held, target));
+        }
     }
 
     /// <summary>
@@ -342,9 +418,10 @@ public sealed class SalesOrderService(
     private AsapMessage Raise(
         MessageCode code,
         Dictionary<string, object?> arguments,
-        IReadOnlySet<string>? held)
+        IReadOnlySet<string>? held,
+        MessageTarget target = default)
     {
-        var rendered = messages.Render(code, arguments);
+        var rendered = messages.Render(code, arguments, target);
 
         return rendered.OverridePermission is { } permission && held?.Contains(permission) == true
             ? messages.AsOverridden(rendered)

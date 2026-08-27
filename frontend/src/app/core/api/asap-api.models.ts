@@ -542,3 +542,100 @@ export interface TransferMoveReceipt {
   status: TransferStatus;
   messages?: AsapMessage[];
 }
+
+/** Where a sales order stands. */
+export type SalesOrderStatus =
+  | 'Open'
+  | 'Released'
+  | 'PartiallyShipped'
+  | 'Shipped'
+  | 'Invoiced'
+  | 'Cancelled';
+
+/** One line of a sales order. */
+export interface SalesOrderLine {
+  lineNo: number;
+  type: 'Item' | 'GlAccount';
+  no?: string;
+  description: string;
+  locationCode?: string;
+  quantity: number;
+  unitPrice: number;
+
+  /** Held as a percentage rather than folded into the price, so it stays reportable. */
+  discountPercent: number;
+  taxCode?: string;
+  lineAmount: number;
+  quantityShipped: number;
+  quantityInvoiced: number;
+
+  /** How much is still to go out. */
+  outstandingToShip: number;
+
+  /** Gone and still unbilled. Revenue the company has earned and not yet asked for. */
+  shippedNotInvoiced: number;
+}
+
+/** An order taken from a customer. */
+export interface SalesOrder {
+  no: string;
+  customerNo: string;
+  customerName: string;
+  status: SalesOrderStatus;
+  orderDate: string;
+  requestedDeliveryDate?: string;
+  locationCode?: string;
+  customerOrderNo?: string;
+  description?: string;
+  totalAmount: number;
+  isEditable: boolean;
+  lines: SalesOrderLine[];
+}
+
+/** What a client sends to take a sales order. */
+export interface CreateSalesOrderRequest {
+  customerNo: string;
+  lines: {
+    type: 'Item' | 'GlAccount';
+    no: string;
+    quantity: number;
+    unitPrice?: number;
+    discountPercent?: number;
+    description?: string;
+    taxCode?: string;
+    locationCode?: string;
+  }[];
+  locationCode?: string;
+  requestedDeliveryDate?: string;
+  description?: string;
+  customerOrderNo?: string;
+}
+
+/** What taking an order produced. */
+export interface SalesOrderCreated {
+  order: SalesOrder;
+  messages?: AsapMessage[];
+}
+
+/** What a shipment moved. The cost has nothing to do with what the customer pays. */
+export interface SalesShipmentResult {
+  orderNo: string;
+  transactionNo: number;
+  lineCount: number;
+  costAmount: number;
+  status: SalesOrderStatus;
+  messages?: AsapMessage[];
+}
+
+/** What a sales invoice posted. */
+export interface SalesInvoiceResult {
+  orderNo: string;
+  transactionNo: number;
+  documentNo: string;
+  netAmount: number;
+  discountAmount: number;
+  taxAmount: number;
+  totalAmount: number;
+  status: SalesOrderStatus;
+  messages?: AsapMessage[];
+}

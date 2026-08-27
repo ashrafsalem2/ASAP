@@ -1,0 +1,217 @@
+<div class="page">
+  <h1>{{ t('sales.orders.title') }}</h1>
+
+  @if (canCreate()) {
+    <section class="panel">
+      <div class="panel__header">
+        <h2>{{ t('sales.orders.create') }}</h2>
+      </div>
+
+      <p class="panel__body page__intro">{{ t('sales.orders.intro') }}</p>
+
+      <div class="panel__body draft">
+        <div class="field draft__customer">
+          <label class="field__label" for="customerNo">{{ t('sales.orders.customer') }}</label>
+          <select id="customerNo" class="select" [(ngModel)]="customerNo" [disabled]="creating()">
+            <option value=""></option>
+            @for (customer of customers(); track customer.no) {
+              <option [value]="customer.no">{{ nameOf(customer) }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="locationCode">{{ t('sales.orders.location') }}</label>
+          <select id="locationCode" class="select" [(ngModel)]="locationCode" [disabled]="creating()">
+            <option value=""></option>
+            @for (location of locations(); track location.code) {
+              <option [value]="location.code">{{ location.code }} — {{ location.name }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="customerOrderNo">
+            {{ t('sales.orders.customerRef') }}
+          </label>
+          <input
+            id="customerOrderNo"
+            class="input code"
+            [(ngModel)]="customerOrderNo"
+            [disabled]="creating()"
+          />
+        </div>
+
+        <div class="field draft__note">
+          <label class="field__label" for="description">{{ t('sales.orders.note') }}</label>
+          <input id="description" class="input" [(ngModel)]="description" [disabled]="creating()" />
+        </div>
+      </div>
+
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th class="draft__col-type">{{ t('sales.orders.selling') }}</th>
+              <th>{{ t('sales.orders.item') }}</th>
+              <th class="numeric draft__col-number">{{ t('sales.orders.ordered') }}</th>
+              <th class="numeric draft__col-number">{{ t('sales.orders.unitPrice') }}</th>
+              <th class="numeric draft__col-number">{{ t('sales.orders.discount') }}</th>
+              <th class="draft__col-tax">{{ t('finance.journal.tax') }}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (line of draft; track $index) {
+              <tr>
+                <td>
+                  <select
+                    class="select"
+                    [value]="line.type"
+                    [disabled]="creating()"
+                    (change)="changeType($index, $any($event.target).value)"
+                  >
+                    <option value="Item">{{ t('sales.orders.item') }}</option>
+                    <option value="GlAccount">{{ t('sales.orders.chargeAccount') }}</option>
+                  </select>
+                </td>
+
+                <td>
+                  <!-- The choices follow the type, so an account number can never sit in a row
+                       selling stock. -->
+                  <select class="select" [(ngModel)]="line.no" [disabled]="creating()">
+                    <option value=""></option>
+                    @for (choice of choicesFor(line); track choice.value) {
+                      <option [value]="choice.value">{{ choice.label }}</option>
+                    }
+                  </select>
+                </td>
+
+                <td class="numeric">
+                  <input
+                    class="input input--number"
+                    type="number"
+                    inputmode="decimal"
+                    min="0"
+                    [(ngModel)]="line.quantity"
+                    [disabled]="creating()"
+                  />
+                </td>
+
+                <td class="numeric">
+                  <!-- Empty means the item's own price, which is what somebody keying at the
+                       agreed price list means by leaving it alone. -->
+                  <input
+                    class="input input--number"
+                    type="number"
+                    inputmode="decimal"
+                    min="0"
+                    [(ngModel)]="line.unitPrice"
+                    [disabled]="creating()"
+                  />
+                </td>
+
+                <td class="numeric">
+                  <input
+                    class="input input--number"
+                    type="number"
+                    inputmode="decimal"
+                    min="0"
+                    max="100"
+                    [(ngModel)]="line.discountPercent"
+                    [disabled]="creating()"
+                  />
+                </td>
+
+                <td>
+                  <select class="select" [(ngModel)]="line.taxCode" [disabled]="creating()">
+                    <option value=""></option>
+                    @for (code of taxCodes(); track code.code) {
+                      <option [value]="code.code">{{ taxLabel(code) }}</option>
+                    }
+                  </select>
+                </td>
+
+                <td>
+                  @if (draft.length > 1) {
+                    <button
+                      type="button"
+                      class="button button--quiet"
+                      [disabled]="creating()"
+                      (click)="removeLine($index)"
+                    >
+                      {{ t('sales.orders.removeLine') }}
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel__body draft__actions">
+        <button type="button" class="button" [disabled]="creating()" (click)="addLine()">
+          + {{ t('sales.orders.addLine') }}
+        </button>
+
+        <button
+          type="button"
+          class="button button--primary"
+          [disabled]="!isReady() || creating()"
+          (click)="create()"
+        >
+          @if (creating()) {
+            <span class="spinner"></span>
+            {{ t('sales.orders.creating') }}
+          } @else {
+            {{ t('sales.orders.create') }}
+          }
+        </button>
+      </div>
+    </section>
+  }
+
+  <section class="panel">
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('sales.orders.no') }}</th>
+              <th>{{ t('sales.orders.customer') }}</th>
+              <th>{{ t('sales.orders.status') }}</th>
+              <th>{{ t('sales.orders.orderDate') }}</th>
+              <th>{{ t('sales.orders.location') }}</th>
+              <th class="numeric">{{ t('sales.orders.total') }}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (order of orders(); track order.no) {
+              <tr>
+                <td class="code">{{ order.no }}</td>
+                <td>{{ order.customerName }}</td>
+                <td><span class="tag">{{ i18n.label(order.status) }}</span></td>
+                <td class="code">{{ order.orderDate }}</td>
+                <td class="code">{{ order.locationCode }}</td>
+                <td class="numeric">{{ i18n.total(order.totalAmount) }}</td>
+                <td>
+                  <a class="button button--quiet" [routerLink]="['./', order.no]">
+                    {{ t('sales.orders.openOrder') }}
+                  </a>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="7" class="empty">{{ t('sales.orders.nothingYet') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+</div>

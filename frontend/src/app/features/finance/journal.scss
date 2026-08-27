@@ -50,3 +50,17 @@
 .journal__external {
   margin-block-start: 0.35rem;
 }
+
+.journal__col-tax {
+  width: 12rem;
+}
+
+/* Sits under the code, where it reads as a property of the tax rather than of the row. */
+.journal__inclusive {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-block-start: 0.35rem;
+  font-size: 0.8125rem;
+  color: var(--text-muted);
+}

@@ -81,11 +81,24 @@ export interface GlEntry {
 
 /** One line being posted. */
 export interface PostJournalLine {
+  /** An account number, or a customer or vendor number when the type says so. */
   accountNo: string;
   amount: number;
   description?: string;
   balancingAccountNo?: string;
   postingDate?: string;
+
+  /** What the line posts to. Defaults to a general ledger account. */
+  accountType?: 'GlAccount' | 'Customer' | 'Vendor';
+
+  /** The other side's reference, such as the number on a vendor's own invoice. */
+  externalDocumentNo?: string;
+
+  /** The tax to apply. ASAP works out the tax and posts it beside the line. */
+  taxCode?: string;
+
+  /** Whether the amount already contains the tax, as a shelf price does. */
+  taxIncludedInAmount?: boolean;
 }
 
 /** What a successful posting produced. */
@@ -260,6 +273,50 @@ export interface BalanceSheet {
 
   /** Profit from earlier years whose year-end transfer never ran. Normally zero. */
   untransferredPriorResult: number;
+}
+
+/** A tax a document line can carry. */
+export interface TaxCodeSummary {
+  code: string;
+  description: string;
+  descriptionArabic?: string;
+  kind: 'Standard' | 'ZeroRated' | 'Exempt' | 'ReverseCharge';
+
+  /** The rate in force today, for showing beside the code. A posting resolves its own. */
+  percentage: number;
+}
+
+/** One line of a tax return: everything at one rate, on one side. */
+export interface TaxReturnLine {
+  taxCodeNo: string;
+  description: string;
+  descriptionArabic?: string;
+  kind: string;
+  direction: 'Output' | 'Input';
+  percentage: number;
+  baseAmount: number;
+  taxAmount: number;
+  entryCount: number;
+}
+
+/** What the company owes the tax authority for a period, or is owed by it. */
+export interface TaxReturn {
+  from: string;
+  to: string;
+  currencyCode: string;
+  lines: TaxReturnLine[];
+  outputBase: number;
+  outputTax: number;
+  inputBase: number;
+  inputTax: number;
+
+  /** Positive is owed to the authority; negative is a refund due. */
+  netPayable: number;
+  exemptBase: number;
+  zeroRatedBase: number;
+
+  /** Above zero means these figures are not what was declared. */
+  entriesAlreadyFiled: number;
 }
 
 /** Which subsidiary ledger something belongs to. */

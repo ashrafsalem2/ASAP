@@ -360,6 +360,17 @@ public sealed class FinanceModule : IAsapModule
             26),
         new()
         {
+            Id = "Finance.TaxReturn",
+            Module = Id,
+            ParentId = "Finance.Root",
+            DisplayName = new LocalizedText("Tax return", "الإقرار الضريبي"),
+            Kind = NavigationKind.Report,
+            Route = "/finance/reports/tax-return",
+            RequiresPermission = $"{Id}.Report.Read",
+            Order = 90,
+        },
+        new()
+        {
             Id = "Finance.AgedAnalysis",
             Module = Id,
             ParentId = "Finance.Root",

@@ -1,0 +1,125 @@
+<div class="page">
+  <h1>{{ t('finance.tax.title') }}</h1>
+
+  <section class="panel">
+    <div class="panel__body controls">
+      <div class="field">
+        <label class="field__label" for="from">{{ t('finance.trialBalance.from') }}</label>
+        <input id="from" class="input" type="date" [(ngModel)]="from" />
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="to">{{ t('finance.trialBalance.to') }}</label>
+        <input id="to" class="input" type="date" [(ngModel)]="to" />
+      </div>
+
+      <label class="checkbox">
+        <input type="checkbox" [(ngModel)]="includeFiled" />
+        {{ t('finance.tax.includeFiled') }}
+      </label>
+
+      <button type="button" class="button button--primary" [disabled]="loading()" (click)="run()">
+        @if (loading()) {
+          <span class="spinner"></span>
+        }
+        {{ t('finance.trialBalance.run') }}
+      </button>
+    </div>
+  </section>
+
+  @if (report(); as tax) {
+    <!-- Said plainly, because a figure that has already gone to the authority is not a figure
+         still to be declared, and the difference is the whole point of the screen. -->
+    @if (tax.entriesAlreadyFiled > 0 && !includeFiled) {
+      <p class="page__intro statement__note">
+        {{ t('finance.tax.someFiled', { Count: tax.entriesAlreadyFiled }) }}
+      </p>
+    }
+
+    <section class="panel">
+      <div class="table-scroll">
+        <table class="table statement">
+          <thead>
+            <tr>
+              <th>{{ t('finance.tax.direction') }}</th>
+              <th>{{ t('finance.tax.code') }}</th>
+              <th class="numeric">{{ t('finance.tax.rate') }}</th>
+              <th class="numeric">{{ t('finance.tax.base') }}</th>
+              <th class="numeric">{{ t('finance.tax.amount') }} ({{ tax.currencyCode }})</th>
+              <th class="numeric">{{ t('finance.tax.entries') }}</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            @for (line of tax.lines; track line.taxCodeNo + line.direction + line.percentage) {
+              <tr>
+                <td>{{ directionLabel(line.direction) }}</td>
+                <td>
+                  <span class="code">{{ line.taxCodeNo }}</span>
+                  {{ describe(line) }}
+                </td>
+                <td class="numeric">{{ line.percentage }}%</td>
+                <td class="numeric">{{ i18n.total(line.baseAmount) }}</td>
+                <td class="numeric">{{ i18n.total(line.taxAmount) }}</td>
+                <td class="numeric">{{ line.entryCount }}</td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="6" class="empty">{{ t('finance.tax.nothingToDeclare') }}</td>
+              </tr>
+            }
+          </tbody>
+
+          @if (tax.lines.length > 0) {
+            <tfoot>
+              <tr class="statement__subtotal">
+                <td colspan="3">{{ t('finance.tax.Output') }}</td>
+                <td class="numeric">{{ i18n.total(tax.outputBase) }}</td>
+                <td class="numeric">{{ i18n.total(tax.outputTax) }}</td>
+                <td></td>
+              </tr>
+              <tr class="statement__subtotal">
+                <td colspan="3">{{ t('finance.tax.Input') }}</td>
+                <td class="numeric">{{ i18n.total(tax.inputBase) }}</td>
+                <td class="numeric">{{ i18n.total(tax.inputTax) }}</td>
+                <td></td>
+              </tr>
+              <tr class="statement__total statement__result">
+                <td colspan="4">
+                  {{ isRefund(tax) ? t('finance.tax.refundDue') : t('finance.tax.netPayable') }}
+                </td>
+                <td class="numeric">{{ i18n.total(tax.netPayable) }}</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          }
+        </table>
+      </div>
+    </section>
+
+    <!-- Shown separately because they carry no tax and would otherwise be invisible on a report
+         about tax, while still being figures the return has boxes for. -->
+    @if (tax.zeroRatedBase !== 0 || tax.exemptBase !== 0) {
+      <section class="panel">
+        <div class="panel__body">
+          <p class="statement__note">{{ t('finance.tax.noTaxNote') }}</p>
+        </div>
+
+        <div class="table-scroll">
+          <table class="table statement">
+            <tbody>
+              <tr>
+                <td>{{ t('finance.tax.zeroRated') }}</td>
+                <td class="numeric">{{ i18n.total(tax.zeroRatedBase) }}</td>
+              </tr>
+              <tr>
+                <td>{{ t('finance.tax.exempt') }}</td>
+                <td class="numeric">{{ i18n.total(tax.exemptBase) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    }
+  }
+</div>

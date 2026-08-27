@@ -4,6 +4,8 @@ import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   AgedAnalysis,
+  TaxCodeSummary,
+  TaxReturn,
   ApplicationReceipt,
   BalanceSheet,
   GlAccount,
@@ -161,6 +163,23 @@ export class FinanceService {
 
     return firstValueFrom(
       this.http.get<AgedAnalysis>(`${this.base}/finance/reports/aged-analysis`, { params }),
+    );
+  }
+
+  /** The tax codes a document line can carry. */
+  taxCodes(): Promise<TaxCodeSummary[]> {
+    return firstValueFrom(this.http.get<TaxCodeSummary[]>(`${this.base}/finance/tax-codes`));
+  }
+
+  /** What is owed to the tax authority for a period. */
+  taxReturn(from: string, to: string, includeFiled: boolean): Promise<TaxReturn> {
+    const params = new HttpParams()
+      .set('from', from)
+      .set('to', to)
+      .set('includeFiled', includeFiled);
+
+    return firstValueFrom(
+      this.http.get<TaxReturn>(`${this.base}/finance/reports/tax-return`, { params }),
     );
   }
 

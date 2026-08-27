@@ -24,6 +24,7 @@
             <th class="journal__col-type">{{ t('finance.journal.postTo') }}</th>
             <th class="journal__col-account">{{ t('finance.journal.account') }}</th>
             <th>{{ t('finance.journal.description') }}</th>
+            <th class="journal__col-tax">{{ t('finance.journal.tax') }}</th>
             <th class="numeric journal__col-amount">{{ t('finance.journal.debit') }}</th>
             <th class="numeric journal__col-amount">{{ t('finance.journal.credit') }}</th>
             <th class="journal__col-actions"></th>
@@ -84,6 +85,35 @@
               </td>
 
               <td>
+                <select
+                  class="select"
+                  [value]="row.taxCode"
+                  [disabled]="posting()"
+                  (change)="update(row.id, { taxCode: $any($event.target).value })"
+                >
+                  <option value=""></option>
+                  @for (code of taxCodes(); track code.code) {
+                    <option [value]="code.code">{{ taxLabel(code) }}</option>
+                  }
+                </select>
+
+                <!-- Only where a tax code is chosen. A shelf price has the tax inside it and a
+                     quoted price has it added; the line has to say which, and asking on every
+                     line would be asking about nothing most of the time. -->
+                @if (row.taxCode) {
+                  <label class="journal__inclusive">
+                    <input
+                      type="checkbox"
+                      [checked]="row.taxIncluded"
+                      [disabled]="posting()"
+                      (change)="update(row.id, { taxIncluded: $any($event.target).checked })"
+                    />
+                    {{ t('finance.journal.taxIncluded') }}
+                  </label>
+                }
+              </td>
+
+              <td>
                 <input
                   class="input input--number"
                   inputmode="decimal"
@@ -120,9 +150,9 @@
 
         <tfoot>
           <tr>
-            <td colspan="2">{{ t('finance.journal.totals') }}</td>
-            <td class="numeric">{{ i18n.amount(totalDebit()) }}</td>
-            <td class="numeric">{{ i18n.amount(totalCredit()) }}</td>
+            <td colspan="4">{{ t('finance.journal.totals') }}</td>
+            <td class="numeric">{{ i18n.total(totalDebit()) }}</td>
+            <td class="numeric">{{ i18n.total(totalCredit()) }}</td>
             <td></td>
           </tr>
         </tfoot>

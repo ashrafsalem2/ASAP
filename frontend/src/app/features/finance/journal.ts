@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { GlAccount, Party } from '../../core/api/asap-api.models';
+import { GlAccount, Party, TaxCodeSummary } from '../../core/api/asap-api.models';
 import { FinanceService } from '../../core/api/finance.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslationKey } from '../../core/i18n/translations';
@@ -23,6 +23,12 @@ interface JournalRow {
 
   /** The other side's reference, kept on the party entry. Only meaningful on a party row. */
   externalDocumentNo: string;
+
+  /** The tax to apply, or empty for a line carrying none. */
+  taxCode: string;
+
+  /** Whether the amount already contains the tax, as a shelf price does. */
+  taxIncluded: boolean;
   debit: number | null;
   credit: number | null;
 }
@@ -47,6 +53,7 @@ export class Journal implements OnInit {
   protected readonly accounts = signal<GlAccount[]>([]);
   protected readonly customers = signal<Party[]>([]);
   protected readonly vendors = signal<Party[]>([]);
+  protected readonly taxCodes = signal<TaxCodeSummary[]>([]);
   protected readonly rows = signal<JournalRow[]>([]);
   protected readonly posting = signal(false);
   protected documentNo = '';
@@ -80,13 +87,15 @@ export class Journal implements OnInit {
 
   async ngOnInit(): Promise<void> {
     try {
-      const [accounts, customers, vendors] = await Promise.all([
+      const [accounts, customers, vendors, taxCodes] = await Promise.all([
         this.finance.accounts(),
         this.finance.parties('Customer'),
         this.finance.parties('Vendor'),
+        this.finance.taxCodes(),
       ]);
 
       this.accounts.set(accounts);
+      this.taxCodes.set(taxCodes);
 
       // Blocked parties are left out rather than shown and refused. Offering a choice that will
       // be rejected wastes somebody's time twice.
@@ -132,6 +141,18 @@ export class Journal implements OnInit {
     return row.accountType !== 'GlAccount';
   }
 
+  /** How a tax code reads in the dropdown: the code, and what it costs. */
+  protected taxLabel(code: TaxCodeSummary): string {
+    const name =
+      this.i18n.language() === 'ar' && code.descriptionArabic
+        ? code.descriptionArabic
+        : code.description;
+
+    // Zero-rated and exempt both charge nothing, so the percentage alone cannot tell them
+    // apart and the description has to.
+    return code.percentage > 0 ? `${code.code} — ${code.percentage}%` : `${code.code} — ${name}`;
+  }
+
   private partyLabel(party: Party): string {
     const name = this.i18n.language() === 'ar' && party.nameArabic ? party.nameArabic : party.name;
 
@@ -157,6 +178,8 @@ export class Journal implements OnInit {
         accountNo: '',
         description: '',
         externalDocumentNo: '',
+        taxCode: '',
+        taxIncluded: false,
         debit: null,
         credit: null,
       },
@@ -204,6 +227,8 @@ export class Journal implements OnInit {
         amount: (row.debit ?? 0) - (row.credit ?? 0),
         description: row.description || undefined,
         externalDocumentNo: row.externalDocumentNo || undefined,
+        taxCode: row.taxCode || undefined,
+        taxIncludedInAmount: row.taxCode ? row.taxIncluded : undefined,
       }));
 
     this.messages.clear();

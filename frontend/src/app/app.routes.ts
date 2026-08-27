@@ -79,6 +79,12 @@ export const routes: Routes = [
         loadComponent: () => import('./features/finance/party-ledger').then((m) => m.PartyLedger),
       },
       {
+        path: 'finance/reports/tax-return',
+        canActivate: [requirePermission('Finance.Report.Read')],
+        loadComponent: () =>
+          import('./features/finance/tax-return').then((m) => m.TaxReturnReport),
+      },
+      {
         path: 'finance/reports/aged-analysis',
         canActivate: [requirePermission('Finance.Report.Read')],
         loadComponent: () =>

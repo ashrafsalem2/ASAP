@@ -39,6 +39,15 @@ export interface Company {
   name: string;
   nameArabic?: string | null;
   baseCurrencyCode: string;
+  registrationNo?: string | null;
+  taxRegistrationNo?: string | null;
+  fiscalYearStartMonth?: number;
+
+  /**
+   * Whether anything has been posted. The currency and the year's opening month describe how the
+   * existing figures were measured, so once this is true they are settled.
+   */
+  hasPostedEntries?: boolean;
 
   /** Set by the company list; the session payload leaves it out. */
   isActive?: boolean;
@@ -929,6 +938,8 @@ export interface Branch {
   nameArabic: string | null;
   kind: string;
   city: string | null;
+  address?: string | null;
+  phone?: string | null;
   isActive: boolean;
 }
 

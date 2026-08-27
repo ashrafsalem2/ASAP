@@ -190,6 +190,18 @@ export const routes: Routes = [
         loadComponent: () => import('./features/hr/entitlements').then((m) => m.Entitlements),
       },
       {
+        path: 'admin/companies',
+        canActivate: [requirePermission('Platform.Company.Read')],
+        data: { kind: 'companies' },
+        loadComponent: () => import('./features/admin/organisation').then((m) => m.Organisation),
+      },
+      {
+        path: 'admin/branches',
+        canActivate: [requirePermission('Platform.Branch.Read')],
+        data: { kind: 'branches' },
+        loadComponent: () => import('./features/admin/organisation').then((m) => m.Organisation),
+      },
+      {
         path: 'admin/audit-log',
         canActivate: [requirePermission('Platform.AuditLog.Read')],
         loadComponent: () => import('./features/admin/audit-log').then((m) => m.AuditLog),

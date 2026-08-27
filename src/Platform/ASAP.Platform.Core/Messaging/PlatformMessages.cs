@@ -58,6 +58,15 @@ public static class PlatformMessages
     /// <summary>A setting cannot be changed now that entries have been posted against it.</summary>
     public static readonly MessageCode SetupLocked = new("PLAT.SETUP.LOCKED_AFTER_POSTING");
 
+    /// <summary>A company or branch code somebody already has.</summary>
+    public static readonly MessageCode OrganisationCodeTaken = new("PLAT.ORG.CODE_TAKEN");
+
+    /// <summary>The company or branch named does not exist.</summary>
+    public static readonly MessageCode OrganisationNotFound = new("PLAT.ORG.NOT_FOUND");
+
+    /// <summary>Something tried to close the only place the company trades from.</summary>
+    public static readonly MessageCode LastActiveBranch = new("PLAT.ORG.LAST_BRANCH");
+
     /// <summary>The user named does not exist.</summary>
     public static readonly MessageCode UserNotFound = new("PLAT.USER.NOT_FOUND");
 
@@ -289,6 +298,51 @@ public static class PlatformMessages
             Resolution = new LocalizedText(
                 "Enter a value matching {Expected}.",
                 "أدخل قيمة تتوافق مع {Expected}."),
+        },
+        new()
+        {
+            Code = OrganisationCodeTaken,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("That code is taken", "الرمز مستخدم بالفعل"),
+            Detail = new LocalizedText(
+                "{Code} already belongs to {ExistingName}. Codes appear on documents and in "
+                + "reports, and two things answering to one code cannot be told apart afterwards.",
+                "الرمز {Code} يخص بالفعل {ExistingName}. والرموز تظهر على المستندات وفي التقارير، "
+                + "ولا يمكن التمييز بين شيئين يحملان رمزًا واحدًا بعد ذلك."),
+            Resolution = new LocalizedText(
+                "Choose another code.",
+                "اختر رمزًا آخر."),
+            HelpTopic = "platform/organisation",
+        },
+        new()
+        {
+            Code = OrganisationNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such company or branch", "لا توجد شركة أو فرع بهذا الرمز"),
+            Detail = new LocalizedText(
+                "Nothing here is coded {Code}.",
+                "لا يوجد هنا ما يحمل الرمز {Code}."),
+            Resolution = new LocalizedText(
+                "Check the code against the list.",
+                "تحقق من الرمز في القائمة."),
+            HelpTopic = "platform/organisation",
+        },
+        new()
+        {
+            Code = LastActiveBranch,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("That is the only branch left", "هذا هو الفرع الوحيد المتبقي"),
+            Detail = new LocalizedText(
+                "{Code} is the last active branch of this company. Every document is posted "
+                + "somewhere, and a company with nowhere to post from cannot trade at all.",
+                "الفرع {Code} هو آخر فرع نشط في هذه الشركة. وكل مستند يُرحَّل من مكان ما، والشركة "
+                + "التي لا مكان لها لا تستطيع العمل إطلاقًا."),
+            Resolution = new LocalizedText(
+                "Open the branch that is replacing it first. A branch that has closed is made "
+                + "inactive rather than removed, because last year's documents still point at it.",
+                "افتح الفرع البديل أولاً. والفرع المغلق يُجعل غير نشط ولا يُحذف، لأن مستندات "
+                + "العام الماضي ما زالت تشير إليه."),
+            HelpTopic = "platform/organisation",
         },
         new()
         {

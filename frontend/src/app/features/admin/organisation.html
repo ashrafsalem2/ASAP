@@ -1,0 +1,212 @@
+<div class="page">
+  <h1>{{ kind() === 'companies' ? t('admin.org.companies') : t('admin.org.branches') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">
+      {{ kind() === 'companies' ? t('admin.org.companiesIntro') : t('admin.org.branchesIntro') }}
+    </p>
+
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else if (kind() === 'companies') {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('admin.org.code') }}</th>
+              <th>{{ t('admin.org.name') }}</th>
+              <th>{{ t('admin.org.currency') }}</th>
+              <th>{{ t('admin.org.taxNo') }}</th>
+              <th>{{ t('admin.org.yearOpens') }}</th>
+              <th>{{ t('admin.org.status') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (company of companies()?.companies ?? []; track company.code) {
+              <tr
+                class="admin__row"
+                [class.admin__row--selected]="editing() === company.code"
+                (click)="editCompany(company)"
+              >
+                <td class="code">{{ company.code }}</td>
+                <td>
+                  {{ company.name }}
+                  @if (company.id === companies()?.current) {
+                    <span class="tag">{{ t('admin.org.current') }}</span>
+                  }
+                </td>
+                <td class="code">{{ company.baseCurrencyCode }}</td>
+                <td class="code">{{ company.taxRegistrationNo }}</td>
+                <td class="numeric">{{ company.fiscalYearStartMonth }}</td>
+                <td>
+                  <span class="tag">
+                    {{ company.isActive === false ? t('admin.org.closed') : t('admin.org.open') }}
+                  </span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('admin.org.code') }}</th>
+              <th>{{ t('admin.org.name') }}</th>
+              <th>{{ t('admin.org.kindColumn') }}</th>
+              <th>{{ t('admin.org.city') }}</th>
+              <th>{{ t('admin.org.phone') }}</th>
+              <th>{{ t('admin.org.status') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (branch of branches(); track branch.code) {
+              <tr
+                class="admin__row"
+                [class.admin__row--selected]="editing() === branch.code"
+                (click)="editBranch(branch)"
+              >
+                <td class="code">{{ branch.code }}</td>
+                <td>{{ branch.name }}</td>
+                <td>{{ kindLabel(branch.kind) }}</td>
+                <td>{{ branch.city }}</td>
+                <td class="code">{{ branch.phone }}</td>
+                <td>
+                  <span class="tag">
+                    {{ branch.isActive ? t('admin.org.open') : t('admin.org.closed') }}
+                  </span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+
+    @if (canWrite()) {
+      <div class="panel__body draft__actions">
+        <button type="button" class="button" (click)="startNew()">
+          {{ kind() === 'companies' ? t('admin.org.newCompany') : t('admin.org.newBranch') }}
+        </button>
+      </div>
+    }
+  </section>
+
+  @if (canWrite()) {
+    <section class="panel">
+      <div class="panel__header">
+        <h2>{{ editing() ?? t('admin.org.newRecord') }}</h2>
+      </div>
+
+      <div class="panel__body draft">
+        <div class="field">
+          <label class="field__label" for="code">{{ t('admin.org.code') }}</label>
+          <input id="code" class="input code" [disabled]="editing() !== null" [(ngModel)]="code" />
+        </div>
+
+        <div class="field admin__wide">
+          <label class="field__label" for="name">{{ t('admin.org.name') }}</label>
+          <input id="name" class="input" [(ngModel)]="name" />
+        </div>
+
+        <div class="field admin__wide">
+          <label class="field__label" for="nameArabic">{{ t('admin.org.nameArabic') }}</label>
+          <input id="nameArabic" class="input" dir="rtl" [(ngModel)]="nameArabic" />
+        </div>
+
+        <div class="field">
+          <label class="admin__set">
+            <input type="checkbox" [(ngModel)]="isActive" />
+            {{ t('admin.org.openLabel') }}
+          </label>
+        </div>
+      </div>
+
+      @if (kind() === 'companies') {
+        <div class="panel__body draft">
+          <div class="field">
+            <label class="field__label" for="currency">{{ t('admin.org.currency') }}</label>
+            <input
+              id="currency"
+              class="input code"
+              [disabled]="settled"
+              [(ngModel)]="baseCurrencyCode"
+            />
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="yearOpens">{{ t('admin.org.yearOpens') }}</label>
+            <input
+              id="yearOpens"
+              class="input input--number"
+              type="number"
+              min="1"
+              max="12"
+              [disabled]="settled"
+              [(ngModel)]="fiscalYearStartMonth"
+            />
+          </div>
+
+          <div class="field admin__wide">
+            <label class="field__label" for="registrationNo">{{ t('admin.org.registrationNo') }}</label>
+            <input id="registrationNo" class="input code" [(ngModel)]="registrationNo" />
+          </div>
+
+          <div class="field admin__wide">
+            <label class="field__label" for="taxRegistrationNo">{{ t('admin.org.taxNo') }}</label>
+            <input id="taxRegistrationNo" class="input code" [(ngModel)]="taxRegistrationNo" />
+          </div>
+        </div>
+
+        @if (settled) {
+          <!-- Said where it will be read, next to the two boxes it is about. -->
+          <p class="panel__body admin__note">{{ t('admin.org.settledWhy') }}</p>
+        }
+      } @else {
+        <div class="panel__body draft">
+          <div class="field">
+            <label class="field__label" for="branchKind">{{ t('admin.org.kindColumn') }}</label>
+            <select id="branchKind" class="select" [(ngModel)]="branchKind">
+              @for (option of branchKinds; track option) {
+                <option [value]="option">{{ kindLabel(option) }}</option>
+              }
+            </select>
+          </div>
+
+          <div class="field admin__wide">
+            <label class="field__label" for="city">{{ t('admin.org.city') }}</label>
+            <input id="city" class="input" [(ngModel)]="city" />
+          </div>
+
+          <div class="field admin__wide">
+            <label class="field__label" for="address">{{ t('admin.org.address') }}</label>
+            <input id="address" class="input" [(ngModel)]="address" />
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="phone">{{ t('admin.org.phone') }}</label>
+            <input id="phone" class="input code" [(ngModel)]="phone" />
+          </div>
+        </div>
+
+        <p class="panel__body admin__note">{{ t('admin.org.closedWhy') }}</p>
+      }
+
+      <div class="panel__body draft__actions">
+        <button
+          type="button"
+          class="button button--primary"
+          [disabled]="!code.trim() || !name.trim() || busy()"
+          (click)="save()"
+        >
+          @if (busy()) {
+            <span class="spinner"></span>
+          }
+          {{ t('admin.org.save') }}
+        </button>
+      </div>
+    </section>
+  }
+</div>

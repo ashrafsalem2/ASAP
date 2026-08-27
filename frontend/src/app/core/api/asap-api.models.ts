@@ -262,6 +262,77 @@ export interface BalanceSheet {
   untransferredPriorResult: number;
 }
 
+/** Which subsidiary ledger something belongs to. */
+export type PartyKind = 'Customer' | 'Vendor';
+
+/** A customer or vendor. */
+export interface Party {
+  no: string;
+  name: string;
+  nameArabic?: string;
+  paymentTermsDays: number;
+  creditLimit: number;
+  balance: number;
+  isOverLimit: boolean;
+  controlAccountNo?: string;
+  isBlocked: boolean;
+  email?: string;
+  phone?: string;
+}
+
+/** One entry on a party's account. */
+export interface PartyLedgerEntry {
+  id: string;
+  postingDate: string;
+  dueDate: string;
+  transactionNo: number;
+  documentType: string;
+  documentNo?: string;
+  externalDocumentNo?: string;
+  description: string;
+  amount: number;
+
+  /** What is still unsettled, on the same sign as the amount. */
+  remainingAmount: number;
+  isOpen: boolean;
+  daysOverdue: number;
+}
+
+/** What an application changed. */
+export interface ApplicationReceipt {
+  appliedAmount: number;
+  fromRemaining: number;
+  toRemaining: number;
+  closedEntries: number;
+  messages?: AsapMessage[];
+}
+
+/** What one party owes, split by how late it is. */
+export interface AgedAnalysisRow {
+  partyNo: string;
+  name: string;
+  nameArabic?: string;
+  buckets: number[];
+  total: number;
+  oldestDocumentNo?: string;
+  oldestDaysOverdue: number;
+  creditLimit: number;
+  isOverLimit: boolean;
+}
+
+/** What is owed, and how late it is. */
+export interface AgedAnalysis {
+  asAt: string;
+  kind: PartyKind;
+  currencyCode: string;
+
+  /** Band codes such as `NotDue` and `Over90`, translated by the client. */
+  bandLabels: string[];
+  rows: AgedAnalysisRow[];
+  bucketTotals: number[];
+  total: number;
+}
+
 /** Where a transfer stands. */
 export type TransferStatus =
   | 'Open'

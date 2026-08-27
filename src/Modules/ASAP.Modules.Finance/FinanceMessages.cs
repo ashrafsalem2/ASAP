@@ -71,8 +71,11 @@ public static class FinanceMessages
     /// <summary>Something tried to change a posted entry.</summary>
     public static readonly MessageCode EntryImmutable = new("FIN.ENTRY.IMMUTABLE");
 
-    /// <summary>The posting succeeded.</summary>
+    /// <summary>The posting succeeded, and carried a document number.</summary>
     public static readonly MessageCode Posted = new("FIN.JOURNAL.POSTED");
+
+    /// <summary>The posting succeeded on a journal that carried no document number.</summary>
+    public static readonly MessageCode PostedWithoutDocument = new("FIN.JOURNAL.POSTED_NO_DOCUMENT");
 
     /// <summary>Every message the module declares.</summary>
     public static IReadOnlyCollection<MessageDefinition> All { get; } =
@@ -389,6 +392,19 @@ public static class FinanceMessages
             Detail = new LocalizedText(
                 "{EntryCount} entries posted as transaction {TransactionNo}, document {DocumentNo}.",
                 "تم ترحيل {EntryCount} قيدًا ضمن الحركة {TransactionNo}، المستند {DocumentNo}."),
+        },
+        new()
+        {
+            // The same confirmation for a journal carrying no document number. Two definitions
+            // rather than one, because the catalogue substitutes values and does not compose
+            // sentences -- and the single-template version ended every such posting with the
+            // words "document ." followed by nothing.
+            Code = PostedWithoutDocument,
+            Severity = MessageSeverity.Success,
+            Title = new LocalizedText("Posted", "تم الترحيل"),
+            Detail = new LocalizedText(
+                "{EntryCount} entries posted as transaction {TransactionNo}.",
+                "تم ترحيل {EntryCount} قيدًا ضمن الحركة {TransactionNo}."),
         },
     ];
 }

@@ -1,0 +1,57 @@
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+}
+
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ledger__hint,
+.ledger__selected {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.ledger__selected {
+  color: var(--text);
+}
+
+.ledger__selectable {
+  cursor: pointer;
+}
+
+.ledger__selectable:hover {
+  background: var(--surface-raised);
+}
+
+/* The entry the money is coming from, held visible while the second half is chosen. */
+.ledger__source > td {
+  background: var(--accent-soft, var(--surface-raised));
+  font-weight: 600;
+}
+
+/* Settled entries stay on the account but recede: they are context, not work. */
+.ledger__settled {
+  color: var(--text-muted);
+}
+
+.ledger__action {
+  text-align: end;
+}

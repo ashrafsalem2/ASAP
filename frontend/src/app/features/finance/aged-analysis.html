@@ -1,0 +1,110 @@
+<div class="page">
+  <h1>{{ t('finance.aged.title') }}</h1>
+
+  <section class="panel">
+    <div class="panel__body controls">
+      <div class="field">
+        <label class="field__label" for="kind">{{ t('finance.parties.name') }}</label>
+        <select id="kind" class="select" [(ngModel)]="kind" (ngModelChange)="run()">
+          <option value="Customer">{{ t('finance.aged.customers') }}</option>
+          <option value="Vendor">{{ t('finance.aged.vendors') }}</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="asAt">{{ t('finance.statements.asAt') }}</label>
+        <input id="asAt" class="input" type="date" [(ngModel)]="asAt" />
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="bands">{{ t('finance.aged.bands') }}</label>
+        <input id="bands" class="input code" [(ngModel)]="bands" />
+      </div>
+
+      <button type="button" class="button button--primary" [disabled]="loading()" (click)="run()">
+        @if (loading()) {
+          <span class="spinner"></span>
+        }
+        {{ t('finance.trialBalance.run') }}
+      </button>
+    </div>
+  </section>
+
+  @if (report(); as aged) {
+    <section class="panel">
+      <div class="table-scroll">
+        <table class="table statement">
+          <thead>
+            <tr>
+              <th>{{ t('finance.parties.no') }}</th>
+              <th>{{ t('finance.parties.name') }}</th>
+              @for (band of aged.bandLabels; track band) {
+                <th class="numeric">{{ bandLabel(band) }}</th>
+              }
+              <th class="numeric">{{ t('finance.aged.total') }}</th>
+              <th>{{ t('finance.aged.oldest') }}</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            @for (row of aged.rows; track row.partyNo) {
+              <tr>
+                <td class="code">
+                  <a [routerLink]="accountRoute(row)">{{ row.partyNo }}</a>
+                </td>
+                <td>
+                  {{ nameOf(row) }}
+
+                  @if (row.isOverLimit) {
+                    <span class="tag tag--negative">{{ t('finance.parties.overLimit') }}</span>
+                  }
+                </td>
+
+                @for (amount of row.buckets; track $index) {
+                  <!-- The last column is what is seriously late, and is the reason anybody opens
+                       this report. It is marked so the eye lands there first. -->
+                  <td
+                    class="numeric"
+                    [class.statement__loss]="$index === row.buckets.length - 1 && amount !== 0"
+                  >
+                    {{ i18n.amount(amount) }}
+                  </td>
+                }
+
+                <td class="numeric aged__total">{{ i18n.total(row.total) }}</td>
+                <td class="code">
+                  {{ row.oldestDocumentNo }}
+
+                  @if (row.oldestDaysOverdue > 0) {
+                    <span class="tag tag--negative">
+                      {{ t('finance.parties.overdueDays', { Days: row.oldestDaysOverdue }) }}
+                    </span>
+                  }
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td [attr.colspan]="aged.bandLabels.length + 4" class="empty">
+                  {{ t('finance.aged.nothingOutstanding') }}
+                </td>
+              </tr>
+            }
+          </tbody>
+
+          @if (aged.rows.length > 0) {
+            <tfoot>
+              <tr class="statement__total">
+                <td colspan="2">{{ t('finance.aged.total') }}</td>
+                @for (amount of aged.bucketTotals; track $index) {
+                  <td class="numeric">{{ i18n.total(amount) }}</td>
+                }
+                <td class="numeric">{{ i18n.total(aged.total) }}</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          }
+        </table>
+      </div>
+    </section>
+  }
+</div>

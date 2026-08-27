@@ -40,3 +40,13 @@
 .journal__spacer {
   flex: 1;
 }
+
+.journal__col-type {
+  width: 8rem;
+}
+
+/* Sits under the description on a party row, where it reads as a detail of that line rather than
+   a column every general ledger row has to leave empty. */
+.journal__external {
+  margin-block-start: 0.35rem;
+}

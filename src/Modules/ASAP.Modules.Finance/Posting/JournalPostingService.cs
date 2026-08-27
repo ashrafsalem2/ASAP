@@ -163,7 +163,9 @@ public sealed class JournalPostingService(
         var receipt = new PostingReceipt(transactionNo, request.DocumentNo, entries.Count, totalAmount);
 
         var confirmation = messages.Render(
-            FinanceMessages.Posted,
+            request.DocumentNo is null
+                ? FinanceMessages.PostedWithoutDocument
+                : FinanceMessages.Posted,
             new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
             {
                 ["EntryCount"] = entries.Count,

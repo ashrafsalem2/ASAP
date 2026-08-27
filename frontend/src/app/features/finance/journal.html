@@ -21,6 +21,7 @@
       <table class="table journal__grid">
         <thead>
           <tr>
+            <th class="journal__col-type">{{ t('finance.journal.postTo') }}</th>
             <th class="journal__col-account">{{ t('finance.journal.account') }}</th>
             <th>{{ t('finance.journal.description') }}</th>
             <th class="numeric journal__col-amount">{{ t('finance.journal.debit') }}</th>
@@ -35,13 +36,28 @@
               <td>
                 <select
                   class="select"
+                  [value]="row.accountType"
+                  [disabled]="posting()"
+                  (change)="changeType(row.id, $any($event.target).value)"
+                >
+                  <option value="GlAccount">{{ t('finance.journal.toAccount') }}</option>
+                  <option value="Customer">{{ t('finance.journal.toCustomer') }}</option>
+                  <option value="Vendor">{{ t('finance.journal.toVendor') }}</option>
+                </select>
+              </td>
+
+              <td>
+                <!-- The choices follow the type, so a customer number can never sit in a row
+                     posting to an account. -->
+                <select
+                  class="select"
                   [value]="row.accountNo"
                   [disabled]="posting()"
                   (change)="update(row.id, { accountNo: $any($event.target).value })"
                 >
                   <option value=""></option>
-                  @for (account of postableAccounts(); track account.id) {
-                    <option [value]="account.no">{{ nameOf(account) }}</option>
+                  @for (choice of choicesFor(row); track choice.value) {
+                    <option [value]="choice.value">{{ choice.label }}</option>
                   }
                 </select>
               </td>
@@ -53,6 +69,18 @@
                   [disabled]="posting()"
                   (input)="update(row.id, { description: $any($event.target).value })"
                 />
+
+                <!-- Only where it means something. Their invoice number belongs on a party row
+                     and is the thing people search by when a supplier telephones. -->
+                @if (isParty(row)) {
+                  <input
+                    class="input code journal__external"
+                    [value]="row.externalDocumentNo"
+                    [disabled]="posting()"
+                    [placeholder]="t('finance.parties.external')"
+                    (input)="update(row.id, { externalDocumentNo: $any($event.target).value })"
+                  />
+                }
               </td>
 
               <td>

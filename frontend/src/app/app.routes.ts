@@ -55,6 +55,36 @@ export const routes: Routes = [
           import('./features/inventory/stock-movements').then((m) => m.StockMovements),
       },
       {
+        path: 'finance/customers',
+        canActivate: [requirePermission('Finance.Party.Read')],
+        data: { kind: 'Customer' },
+        loadComponent: () => import('./features/finance/parties').then((m) => m.Parties),
+      },
+      {
+        path: 'finance/customers/:partyNo',
+        canActivate: [requirePermission('Finance.Party.Read')],
+        data: { kind: 'Customer' },
+        loadComponent: () => import('./features/finance/party-ledger').then((m) => m.PartyLedger),
+      },
+      {
+        path: 'finance/vendors',
+        canActivate: [requirePermission('Finance.Party.Read')],
+        data: { kind: 'Vendor' },
+        loadComponent: () => import('./features/finance/parties').then((m) => m.Parties),
+      },
+      {
+        path: 'finance/vendors/:partyNo',
+        canActivate: [requirePermission('Finance.Party.Read')],
+        data: { kind: 'Vendor' },
+        loadComponent: () => import('./features/finance/party-ledger').then((m) => m.PartyLedger),
+      },
+      {
+        path: 'finance/reports/aged-analysis',
+        canActivate: [requirePermission('Finance.Report.Read')],
+        loadComponent: () =>
+          import('./features/finance/aged-analysis').then((m) => m.AgedAnalysisReport),
+      },
+      {
         path: 'finance/reports/income-statement',
         canActivate: [requirePermission('Finance.Report.Read')],
         loadComponent: () =>

@@ -1,0 +1,114 @@
+<div class="page">
+  <div class="header">
+    <h1>
+      <span class="code">{{ partyNo() }}</span>
+    </h1>
+
+    <a class="button button--quiet" [routerLink]="listRoute()">
+      {{ t('finance.parties.back') }}
+    </a>
+  </div>
+
+  <p class="page__intro">
+    {{ t(kind() === 'Customer' ? 'finance.parties.owes' : 'finance.parties.owed') }}
+    <strong class="numeric">{{ i18n.total(outstanding()) }}</strong>
+  </p>
+
+  <section class="panel">
+    <div class="panel__body controls">
+      <label class="checkbox">
+        <input type="checkbox" [(ngModel)]="openOnly" (ngModelChange)="load()" />
+        {{ t('finance.parties.openOnly') }}
+      </label>
+
+      @if (canApply()) {
+        @if (source(); as from) {
+          <p class="ledger__selected">
+            <span class="code">{{ from.documentNo }}</span>
+            {{ t('finance.parties.settles') }}…
+            <button type="button" class="button button--quiet" (click)="clear()">
+              {{ t('finance.parties.clear') }}
+            </button>
+          </p>
+        } @else {
+          <p class="ledger__hint">{{ t('finance.parties.selectPayment') }}</p>
+        }
+      }
+    </div>
+
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('finance.entries.date') }}</th>
+              <th>{{ t('finance.parties.due') }}</th>
+              <th>{{ t('finance.entries.document') }}</th>
+              <th>{{ t('finance.parties.external') }}</th>
+              <th>{{ t('finance.journal.description') }}</th>
+              <th class="numeric">{{ t('finance.accounts.balance') }}</th>
+              <th class="numeric">{{ t('finance.parties.remaining') }}</th>
+              <th></th>
+            </tr>
+          </thead>
+
+          <tbody>
+            @for (entry of entries(); track entry.id) {
+              <tr
+                [class.ledger__source]="isSource(entry)"
+                [class.ledger__settled]="!entry.isOpen"
+                [class.ledger__selectable]="canApply() && entry.isOpen"
+                (click)="select(entry)"
+              >
+                <td class="code">{{ entry.postingDate }}</td>
+                <td class="code">
+                  {{ entry.dueDate }}
+
+                  <!-- Only while something is still owed. An invoice that was paid late is
+                       history, and colouring it red on a statement helps nobody. -->
+                  @if (entry.isOpen && entry.daysOverdue > 0) {
+                    <span class="tag tag--negative">
+                      {{ t('finance.parties.overdueDays', { Days: entry.daysOverdue }) }}
+                    </span>
+                  }
+                </td>
+                <td class="code">{{ entry.documentNo }}</td>
+                <td class="code">{{ entry.externalDocumentNo }}</td>
+                <td>{{ entry.description }}</td>
+                <td class="numeric">{{ i18n.total(entry.amount) }}</td>
+                <td class="numeric">
+                  @if (entry.isOpen) {
+                    {{ i18n.total(entry.remainingAmount) }}
+                  }
+                </td>
+                <td class="ledger__action">
+                  @if (canSettle(entry)) {
+                    <button
+                      type="button"
+                      class="button button--primary"
+                      [disabled]="applying()"
+                      (click)="apply(entry); $event.stopPropagation()"
+                    >
+                      @if (applying()) {
+                        <span class="spinner"></span>
+                        {{ t('finance.parties.applying') }}
+                      } @else {
+                        {{ t('finance.parties.apply') }}
+                      }
+                    </button>
+                  }
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="8" class="empty">{{ t('common.nothingHere') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+</div>

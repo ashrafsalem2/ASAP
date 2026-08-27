@@ -50,11 +50,12 @@ Everything else posts here, so it goes first.
 - **done** General ledger entries, transaction grouping, running account balances
 - Currencies and exchange rates, with realised and unrealised gain/loss
 - Bank accounts and reconciliation
-- Customer and vendor ledgers with application and settlement
+- **done** Customer and vendor ledgers with application and settlement, posted through the journal
+  so the control account and the subsidiary ledger commit together
 - VAT/tax setup, tax posting, and a return-ready tax entry table
-- *in progress* Financial reports: **trial balance, income statement and balance sheet done**;
-  cash flow and aged analysis to come. The balance sheet carries the result for the year as its
-  own computed line, so it balances before the year-end transfer exists
+- *in progress* Financial reports: **trial balance, income statement, balance sheet and aged
+  analysis done**; cash flow to come. The balance sheet carries the result for the year as its own
+  computed line, so it balances before the year-end transfer exists
 - Account schedules — the report builder that lets a user define statements without code
 - Year-end closing and retained earnings transfer
 

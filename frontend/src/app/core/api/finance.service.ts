@@ -3,11 +3,16 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
+  AgedAnalysis,
+  ApplicationReceipt,
   BalanceSheet,
   GlAccount,
   GlEntry,
   IncomeStatement,
   MenuNode,
+  Party,
+  PartyKind,
+  PartyLedgerEntry,
   PostJournalLine,
   PostingReceipt,
   TrialBalance,
@@ -111,5 +116,56 @@ export class FinanceService {
     return firstValueFrom(
       this.http.get<BalanceSheet>(`${this.base}/finance/reports/balance-sheet`, { params }),
     );
+  }
+
+  /** Customers or vendors, with what each owes. */
+  parties(kind: PartyKind): Promise<Party[]> {
+    return firstValueFrom(this.http.get<Party[]>(`${this.base}/finance/${this.path(kind)}`));
+  }
+
+  /** One party's ledger entries, most recent first. */
+  partyEntries(kind: PartyKind, partyNo: string, openOnly = false): Promise<PartyLedgerEntry[]> {
+    const params = new HttpParams().set('openOnly', openOnly);
+
+    return firstValueFrom(
+      this.http.get<PartyLedgerEntry[]>(
+        `${this.base}/finance/${this.path(kind)}/${encodeURIComponent(partyNo)}/entries`,
+        { params },
+      ),
+    );
+  }
+
+  /** Records which payment settled which invoice. */
+  applyEntries(
+    kind: PartyKind,
+    fromEntryId: string,
+    toEntryId: string,
+    amount?: number,
+  ): Promise<ApplicationReceipt> {
+    return firstValueFrom(
+      this.http.post<ApplicationReceipt>(`${this.base}/finance/${this.path(kind)}/apply`, {
+        fromEntryId,
+        toEntryId,
+        amount,
+      }),
+    );
+  }
+
+  /** What is outstanding, split by how late it is. */
+  agedAnalysis(kind: PartyKind, asAt: string, bands?: string): Promise<AgedAnalysis> {
+    let params = new HttpParams().set('kind', kind).set('asAt', asAt);
+
+    if (bands) {
+      params = params.set('bands', bands);
+    }
+
+    return firstValueFrom(
+      this.http.get<AgedAnalysis>(`${this.base}/finance/reports/aged-analysis`, { params }),
+    );
+  }
+
+  /** The two ledgers differ only in their route segment. */
+  private path(kind: PartyKind): string {
+    return kind === 'Customer' ? 'customers' : 'vendors';
   }
 }

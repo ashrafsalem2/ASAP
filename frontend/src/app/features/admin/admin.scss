@@ -86,3 +86,8 @@
 .admin__permission--sensitive {
   background: color-mix(in srgb, var(--caution) 7%, transparent);
 }
+
+/* An override is the row somebody came to this page to find. */
+.admin__override td {
+  background: color-mix(in srgb, var(--caution) 8%, transparent);
+}

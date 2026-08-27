@@ -7,6 +7,7 @@ using ASAP.Platform.Kernel.Security;
 using ASAP.Platform.Kernel.Tenancy;
 using ASAP.Platform.Kernel.Time;
 using ASAP.Platform.Persistence;
+using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace ASAP.Api.Endpoints;
@@ -86,6 +87,7 @@ public static class AdminEndpoints
     private const string SetWritePermission = "Platform.PermissionSet.Update";
     private const string SetCreatePermission = "Platform.PermissionSet.Create";
     private const string SetDeletePermission = "Platform.PermissionSet.Delete";
+    private const string AuditReadPermission = "Platform.AuditLog.Read";
 
     /// <summary>The shortest password the installation accepts.</summary>
     /// <remarks>
@@ -127,6 +129,10 @@ public static class AdminEndpoints
         group.MapPost("/users/{userName}/reset-password", ResetPasswordAsync)
              .WithName("ResetPassword")
              .WithSummary("Gives somebody a new password they must change on first use.");
+
+        group.MapGet("/audit-log", AuditLogAsync)
+             .WithName("AuditLog")
+             .WithSummary("What was done, by whom, and every protection somebody pushed past.");
 
         group.MapGet("/permission-sets", PermissionSetsAsync)
              .WithName("PermissionSets")
@@ -422,6 +428,86 @@ public static class AdminEndpoints
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 
         return Results.Ok(View(target));
+    }
+
+    /// <summary>
+    /// Reads the audit log.
+    /// </summary>
+    /// <remarks>
+    /// Every override message in this system ends with a sentence saying the override has been
+    /// recorded against somebody's name. It was true and unreadable: the rows were written and
+    /// nothing served them. A promise made in a message to a user is the strongest kind there is.
+    /// </remarks>
+    private static async Task<IResult> AuditLogAsync(
+        AsapDbContext context,
+        IUserContext user,
+        HttpContext http,
+        [FromQuery] DateOnly? from,
+        [FromQuery] DateOnly? to,
+        [FromQuery] string? userName,
+        [FromQuery] string? entityType,
+        [FromQuery] bool? overridesOnly,
+        [FromQuery] int? take,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, AuditReadPermission))
+        {
+            return Forbidden(AuditReadPermission, "read the audit log", http);
+        }
+
+        var query = context.AuditLog.AsNoTracking();
+
+        if (from is { } start)
+        {
+            query = query.Where(e => e.OccurredAtUtc >= start.ToDateTime(TimeOnly.MinValue));
+        }
+
+        if (to is { } end)
+        {
+            // Inclusive of the whole day. A filter that stopped at midnight would hide everything
+            // that happened on the last day somebody asked about, which is usually today.
+            query = query.Where(e => e.OccurredAtUtc < end.AddDays(1).ToDateTime(TimeOnly.MinValue));
+        }
+
+        if (!string.IsNullOrWhiteSpace(userName))
+        {
+            query = query.Where(e => e.UserName == userName);
+        }
+
+        if (!string.IsNullOrWhiteSpace(entityType))
+        {
+            query = query.Where(e => e.EntityType == entityType);
+        }
+
+        if (overridesOnly == true)
+        {
+            query = query.Where(e => e.OverriddenMessageCode != null);
+        }
+
+        // Capped, and the cap is the caller's to raise. An audit log is the one table that only
+        // ever grows, and a screen that fetched all of it would work for a month.
+        var limit = Math.Clamp(take ?? 200, 1, 1000);
+
+        var rows = await query
+            .OrderByDescending(static e => e.OccurredAtUtc)
+            .Take(limit)
+            .Select(static e => new
+            {
+                occurredAtUtc = e.OccurredAtUtc,
+                userName = e.UserName,
+                action = e.Action.ToString(),
+                entityType = e.EntityType,
+                displayNo = e.DisplayNo,
+                changes = e.Changes,
+                overriddenMessageCode = e.OverriddenMessageCode,
+                overrideReason = e.OverrideReason,
+                ipAddress = e.IpAddress,
+                clientKind = e.ClientKind,
+            })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return Results.Ok(new { limit, rows });
     }
 
     private static async Task<IResult> PermissionSetsAsync(

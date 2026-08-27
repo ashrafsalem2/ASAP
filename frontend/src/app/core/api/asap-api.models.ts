@@ -1262,3 +1262,27 @@ export interface PermissionSetInfo {
   assignedTo: number;
   permissions: string[];
 }
+
+/** One thing somebody did, as the audit log recorded it. */
+export interface AuditEntry {
+  occurredAtUtc: string;
+  userName: string | null;
+  action: string;
+  entityType: string | null;
+  displayNo: string | null;
+  changes: string | null;
+
+  /** The protection that was pushed past, where one was. */
+  overriddenMessageCode: string | null;
+
+  /** Why. The column the whole screen exists for. */
+  overrideReason: string | null;
+  ipAddress: string | null;
+  clientKind: string | null;
+}
+
+/** A page of the audit log, and the cap that produced it. */
+export interface AuditPage {
+  limit: number;
+  rows: AuditEntry[];
+}

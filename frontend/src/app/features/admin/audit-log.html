@@ -1,0 +1,90 @@
+<div class="page">
+  <h1>{{ t('admin.audit.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('admin.audit.intro') }}</p>
+
+    <div class="panel__body draft">
+      <div class="field">
+        <label class="field__label" for="from">{{ t('admin.audit.from') }}</label>
+        <input id="from" class="input" type="date" [(ngModel)]="from" />
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="to">{{ t('admin.audit.to') }}</label>
+        <input id="to" class="input" type="date" [(ngModel)]="to" />
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="userName">{{ t('admin.audit.user') }}</label>
+        <input id="userName" class="input code" [(ngModel)]="userName" />
+      </div>
+
+      <div class="field">
+        <label class="admin__set">
+          <input type="checkbox" [(ngModel)]="overridesOnly" />
+          {{ t('admin.audit.overridesOnly') }}
+        </label>
+      </div>
+
+      <button type="button" class="button" [disabled]="loading()" (click)="run()">
+        @if (loading()) {
+          <span class="spinner"></span>
+        }
+        {{ t('admin.audit.show') }}
+      </button>
+    </div>
+  </section>
+
+  <section class="panel">
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('admin.audit.when') }}</th>
+              <th>{{ t('admin.audit.user') }}</th>
+              <th>{{ t('admin.audit.action') }}</th>
+              <th>{{ t('admin.audit.what') }}</th>
+              <th>{{ t('admin.audit.pushedPast') }}</th>
+              <th>{{ t('admin.audit.reason') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (entry of entries(); track entry.occurredAtUtc + entry.userName + entry.displayNo) {
+              <tr [class.admin__override]="entry.overriddenMessageCode">
+                <td class="code">{{ when(entry.occurredAtUtc) }}</td>
+                <td class="code">{{ entry.userName }}</td>
+                <td>{{ entry.action }}</td>
+                <td>
+                  <span>{{ entry.entityType }}</span>
+                  @if (entry.displayNo) {
+                    <span class="code admin__set-count">&nbsp;{{ entry.displayNo }}</span>
+                  }
+                </td>
+                <td class="code">{{ entry.overriddenMessageCode }}</td>
+
+                <!-- The reason is the column this whole page exists for. Somebody pushed past a
+                     protection and said why; a log recording only that they did is a log that
+                     says nothing worth reading. -->
+                <td>{{ entry.overrideReason }}</td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="6" class="empty">{{ t('common.nothingHere') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (entries().length >= limit()) {
+        <!-- Said, not silently truncated. A list that stopped at two hundred without saying so
+             reads as "that is everything", and on an audit log that is the wrong impression. -->
+        <p class="panel__body admin__note">{{ t('admin.audit.capped', { limit: limit() }) }}</p>
+      }
+    }
+  </section>
+</div>

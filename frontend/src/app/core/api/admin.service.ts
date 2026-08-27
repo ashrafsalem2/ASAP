@@ -1,8 +1,13 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
-import { PermissionInfo, PermissionSetInfo, UserAccount } from './asap-api.models';
+import {
+  AuditPage,
+  PermissionInfo,
+  PermissionSetInfo,
+  UserAccount,
+} from './asap-api.models';
 
 /** Talks to the administration endpoints: users, permission sets, and the permission catalogue. */
 @Injectable({ providedIn: 'root' })
@@ -98,6 +103,25 @@ export class AdminService {
     return firstValueFrom(
       this.http.delete<void>(`${this.base}/permission-sets/${encodeURIComponent(code)}`),
     );
+  }
+
+  /** What was done, by whom, and every protection somebody pushed past. */
+  auditLog(filters: {
+    from?: string;
+    to?: string;
+    userName?: string;
+    entityType?: string;
+    overridesOnly?: boolean;
+  }): Promise<AuditPage> {
+    let params = new HttpParams();
+
+    for (const [key, value] of Object.entries(filters)) {
+      if (value !== undefined && value !== '') {
+        params = params.set(key, String(value));
+      }
+    }
+
+    return firstValueFrom(this.http.get<AuditPage>(`${this.base}/audit-log`, { params }));
   }
 
   /** Changes the caller's own password, given the current one. */

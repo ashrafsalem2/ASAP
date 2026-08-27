@@ -1,0 +1,297 @@
+<div class="page">
+  <h1>{{ t('hr.employees.title') }}</h1>
+
+  @if (canHire()) {
+    <section class="panel">
+      <div class="panel__header">
+        <h2>{{ t('hr.employees.hire') }}</h2>
+      </div>
+
+      <p class="panel__body page__intro">{{ t('hr.employees.intro') }}</p>
+
+      <div class="panel__body draft">
+        <div class="field hr__narrow">
+          <label class="field__label" for="hireNo">{{ t('hr.employees.no') }}</label>
+          <input
+            id="hireNo"
+            class="input code"
+            [placeholder]="t('hr.employees.numberAuto')"
+            [(ngModel)]="hireNo"
+          />
+        </div>
+
+        <div class="field hr__wide">
+          <label class="field__label" for="hireName">{{ t('hr.employees.name') }}</label>
+          <input id="hireName" class="input" [(ngModel)]="hireName" />
+        </div>
+
+        <div class="field hr__wide">
+          <label class="field__label" for="hireNameArabic">
+            {{ t('hr.employees.nameArabic') }}
+          </label>
+          <input id="hireNameArabic" class="input" dir="rtl" [(ngModel)]="hireNameArabic" />
+        </div>
+      </div>
+
+      <div class="panel__body draft">
+        <div class="field">
+          <label class="field__label" for="hireNationalId">
+            {{ t('hr.employees.nationalId') }}
+          </label>
+          <input id="hireNationalId" class="input code" [(ngModel)]="hireNationalId" />
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="hireNationality">
+            {{ t('hr.employees.nationality') }}
+          </label>
+          <input id="hireNationality" class="input" [(ngModel)]="hireNationality" />
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="hireOn">{{ t('hr.employees.hiredOn') }}</label>
+          <input id="hireOn" class="input" type="date" [(ngModel)]="hireOn" />
+        </div>
+
+        <div class="field hr__wide">
+          <label class="field__label" for="hireBranchId">{{ t('hr.employees.branch') }}</label>
+          <select id="hireBranchId" class="select" [(ngModel)]="hireBranchId">
+            @for (branch of branches(); track branch.id) {
+              <option [value]="branch.id">{{ branchName(branch.id) }}</option>
+            }
+          </select>
+        </div>
+      </div>
+
+      @if (showWages()) {
+        <div class="panel__body draft">
+          <div class="field hr__narrow">
+            <label class="field__label" for="hireBasicWage">
+              {{ t('hr.employees.basicWage') }}
+            </label>
+            <input
+              id="hireBasicWage"
+              class="input input--number"
+              type="number"
+              inputmode="decimal"
+              min="0"
+              [(ngModel)]="hireBasicWage"
+            />
+          </div>
+
+          <div class="field hr__narrow">
+            <label class="field__label" for="hireAllowances">
+              {{ t('hr.employees.allowances') }}
+            </label>
+            <input
+              id="hireAllowances"
+              class="input input--number"
+              type="number"
+              inputmode="decimal"
+              min="0"
+              [(ngModel)]="hireAllowances"
+            />
+          </div>
+        </div>
+      }
+
+      <div class="panel__body draft__actions">
+        <button
+          type="button"
+          class="button button--primary"
+          [disabled]="!hireName.trim() || !hireOn || busy() !== null"
+          (click)="hire()"
+        >
+          @if (busy() === 'hire') {
+            <span class="spinner"></span>
+          }
+          {{ t('hr.employees.hire') }}
+        </button>
+      </div>
+    </section>
+  }
+
+  <section class="panel">
+    <div class="panel__header">
+      <h2>{{ t('hr.employees.title') }}</h2>
+
+      <label class="hr__toggle">
+        <input
+          type="checkbox"
+          [checked]="includeLeavers()"
+          (change)="toggleLeavers()"
+        />
+        {{ t('hr.employees.includeLeavers') }}
+      </label>
+    </div>
+
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('hr.employees.no') }}</th>
+              <th>{{ t('hr.employees.name') }}</th>
+              <th>{{ t('hr.employees.branch') }}</th>
+              <th>{{ t('hr.employees.hiredOn') }}</th>
+              <th>{{ t('hr.employees.leftOn') }}</th>
+              <th>{{ t('hr.employees.status') }}</th>
+              @if (showWages()) {
+                <th class="numeric">{{ t('hr.employees.basicWage') }}</th>
+                <th class="numeric">{{ t('hr.employees.allowances') }}</th>
+                <th class="numeric">{{ t('hr.employees.totalWage') }}</th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (employee of employees(); track employee.no) {
+              <tr
+                class="hr__row"
+                [class.hr__row--selected]="selected()?.no === employee.no"
+                (click)="select(employee)"
+              >
+                <td class="code">{{ employee.no }}</td>
+                <td>{{ employee.name }}</td>
+                <td>{{ branchNow(employee) }}</td>
+                <td class="code">{{ employee.hiredOn }}</td>
+                <td class="code">{{ employee.leftOn }}</td>
+                <td>
+                  <span class="tag">{{ statusLabel(employee.status) }}</span>
+                </td>
+                @if (showWages()) {
+                  <td class="numeric">{{ i18n.total(employee.basicWage) }}</td>
+                  <td class="numeric">{{ i18n.total(employee.allowances) }}</td>
+                  <td class="numeric">{{ i18n.total(employee.totalWage) }}</td>
+                }
+              </tr>
+            } @empty {
+              <tr>
+                <td [attr.colspan]="showWages() ? 9 : 6" class="empty">
+                  {{ t('common.nothingHere') }}
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (!showWages()) {
+        <p class="panel__body hr__note">{{ t('hr.employees.wageHiddenWhy') }}</p>
+      }
+    }
+  </section>
+
+  @if (selected(); as employee) {
+    <section class="panel">
+      <div class="panel__header">
+        <h2>{{ employee.no }} — {{ employee.name }}</h2>
+      </div>
+
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('hr.employees.branch') }}</th>
+              <th>{{ t('hr.employees.from') }}</th>
+              <th>{{ t('hr.employees.to') }}</th>
+              <th>{{ t('hr.employees.reason') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (assignment of employee.branchAssignments; track assignment.fromDate) {
+              <tr>
+                <td>{{ branchName(assignment.branchId) }}</td>
+                <td class="code">{{ assignment.fromDate }}</td>
+
+                <!-- An open end is said in words. A blank reads as missing data, and this is the
+                     one assignment that is deliberately unfinished. -->
+                <td class="code">
+                  {{ assignment.toDate ?? t('hr.employees.present') }}
+                </td>
+                <td>{{ assignment.reason }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (canUpdate() && employee.status !== 'Left') {
+        <div class="panel__body draft">
+          <div class="field hr__wide">
+            <label class="field__label" for="transferBranchId">
+              {{ t('hr.employees.transferTo') }}
+            </label>
+            <select id="transferBranchId" class="select" [(ngModel)]="transferBranchId">
+              <option value=""></option>
+              @for (branch of branches(); track branch.id) {
+                <option [value]="branch.id">{{ branchName(branch.id) }}</option>
+              }
+            </select>
+          </div>
+
+          <div class="field">
+            <label class="field__label" for="transferFrom">
+              {{ t('hr.employees.transferFrom') }}
+            </label>
+            <input id="transferFrom" class="input" type="date" [(ngModel)]="transferFrom" />
+          </div>
+
+          <div class="field hr__wide">
+            <label class="field__label" for="transferReason">
+              {{ t('hr.employees.reason') }}
+            </label>
+            <input id="transferReason" class="input" [(ngModel)]="transferReason" />
+          </div>
+
+          <button
+            type="button"
+            class="button"
+            [disabled]="!transferBranchId || !transferFrom || busy() !== null"
+            (click)="transfer()"
+          >
+            @if (busy() === 'transfer') {
+              <span class="spinner"></span>
+            }
+            {{ t('hr.employees.transfer') }}
+          </button>
+        </div>
+
+        <div class="panel__body draft">
+          <div class="field">
+            <label class="field__label" for="leftOn">{{ t('hr.employees.lastDay') }}</label>
+            <input id="leftOn" class="input" type="date" [(ngModel)]="leftOn" />
+          </div>
+
+          <div class="field hr__wide">
+            <label class="field__label" for="leavingReason">
+              {{ t('hr.employees.leavingReason') }}
+            </label>
+            <select id="leavingReason" class="select" [(ngModel)]="leavingReason">
+              @for (reason of leavingReasons; track reason) {
+                <option [value]="reason">{{ leavingLabel(reason) }}</option>
+              }
+            </select>
+          </div>
+
+          <button
+            type="button"
+            class="button"
+            [disabled]="!leftOn || busy() !== null"
+            (click)="recordLeaving()"
+          >
+            @if (busy() === 'leaving') {
+              <span class="spinner"></span>
+            }
+            {{ t('hr.employees.recordLeaving') }}
+          </button>
+        </div>
+
+        <p class="panel__body hr__note">{{ t('hr.employees.leavingReasonWhy') }}</p>
+      }
+    </section>
+  } @else if (!loading()) {
+    <p class="empty">{{ t('hr.employees.select') }}</p>
+  }
+</div>

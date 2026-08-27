@@ -164,6 +164,21 @@ export const routes: Routes = [
           import('./features/finance/trial-balance').then((m) => m.TrialBalance),
       },
       {
+        path: 'hr/employees',
+        canActivate: [requirePermission('Hr.Employee.Read')],
+        loadComponent: () => import('./features/hr/employees').then((m) => m.Employees),
+      },
+      {
+        path: 'hr/payroll',
+        canActivate: [requirePermission('Hr.Wage.Read')],
+        loadComponent: () => import('./features/hr/payroll').then((m) => m.Payroll),
+      },
+      {
+        path: 'hr/entitlements',
+        canActivate: [requirePermission('Hr.Report.Read')],
+        loadComponent: () => import('./features/hr/entitlements').then((m) => m.Entitlements),
+      },
+      {
         path: '**',
         redirectTo: '',
       },

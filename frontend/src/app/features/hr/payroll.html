@@ -1,0 +1,175 @@
+<div class="page">
+  <h1>{{ t('hr.payroll.title') }}</h1>
+
+  @if (canWrite()) {
+    <section class="panel">
+      <div class="panel__header">
+        <h2>{{ t('hr.payroll.calculate') }}</h2>
+      </div>
+
+      <p class="panel__body page__intro">{{ t('hr.payroll.intro') }}</p>
+
+      <div class="panel__body draft">
+        <div class="field">
+          <label class="field__label" for="from">{{ t('hr.payroll.from') }}</label>
+          <input id="from" class="input" type="date" [(ngModel)]="from" />
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="to">{{ t('hr.payroll.to') }}</label>
+          <input id="to" class="input" type="date" [(ngModel)]="to" />
+        </div>
+
+        <div class="field hr__wide">
+          <label class="field__label" for="description">{{ t('hr.payroll.description') }}</label>
+          <input id="description" class="input" [(ngModel)]="description" />
+        </div>
+
+        <button
+          type="button"
+          class="button button--primary"
+          [disabled]="!from || !to || busy() !== null"
+          (click)="calculate()"
+        >
+          @if (busy() === 'calculate') {
+            <span class="spinner"></span>
+          }
+          {{ busy() === 'calculate' ? t('hr.payroll.calculating') : t('hr.payroll.calculate') }}
+        </button>
+      </div>
+    </section>
+  }
+
+  <section class="panel">
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('hr.payroll.run') }}</th>
+              <th>{{ t('hr.payroll.from') }}</th>
+              <th>{{ t('hr.payroll.to') }}</th>
+              <th>{{ t('hr.payroll.status') }}</th>
+              <th class="numeric">{{ t('hr.payroll.people') }}</th>
+              <th class="numeric">{{ t('hr.payroll.grossPay') }}</th>
+              <th class="numeric">{{ t('hr.payroll.netPay') }}</th>
+              <th class="numeric">{{ t('hr.payroll.endOfService') }}</th>
+              <th class="numeric">{{ t('hr.payroll.transaction') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (run of runs(); track run.no) {
+              <tr
+                class="hr__row"
+                [class.hr__row--selected]="selected()?.no === run.no"
+                (click)="select(run)"
+              >
+                <td class="code">{{ run.no }}</td>
+                <td class="code">{{ run.fromDate }}</td>
+                <td class="code">{{ run.toDate }}</td>
+                <td><span class="tag">{{ statusLabel(run.status) }}</span></td>
+                <td class="numeric">{{ run.people }}</td>
+                <td class="numeric">{{ i18n.total(run.grossPay) }}</td>
+                <td class="numeric">{{ i18n.total(run.netPay) }}</td>
+                <td class="numeric">{{ i18n.total(run.endOfServiceCharge) }}</td>
+                <td class="numeric code">{{ run.transactionNo }}</td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="9" class="empty">{{ t('common.nothingHere') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+
+  @if (selected(); as run) {
+    <section class="panel">
+      <div class="panel__header">
+        <h2>{{ run.no }} — {{ run.fromDate }} … {{ run.toDate }}</h2>
+      </div>
+
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('hr.payroll.employee') }}</th>
+              <th class="numeric">{{ t('hr.payroll.days') }}</th>
+              <th class="numeric">{{ t('hr.payroll.basicPay') }}</th>
+              <th class="numeric">{{ t('hr.payroll.allowances') }}</th>
+              <th class="numeric">{{ t('hr.payroll.deductions') }}</th>
+              <th class="numeric">{{ t('hr.payroll.netPay') }}</th>
+              <th class="numeric">{{ t('hr.payroll.endOfService') }}</th>
+              <th>{{ t('hr.payroll.branchShares') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (line of run.lines; track line.employeeNo) {
+              <tr>
+                <td>
+                  <span class="code">{{ line.employeeNo }}</span>
+                  <span class="hr__share">{{ line.employeeName }}</span>
+                </td>
+                <td class="numeric">{{ line.daysWorked }}</td>
+                <td class="numeric">{{ i18n.total(line.basicPay) }}</td>
+                <td class="numeric">{{ i18n.total(line.allowances) }}</td>
+                <td class="numeric">{{ i18n.amount(line.deductions) }}</td>
+                <td class="numeric">{{ i18n.total(line.netPay) }}</td>
+                <td class="numeric">{{ i18n.total(line.endOfServiceCharge) }}</td>
+
+                <!-- The whole reason the branch history exists. One person, several shops, and
+                     the days each of them actually had them for. -->
+                <td>
+                  @for (share of line.branchShares; track share.branchId) {
+                    <span class="hr__share">
+                      {{ branchName(share.branchId) }}
+                      {{ share.days }} {{ t('hr.payroll.daysSuffix') }}
+                      {{ i18n.total(share.amount) }}
+                    </span>
+                  }
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="8" class="empty">{{ t('common.nothingHere') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (canWrite() && isDraft()) {
+        <div class="panel__body draft">
+          <div class="field hr__wide">
+            <label class="field__label" for="overrideReason">
+              {{ t('hr.payroll.overrideReason') }}
+            </label>
+            <input id="overrideReason" class="input" [(ngModel)]="overrideReason" />
+          </div>
+
+          <button
+            type="button"
+            class="button button--primary"
+            [disabled]="busy() !== null"
+            (click)="post()"
+          >
+            @if (busy() === 'post') {
+              <span class="spinner"></span>
+            }
+            {{ busy() === 'post' ? t('hr.payroll.posting') : t('hr.payroll.post') }}
+          </button>
+
+          <button type="button" class="button" [disabled]="busy() !== null" (click)="discard()">
+            {{ t('hr.payroll.discard') }}
+          </button>
+        </div>
+      }
+    </section>
+  } @else if (!loading()) {
+    <p class="empty">{{ t('hr.payroll.select') }}</p>
+  }
+</div>

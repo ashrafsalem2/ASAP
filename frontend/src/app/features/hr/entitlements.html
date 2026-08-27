@@ -1,0 +1,83 @@
+<div class="page">
+  <h1>{{ t('hr.entitlements.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('hr.entitlements.intro') }}</p>
+
+    <div class="panel__body draft">
+      <div class="field">
+        <label class="field__label" for="asAt">{{ t('hr.entitlements.asAt') }}</label>
+        <input id="asAt" class="input" type="date" [(ngModel)]="asAt" />
+      </div>
+
+      <button type="button" class="button" [disabled]="loading()" (click)="run()">
+        @if (loading()) {
+          <span class="spinner"></span>
+        }
+        {{ t('hr.entitlements.show') }}
+      </button>
+    </div>
+
+    @if (report(); as r) {
+      <div class="panel__body hr__totals">
+        <div>
+          <span class="hr__total-label">{{ t('hr.entitlements.totalOwed') }}</span>
+          <span class="hr__total-value">{{ i18n.money(r.totalOwed) }}</span>
+        </div>
+
+        <div>
+          <span class="hr__total-label">{{ t('hr.entitlements.leaveLiability') }}</span>
+          <span class="hr__total-value">{{ i18n.money(r.leaveLiability) }}</span>
+        </div>
+
+        <div>
+          <span class="hr__total-label">{{ t('hr.entitlements.endOfService') }}</span>
+          <span class="hr__total-value">{{ i18n.money(r.endOfService) }}</span>
+        </div>
+      </div>
+    }
+  </section>
+
+  <section class="panel">
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else if (report(); as r) {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('hr.employees.no') }}</th>
+              <th>{{ t('hr.employees.name') }}</th>
+              <th class="numeric">{{ t('hr.entitlements.serviceYears') }}</th>
+              <th class="numeric">{{ t('hr.entitlements.leaveDays') }}</th>
+              <th class="numeric">{{ t('hr.entitlements.leaveLiability') }}</th>
+              <th class="numeric">{{ t('hr.entitlements.endOfService') }}</th>
+              <th class="numeric">{{ t('hr.entitlements.totalOwed') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of r.employees; track row.employeeNo) {
+              <tr>
+                <td class="code">{{ row.employeeNo }}</td>
+                <td>{{ row.name }}</td>
+                <td class="numeric">{{ years(row.serviceYears) }}</td>
+                <td class="numeric">{{ years(row.leaveDays) }}</td>
+                <td class="numeric">{{ i18n.total(row.leaveLiability) }}</td>
+                <td class="numeric">{{ i18n.total(row.endOfService) }}</td>
+                <td class="numeric">{{ i18n.total(row.totalOwed) }}</td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="7" class="empty">{{ t('common.nothingHere') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Said on the report rather than in a manual nobody opens. A figure that is an upper
+           bound and reads as a total is worse than no figure at all. -->
+      <p class="panel__body hr__note">{{ t('hr.entitlements.leaveCaveat') }}</p>
+    }
+  </section>
+</div>

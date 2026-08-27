@@ -37,8 +37,11 @@ export interface Company {
   id: string;
   code: string;
   name: string;
-  nameArabic?: string;
+  nameArabic?: string | null;
   baseCurrencyCode: string;
+
+  /** Set by the company list; the session payload leaves it out. */
+  isActive?: boolean;
 }
 
 /** One entry in the menu, already filtered to what the caller may open. */
@@ -916,4 +919,167 @@ export interface PromotionUptake {
    */
   unpromotedMarginPercent: number | null;
   offers: OfferUptakeRow[];
+}
+
+/** A shop, warehouse or head office. Almost every document names one. */
+export interface Branch {
+  id: string;
+  code: string;
+  name: string;
+  nameArabic: string | null;
+  kind: string;
+  city: string | null;
+  isActive: boolean;
+}
+
+/** The companies, and which one the caller is working in. */
+export interface Companies {
+  current: string | null;
+  companies: Company[];
+}
+
+/** Where somebody worked, and when. Open-ended until they move. */
+export interface BranchAssignment {
+  branchId: string;
+  fromDate: string;
+  toDate: string | null;
+  reason: string | null;
+}
+
+/** Somebody who works here, or used to. */
+export interface Employee {
+  no: string;
+  name: string;
+  nameArabic: string | null;
+  nationality: string | null;
+  hiredOn: string;
+  leftOn: string | null;
+  leavingReason: string;
+  status: string;
+  position: string | null;
+
+  /** Null rather than zero where the caller may not see pay. Zero would read as "unpaid". */
+  basicWage: number | null;
+  allowances: number | null;
+  totalWage: number | null;
+  branchAssignments: BranchAssignment[];
+}
+
+/** Why somebody left, which decides what they are owed rather than describing it. */
+export type LeavingReason =
+  | 'None'
+  | 'Resignation'
+  | 'Termination'
+  | 'EndOfContract'
+  | 'Retirement'
+  | 'Death'
+  | 'Disability';
+
+/** What a client sends to hire somebody. */
+export interface HireRequest {
+  name: string;
+  hiredOn: string;
+  nameArabic?: string | null;
+  no?: string | null;
+  nationalId?: string | null;
+  nationality?: string | null;
+  basicWage?: number;
+  allowances?: number;
+  branchId?: string | null;
+}
+
+/** What a client sends to move somebody to another branch. */
+export interface TransferRequest {
+  branchId: string;
+  fromDate: string;
+  reason?: string | null;
+}
+
+/** What a client sends to record that somebody has left. */
+export interface LeavingRequest {
+  leftOn: string;
+  reason: LeavingReason;
+}
+
+/** An employee, and whatever was worth saying about the change. */
+export interface EmployeeSaved {
+  employee: Employee;
+  messages: AsapMessage[];
+}
+
+/** What one person has earned and not yet been given. */
+export interface EmployeeEntitlement {
+  employeeNo: string;
+  name: string;
+  serviceYears: number;
+  leaveDays: number;
+  leaveLiability: number;
+  endOfService: number;
+  totalOwed: number;
+}
+
+/** What the company owes its staff, in total and per person. */
+export interface Entitlements {
+  totalOwed: number;
+  leaveLiability: number;
+  endOfService: number;
+  employees: EmployeeEntitlement[];
+}
+
+/** How much of somebody's month one branch carries. */
+export interface PayrollBranchShare {
+  branchId: string;
+  days: number;
+  amount: number;
+}
+
+/** What one person is owed for the period, and where the cost lands. */
+export interface PayrollLine {
+  employeeNo: string;
+  employeeName: string;
+  daysWorked: number;
+  basicPay: number;
+  allowances: number;
+  otherEarnings: number;
+  deductions: number;
+  grossPay: number;
+  netPay: number;
+  endOfServiceCharge: number;
+  branchShares: PayrollBranchShare[];
+}
+
+/** A payroll run in the list. */
+export interface PayrollRunSummary {
+  no: string;
+  fromDate: string;
+  toDate: string;
+  status: string;
+  people: number;
+  grossPay: number;
+  netPay: number;
+  endOfServiceCharge: number;
+  transactionNo: number | null;
+}
+
+/** A payroll run and everybody in it. */
+export interface PayrollRun extends PayrollRunSummary {
+  postingDate: string;
+  description: string | null;
+  daysInPeriod: number;
+  deductions: number;
+  lines: PayrollLine[];
+}
+
+/** What a client sends to work out a period. */
+export interface CalculatePayrollRequest {
+  from: string;
+  to: string;
+  postingDate?: string | null;
+  description?: string | null;
+}
+
+/** A run, and whatever was worth saying about it. */
+export interface PayrollSaved {
+  run: PayrollRun;
+  messages: AsapMessage[];
 }

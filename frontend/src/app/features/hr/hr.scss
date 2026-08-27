@@ -1,0 +1,58 @@
+.hr__narrow {
+  flex: 0 0 9rem;
+}
+
+.hr__wide {
+  flex: 1 1 16rem;
+}
+
+.hr__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+/* Said under the table rather than in place of a figure. Somebody who cannot see wages should
+   know the column exists and is withheld, not wonder whether the data is missing. */
+.hr__note {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.hr__row {
+  cursor: pointer;
+}
+
+.hr__row--selected td {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+/* The branch split. Indented under the person it belongs to, because it is a breakdown of their
+   line and not a row of its own -- a flat list of shares reads as more people than there are. */
+.hr__share {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.hr__share + .hr__share::before {
+  content: ' · ';
+}
+
+.hr__totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2rem;
+}
+
+.hr__total-label {
+  display: block;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.hr__total-value {
+  font-size: 1.5rem;
+  font-weight: 600;
+}

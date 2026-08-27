@@ -1,4 +1,6 @@
 using ASAP.Api.Infrastructure;
+using ASAP.Modules.Hr.Leave;
+using ASAP.Platform.Kernel.Results;
 using ASAP.Modules.Hr.Payroll;
 using ASAP.Modules.Hr.People;
 using ASAP.Platform.Kernel.Security;
@@ -43,6 +45,25 @@ public sealed record TransferRequest(Guid BranchId, DateOnly FromDate, string? R
 /// </param>
 public sealed record LeavingRequest(DateOnly LeftOn, LeavingReason Reason);
 
+/// <summary>What a client sends to ask for leave.</summary>
+/// <param name="EmployeeNo">Who is asking.</param>
+/// <param name="Kind">What kind of leave.</param>
+/// <param name="FromDate">First day away.</param>
+/// <param name="ToDate">Last day away.</param>
+/// <param name="Reason">Why, in their words.</param>
+/// <param name="Submit">Whether to ask straight away rather than keep it as a draft.</param>
+public sealed record LeaveRequestInput(
+    string EmployeeNo,
+    LeaveKind Kind,
+    DateOnly FromDate,
+    DateOnly ToDate,
+    string? Reason = null,
+    bool Submit = true);
+
+/// <summary>What a client sends when deciding on leave.</summary>
+/// <param name="Note">What the decider wants recorded.</param>
+public sealed record LeaveDecisionInput(string? Note = null);
+
 /// <summary>What a client sends to post a payroll run.</summary>
 /// <param name="OverrideReason">Why a protection is being pushed past.</param>
 public sealed record PostPayrollRequest(string? OverrideReason = null);
@@ -66,6 +87,9 @@ public static class HrEndpoints
     private const string UpdatePermission = "Hr.Employee.Update";
     private const string WageReadPermission = "Hr.Wage.Read";
     private const string WageUpdatePermission = "Hr.Wage.Update";
+    private const string LeaveReadPermission = "Hr.Leave.Read";
+    private const string LeaveCreatePermission = "Hr.Leave.Create";
+    private const string LeaveApprovePermission = "Hr.Leave.Approve";
     private const string ReportPermission = "Hr.Report.Read";
 
     /// <summary>Maps the human resources endpoints.</summary>
@@ -96,6 +120,30 @@ public static class HrEndpoints
         group.MapPost("/employees/{employeeNo}/leaving", LeavingAsync)
              .WithName("RecordLeaving")
              .WithSummary("Records that somebody has left, and works out what they are owed.");
+
+        group.MapGet("/leave", LeaveListAsync)
+             .WithName("LeaveRequests")
+             .WithSummary("Lists leave requests, most recent first.");
+
+        group.MapGet("/leave/balance/{employeeNo}", LeaveBalanceAsync)
+             .WithName("LeaveBalance")
+             .WithSummary("What one employee has earned, taken and has left.");
+
+        group.MapPost("/leave", LeaveRequestAsync)
+             .WithName("RequestLeave")
+             .WithSummary("Asks for leave, checking it against the balance and what else is booked.");
+
+        group.MapPost("/leave/{requestNo}/approve", LeaveApproveAsync)
+             .WithName("ApproveLeave")
+             .WithSummary("Grants a request, which is what makes it count.");
+
+        group.MapPost("/leave/{requestNo}/reject", LeaveRejectAsync)
+             .WithName("RejectLeave")
+             .WithSummary("Refuses a request, keeping the record of having been asked.");
+
+        group.MapPost("/leave/{requestNo}/cancel", LeaveCancelAsync)
+             .WithName("CancelLeave")
+             .WithSummary("Withdraws a request, granted or not.");
 
         group.MapGet("/entitlements", EntitlementsAsync)
              .WithName("HrEntitlements")
@@ -298,6 +346,150 @@ public static class HrEndpoints
         });
     }
 
+    private static async Task<IResult> LeaveListAsync(
+        LeaveService leave,
+        IUserContext user,
+        HttpContext http,
+        [FromQuery] string? employeeNo,
+        [FromQuery] DateOnly? from,
+        [FromQuery] DateOnly? to,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, LeaveReadPermission))
+        {
+            return Forbidden(LeaveReadPermission, "see leave", http);
+        }
+
+        var requests = await leave
+            .ListAsync(employeeNo, from, to, cancellationToken)
+            .ConfigureAwait(false);
+
+        return Results.Ok(requests.Select(View));
+    }
+
+    private static async Task<IResult> LeaveBalanceAsync(
+        string employeeNo,
+        LeaveService leave,
+        IUserContext user,
+        HttpContext http,
+        [FromQuery] DateOnly? on,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, LeaveReadPermission))
+        {
+            return Forbidden(LeaveReadPermission, "see leave", http);
+        }
+
+        var result = await leave.EntitlementAsync(employeeNo, on, cancellationToken).ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.Ok(result.Value);
+    }
+
+    private static async Task<IResult> LeaveRequestAsync(
+        LeaveRequestInput request,
+        LeaveService leave,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, LeaveCreatePermission))
+        {
+            return Forbidden(LeaveCreatePermission, "ask for leave", http);
+        }
+
+        var result = await leave
+            .RequestAsync(
+                request.EmployeeNo,
+                request.Kind,
+                request.FromDate,
+                request.ToDate,
+                request.Reason,
+                request.Submit,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed
+            ? Refused(result, http)
+            : Results.Ok(new { request = View(result.Value), messages = MessagePayload.FromAll(result.Messages) });
+    }
+
+    private static Task<IResult> LeaveApproveAsync(
+        string requestNo,
+        LeaveDecisionInput? decision,
+        LeaveService leave,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+        => DecideLeaveAsync(
+            user,
+            http,
+            LeaveApprovePermission,
+            "decide on leave",
+            () => leave.ApproveAsync(requestNo, decision?.Note, cancellationToken));
+
+    private static Task<IResult> LeaveRejectAsync(
+        string requestNo,
+        LeaveDecisionInput? decision,
+        LeaveService leave,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+        => DecideLeaveAsync(
+            user,
+            http,
+            LeaveApprovePermission,
+            "decide on leave",
+            () => leave.RejectAsync(requestNo, decision?.Note, cancellationToken));
+
+    private static Task<IResult> LeaveCancelAsync(
+        string requestNo,
+        LeaveDecisionInput? decision,
+        LeaveService leave,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+        => DecideLeaveAsync(
+            user,
+            http,
+            LeaveCreatePermission,
+            "withdraw leave",
+            () => leave.CancelAsync(requestNo, decision?.Note, cancellationToken));
+
+    private static async Task<IResult> DecideLeaveAsync(
+        IUserContext user,
+        HttpContext http,
+        string permission,
+        string doing,
+        Func<Task<Result<LeaveRequest>>> decide)
+    {
+        if (!Can(user, permission))
+        {
+            return Forbidden(permission, doing, http);
+        }
+
+        var result = await decide().ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.Ok(View(result.Value));
+    }
+
+    private static object View(LeaveRequest request)
+        => new
+        {
+            no = request.No,
+            employeeNo = request.EmployeeNo,
+            employeeName = request.EmployeeName,
+            kind = request.Kind.ToString(),
+            fromDate = request.FromDate,
+            toDate = request.ToDate,
+            days = request.Days,
+            status = request.Status.ToString(),
+            reason = request.Reason,
+            decisionNote = request.DecisionNote,
+            decidedAtUtc = request.DecidedAtUtc,
+        };
+
     private static async Task<IResult> PayrollListAsync(
         PayrollService payroll,
         IUserContext user,
@@ -461,6 +653,10 @@ public static class HrEndpoints
                     allowances = l.Allowances,
                     otherEarnings = l.OtherEarnings,
                     deductions = l.Deductions,
+
+                    // What the deduction was for. A figure on a payslip with nothing beside it
+                    // is the thing somebody comes to ask about.
+                    note = l.Note,
                     grossPay = l.GrossPay,
                     netPay = l.NetPay,
                     endOfServiceCharge = l.EndOfServiceCharge,

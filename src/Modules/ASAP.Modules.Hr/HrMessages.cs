@@ -39,6 +39,24 @@ public static class HrMessages
     /// <summary>A wage below nothing.</summary>
     public static readonly MessageCode WageNegative = new("HR.EMPLOYEE.WAGE_NEGATIVE");
 
+    /// <summary>The leave request named does not exist.</summary>
+    public static readonly MessageCode LeaveNotFound = new("HR.LEAVE.NOT_FOUND");
+
+    /// <summary>Leave asked for that ends before it starts.</summary>
+    public static readonly MessageCode LeaveEndsBeforeItStarts = new("HR.LEAVE.ENDS_BEFORE_START");
+
+    /// <summary>Leave that covers days another request already covers.</summary>
+    public static readonly MessageCode LeaveOverlaps = new("HR.LEAVE.OVERLAPS");
+
+    /// <summary>Annual leave asked for beyond what has been earned.</summary>
+    public static readonly MessageCode LeaveExceedsBalance = new("HR.LEAVE.EXCEEDS_BALANCE");
+
+    /// <summary>Something tried to change a request that has been decided.</summary>
+    public static readonly MessageCode LeaveAlreadyDecided = new("HR.LEAVE.ALREADY_DECIDED");
+
+    /// <summary>Leave asked for outside somebody's employment.</summary>
+    public static readonly MessageCode LeaveOutsideEmployment = new("HR.LEAVE.OUTSIDE_EMPLOYMENT");
+
     /// <summary>The payroll run named does not exist.</summary>
     public static readonly MessageCode PayrollRunNotFound = new("HR.PAYROLL.NOT_FOUND");
 
@@ -189,6 +207,99 @@ public static class HrMessages
                 + "against the contract.",
                 "أدخل ما يتقاضاه فعلاً. فالاستقطاع يُسجَّل على مسيّر الرواتب لا على العقد."),
             HelpTopic = "hr/employees",
+        },
+        new()
+        {
+            Code = LeaveNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such leave request", "لا يوجد طلب إجازة بهذا الرقم"),
+            Detail = new LocalizedText(
+                "No leave request in this company is numbered {RequestNo}.",
+                "لا يوجد في هذه الشركة طلب إجازة يحمل الرقم {RequestNo}."),
+            Resolution = new LocalizedText(
+                "Check the number against the leave register.",
+                "تحقق من الرقم في سجل الإجازات."),
+            HelpTopic = "hr/leave",
+        },
+        new()
+        {
+            Code = LeaveEndsBeforeItStarts,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("It ends before it starts", "تاريخ النهاية قبل البداية"),
+            Detail = new LocalizedText(
+                "The leave runs from {FromDate:d} to {ToDate:d}.",
+                "الإجازة من {FromDate:d} إلى {ToDate:d}."),
+            Resolution = new LocalizedText(
+                "Correct whichever date is wrong. A single day is entered with the same date twice.",
+                "صحّح التاريخ الخاطئ. واليوم الواحد يُدخل بنفس التاريخ في الحقلين."),
+            HelpTopic = "hr/leave",
+        },
+        new()
+        {
+            Code = LeaveOverlaps,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("They are already away then", "الموظف في إجازة في هذه الأيام"),
+            Detail = new LocalizedText(
+                "{EmployeeNo} already has {ExistingNo} from {ExistingFrom:d} to {ExistingTo:d}, "
+                + "which covers some of the same days. Counted twice, those days come off the "
+                + "balance twice and off the wage twice.",
+                "لدى الموظف {EmployeeNo} الطلب {ExistingNo} من {ExistingFrom:d} إلى {ExistingTo:d}، "
+                + "وهو يغطي بعض الأيام نفسها. واحتسابها مرتين يخصمها من الرصيد مرتين ومن الأجر "
+                + "مرتين."),
+            Resolution = new LocalizedText(
+                "Change the dates, or cancel {ExistingNo} first.",
+                "غيّر التواريخ، أو ألغِ الطلب {ExistingNo} أولاً."),
+            HelpTopic = "hr/leave",
+        },
+        new()
+        {
+            Code = LeaveExceedsBalance,
+            Severity = MessageSeverity.Warning,
+            Title = new LocalizedText("More than they have earned", "أكثر من الرصيد المستحق"),
+            Detail = new LocalizedText(
+                "{EmployeeNo} is asking for {Days:N1} days and has {BalanceDays:N1} earned by "
+                + "{ToDate:d}.",
+                "يطلب الموظف {EmployeeNo} عدد {Days:N1} يومًا، ورصيده المستحق حتى {ToDate:d} هو "
+                + "{BalanceDays:N1} يومًا."),
+            Resolution = new LocalizedText(
+                "Granted anyway, it is leave taken in advance and the balance goes negative until "
+                + "it is earned back. That is a decision somebody should make on purpose rather "
+                + "than discover at the end of the year.",
+                "إن مُنحت فهي إجازة مقدَّمة ويصبح الرصيد سالبًا حتى تُستحق. وهذا قرار ينبغي أن "
+                + "يُتخذ عن قصد لا أن يُكتشف في نهاية العام."),
+            HelpTopic = "hr/leave",
+        },
+        new()
+        {
+            Code = LeaveAlreadyDecided,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("This has been decided", "تم البتّ في هذا الطلب"),
+            Detail = new LocalizedText(
+                "{RequestNo} is {Status}. What was decided about somebody's time off is an answer "
+                + "they were given, and editing it afterwards changes the record of what they "
+                + "were told.",
+                "الطلب {RequestNo} حالته {Status}. وما تقرر بشأن إجازة الموظف جواب أُبلغ به، "
+                + "وتعديله لاحقًا يغيّر سجل ما قيل له."),
+            Resolution = new LocalizedText(
+                "Cancel it and raise another, so both the decision and the change to it are on "
+                + "the record.",
+                "ألغه وأنشئ طلبًا آخر، ليبقى القرار وتعديله كلاهما في السجل."),
+            HelpTopic = "hr/leave",
+        },
+        new()
+        {
+            Code = LeaveOutsideEmployment,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("They were not employed then", "خارج مدة العمل"),
+            Detail = new LocalizedText(
+                "The leave runs from {FromDate:d} to {ToDate:d}, and {EmployeeNo} was hired on "
+                + "{HiredOn:d}{LeftClause}.",
+                "الإجازة من {FromDate:d} إلى {ToDate:d}، والموظف {EmployeeNo} عُيّن في "
+                + "{HiredOn:d}{LeftClause}."),
+            Resolution = new LocalizedText(
+                "Leave is earned by working, so it can only be taken over days somebody was here.",
+                "الإجازة تُستحق بالعمل، فلا تُؤخذ إلا عن أيام كان فيها الموظف على رأس العمل."),
+            HelpTopic = "hr/leave",
         },
         new()
         {

@@ -1,0 +1,203 @@
+<div class="page">
+  <h1>{{ t('hr.leave.title') }}</h1>
+
+  @if (canAsk()) {
+    <section class="panel">
+      <div class="panel__header">
+        <h2>{{ t('hr.leave.ask') }}</h2>
+      </div>
+
+      <p class="panel__body page__intro">{{ t('hr.leave.intro') }}</p>
+
+      <div class="panel__body draft">
+        <div class="field hr__wide">
+          <label class="field__label" for="employeeNo">{{ t('hr.leave.employee') }}</label>
+          <select
+            id="employeeNo"
+            class="select"
+            [(ngModel)]="employeeNo"
+            (ngModelChange)="selectEmployee()"
+          >
+            @for (employee of employees(); track employee.no) {
+              <option [value]="employee.no">{{ employee.no }} — {{ employee.name }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="kind">{{ t('hr.leave.kind') }}</label>
+          <select id="kind" class="select" [(ngModel)]="kind">
+            @for (option of kinds; track option) {
+              <option [value]="option">{{ kindLabel(option) }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="fromDate">{{ t('hr.leave.from') }}</label>
+          <input id="fromDate" class="input" type="date" [(ngModel)]="fromDate" />
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="toDate">{{ t('hr.leave.to') }}</label>
+          <input
+            id="toDate"
+            class="input"
+            type="date"
+            [(ngModel)]="toDate"
+            (ngModelChange)="selectEmployee()"
+          />
+        </div>
+
+        <div class="field hr__narrow">
+          <span class="field__label">{{ t('hr.leave.days') }}</span>
+          <span class="hr__total-value">{{ draftDays() }}</span>
+        </div>
+      </div>
+
+      <div class="panel__body draft">
+        <div class="field hr__wide">
+          <label class="field__label" for="reason">{{ t('hr.leave.reason') }}</label>
+          <input id="reason" class="input" [(ngModel)]="reason" />
+        </div>
+
+        <button
+          type="button"
+          class="button button--primary"
+          [disabled]="!employeeNo || draftDays() < 1 || busy() !== null"
+          (click)="ask()"
+        >
+          @if (busy() === 'ask') {
+            <span class="spinner"></span>
+          }
+          {{ t('hr.leave.ask') }}
+        </button>
+      </div>
+
+      @if (balance(); as b) {
+        <!-- Shown beside the form, because the moment somebody needs it is while they are
+             choosing the dates rather than after they have asked. -->
+        <div class="panel__body hr__totals">
+          <div>
+            <span class="hr__total-label">{{ t('hr.leave.asAt') }}</span>
+            <span class="hr__total-value code">{{ b.asAt }}</span>
+          </div>
+
+          <div>
+            <span class="hr__total-label">{{ t('hr.leave.earned') }}</span>
+            <span class="hr__total-value">{{ b.earnedDays }}</span>
+          </div>
+
+          <div>
+            <span class="hr__total-label">{{ t('hr.leave.taken') }}</span>
+            <span class="hr__total-value">{{ b.takenDays }}</span>
+          </div>
+
+          <div>
+            <span class="hr__total-label">{{ t('hr.leave.balance') }}</span>
+            <span class="hr__total-value" [class.branch__loss]="b.balanceDays < 0">
+              {{ b.balanceDays }}
+            </span>
+          </div>
+
+          <div>
+            <span class="hr__total-label">{{ t('hr.leave.worth') }}</span>
+            <span class="hr__total-value">{{ i18n.money(b.liability) }}</span>
+          </div>
+        </div>
+      }
+    </section>
+  }
+
+  <section class="panel">
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('hr.leave.no') }}</th>
+              <th>{{ t('hr.leave.employee') }}</th>
+              <th>{{ t('hr.leave.kind') }}</th>
+              <th>{{ t('hr.leave.from') }}</th>
+              <th>{{ t('hr.leave.to') }}</th>
+              <th class="numeric">{{ t('hr.leave.days') }}</th>
+              <th>{{ t('hr.leave.status') }}</th>
+              <th>{{ t('hr.leave.reason') }}</th>
+              @if (canDecide() || canAsk()) {
+                <th></th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (request of requests(); track request.no) {
+              <tr>
+                <td class="code">{{ request.no }}</td>
+                <td>
+                  <span class="code">{{ request.employeeNo }}</span>
+                  <span class="hr__share">{{ request.employeeName }}</span>
+                </td>
+                <td>{{ kindLabel(request.kind) }}</td>
+                <td class="code">{{ request.fromDate }}</td>
+                <td class="code">{{ request.toDate }}</td>
+                <td class="numeric">{{ request.days }}</td>
+                <td><span class="tag">{{ statusLabel(request.status) }}</span></td>
+                <td>{{ request.reason }}</td>
+
+                @if (canDecide() || canAsk()) {
+                  <td class="draft__actions">
+                    @if (request.status === 'Draft' || request.status === 'Submitted') {
+                      @if (canDecide()) {
+                        <button
+                          type="button"
+                          class="button button--primary"
+                          [disabled]="busy() !== null"
+                          (click)="decide(request, 'approve')"
+                        >
+                          {{ t('hr.leave.approve') }}
+                        </button>
+
+                        <button
+                          type="button"
+                          class="button"
+                          [disabled]="busy() !== null"
+                          (click)="decide(request, 'reject')"
+                        >
+                          {{ t('hr.leave.reject') }}
+                        </button>
+                      }
+                    }
+
+                    <!-- Cancelling stays available once granted. Somebody who was given the week
+                         off and came in anyway should not be recorded as having taken it. -->
+                    @if (
+                      canAsk() && request.status !== 'Cancelled' && request.status !== 'Rejected'
+                    ) {
+                      <button
+                        type="button"
+                        class="button"
+                        [disabled]="busy() !== null"
+                        (click)="decide(request, 'cancel')"
+                      >
+                        {{ t('hr.leave.cancel') }}
+                      </button>
+                    }
+                  </td>
+                }
+              </tr>
+            } @empty {
+              <tr>
+                <td [attr.colspan]="canDecide() || canAsk() ? 9 : 8" class="empty">
+                  {{ t('common.nothingHere') }}
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <p class="panel__body hr__note">{{ t('hr.leave.countedNote') }}</p>
+    }
+  </section>
+</div>

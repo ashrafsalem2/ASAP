@@ -1042,6 +1042,9 @@ export interface PayrollLine {
   allowances: number;
   otherEarnings: number;
   deductions: number;
+
+  /** What the deduction was for. A figure with nothing beside it is what somebody asks about. */
+  note: string | null;
   grossPay: number;
   netPay: number;
   endOfServiceCharge: number;
@@ -1116,4 +1119,64 @@ export interface BranchPerformance {
    */
   unattributed: BranchPerformanceRow | null;
   total: BranchPerformanceRow;
+}
+
+/** Why somebody is away. What it is called decides what it is paid at. */
+export type LeaveKind =
+  | 'Annual'
+  | 'Sick'
+  | 'Unpaid'
+  | 'Maternity'
+  | 'Hajj'
+  | 'Marriage'
+  | 'Bereavement'
+  | 'Examination';
+
+/** Where a leave request has got to. */
+export type LeaveStatus = 'Draft' | 'Submitted' | 'Approved' | 'Rejected' | 'Cancelled';
+
+/** Somebody asking to be away, and what was decided. */
+export interface LeaveRequest {
+  no: string;
+  employeeNo: string;
+  employeeName: string;
+  kind: LeaveKind;
+  fromDate: string;
+  toDate: string;
+
+  /** Calendar days, inclusive of both ends, which is how the law counts leave. */
+  days: number;
+  status: LeaveStatus;
+  reason: string | null;
+  decisionNote: string | null;
+  decidedAtUtc: string | null;
+}
+
+/** What one employee has earned, taken and has left. */
+export interface LeaveEntitlement {
+  employeeNo: string;
+  name: string;
+  asAt: string;
+  earnedDays: number;
+  takenDays: number;
+
+  /** Negative where leave was granted before it was earned, which is a real state. */
+  balanceDays: number;
+  liability: number;
+}
+
+/** What a client sends to ask for leave. */
+export interface LeaveRequestInput {
+  employeeNo: string;
+  kind: LeaveKind;
+  fromDate: string;
+  toDate: string;
+  reason?: string | null;
+  submit?: boolean;
+}
+
+/** A request, and whatever was worth saying about it. */
+export interface LeaveSaved {
+  request: LeaveRequest;
+  messages: AsapMessage[];
 }

@@ -10,6 +10,10 @@ import {
   EmployeeSaved,
   Entitlements,
   HireRequest,
+  LeaveEntitlement,
+  LeaveRequest,
+  LeaveRequestInput,
+  LeaveSaved,
   LeavingRequest,
   PayrollRun,
   PayrollRunSummary,
@@ -84,6 +88,56 @@ export class HrService {
     const params = on ? new HttpParams().set('on', on) : new HttpParams();
 
     return firstValueFrom(this.http.get<Entitlements>(`${this.base}/entitlements`, { params }));
+  }
+
+  /** Leave requests, most recent first. */
+  leaveRequests(employeeNo?: string, from?: string, to?: string): Promise<LeaveRequest[]> {
+    let params = new HttpParams();
+
+    if (employeeNo) {
+      params = params.set('employeeNo', employeeNo);
+    }
+
+    if (from) {
+      params = params.set('from', from);
+    }
+
+    if (to) {
+      params = params.set('to', to);
+    }
+
+    return firstValueFrom(this.http.get<LeaveRequest[]>(`${this.base}/leave`, { params }));
+  }
+
+  /** What one employee has earned, taken and has left. */
+  leaveBalance(employeeNo: string, on?: string): Promise<LeaveEntitlement> {
+    const params = on ? new HttpParams().set('on', on) : new HttpParams();
+
+    return firstValueFrom(
+      this.http.get<LeaveEntitlement>(
+        `${this.base}/leave/balance/${encodeURIComponent(employeeNo)}`,
+        { params },
+      ),
+    );
+  }
+
+  /** Asks for leave. */
+  requestLeave(request: LeaveRequestInput): Promise<LeaveSaved> {
+    return firstValueFrom(this.http.post<LeaveSaved>(`${this.base}/leave`, request));
+  }
+
+  /** Grants, refuses or withdraws a request. */
+  decideLeave(
+    requestNo: string,
+    decision: 'approve' | 'reject' | 'cancel',
+    note?: string,
+  ): Promise<LeaveRequest> {
+    return firstValueFrom(
+      this.http.post<LeaveRequest>(
+        `${this.base}/leave/${encodeURIComponent(requestNo)}/${decision}`,
+        { note: note ?? null },
+      ),
+    );
   }
 
   /** Payroll runs, most recent first. */

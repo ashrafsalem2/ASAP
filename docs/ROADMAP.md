@@ -166,7 +166,13 @@ Everything else posts here, so it goes first.
   whole month wherever they happened to be on payday, and the branch they left would look cheaper
   than it was every time anybody moved
 - Head-office hiring, onboarding and offboarding
-- *in progress* **Leave accrual done** — twenty-one days a year rising to thirty after five, accrued by the day rather than granted in a lump, with the rate changing partway through the year it changes in. Attendance, shifts and a leave register still to come
+- **done** **Leave accrual and the leave register** — twenty-one days a year rising to thirty after
+  five, accrued by the day rather than granted in a lump, with the rate changing partway through
+  the year it changes in. Requests are made, granted, refused or withdrawn, and only a granted one
+  comes off a balance or a wage. Each kind of leave carries its own pay bands as data: sick leave
+  at full pay for thirty days, three quarters for sixty and nothing for thirty after that,
+  cumulative across the year rather than restarting at each absence — so a year of intermittent
+  sickness costs exactly what one long absence costs. Attendance and shifts still to come
 - *in progress* **End of service done** — half a month a year for the first five and a full month
   thereafter, cumulative like tax bands rather than revalued at the final rate, and reduced by
   tenure on resignation. The bands are data, so another jurisdiction is a policy and not a fork.

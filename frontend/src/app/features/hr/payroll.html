@@ -117,7 +117,9 @@
                 <td class="numeric">{{ line.daysWorked }}</td>
                 <td class="numeric">{{ i18n.total(line.basicPay) }}</td>
                 <td class="numeric">{{ i18n.total(line.allowances) }}</td>
-                <td class="numeric">{{ i18n.amount(line.deductions) }}</td>
+                <td class="numeric" [attr.title]="line.note">
+                  {{ i18n.amount(line.deductions) }}
+                </td>
                 <td class="numeric">{{ i18n.total(line.netPay) }}</td>
                 <td class="numeric">{{ i18n.total(line.endOfServiceCharge) }}</td>
 

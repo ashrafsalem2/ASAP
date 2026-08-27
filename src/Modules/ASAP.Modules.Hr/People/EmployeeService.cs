@@ -14,7 +14,10 @@ namespace ASAP.Modules.Hr.People;
 /// <param name="EmployeeNo">Who.</param>
 /// <param name="Name">Their name.</param>
 /// <param name="ServiceYears">How long they have been here.</param>
-/// <param name="LeaveDays">Days of leave earned and not taken.</param>
+/// <param name="LeaveDays">
+/// Days of leave earned and not taken. Negative where somebody was granted leave in advance of
+/// earning it, which is a real state and not an error to hide.
+/// </param>
 /// <param name="LeaveLiability">What those days are worth.</param>
 /// <param name="EndOfService">What they would be owed if the company let them go today.</param>
 /// <param name="TotalOwed">The two together, which is what the company carries for them.</param>
@@ -37,6 +40,7 @@ public readonly record struct EmployeeEntitlement(
 /// looks cheaper than it is.
 /// </remarks>
 /// <param name="context">The unit of work.</param>
+/// <param name="leave">Says what leave has been taken.</param>
 /// <param name="messages">Renders refusals.</param>
 /// <param name="numbers">Issues the employee number.</param>
 /// <param name="setup">Supplies the number series.</param>
@@ -44,6 +48,7 @@ public readonly record struct EmployeeEntitlement(
 /// <param name="logger">Records hirings, transfers and leavers.</param>
 public sealed class EmployeeService(
     AsapDbContext context,
+    Leave.LeaveService leave,
     IMessageCatalog messages,
     INumberSeriesService numbers,
     ISetupService setup,
@@ -413,13 +418,15 @@ public sealed class EmployeeService(
 
         var rows = new List<EmployeeEntitlement>();
 
+        // What everybody has actually taken, in one query. Without it this figure was everything
+        // ever earned -- an upper bound presented as a total, wrong in the company's favour every
+        // year until somebody left and asked for what they were owed.
+        var taken = await leave.AnnualTakenByEmployeeAsync(day, cancellationToken).ConfigureAwait(false);
+
         foreach (var employee in employees)
         {
             var earned = LeaveAccrual.EarnedBetween(employee, employee.HiredOn, day);
-
-            // Nothing records leave taken yet, so this is everything earned. Said plainly rather
-            // than dressed up: the figure is an upper bound until a leave register exists.
-            var balance = LeaveAccrual.Balance(earned, takenDays: 0m);
+            var balance = LeaveAccrual.Balance(earned, taken.GetValueOrDefault(employee.Id));
             var leaveWorth = LeaveAccrual.Liability(employee, balance.BalanceDays);
             var award = EndOfServiceCalculator.For(employee, day);
 

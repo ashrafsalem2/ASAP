@@ -33,6 +33,7 @@ namespace ASAP.Modules.Hr.Payroll;
 /// <param name="context">The unit of work.</param>
 /// <param name="messages">Renders refusals.</param>
 /// <param name="documents">Posts the journal.</param>
+/// <param name="leave">Says who was away and on what terms.</param>
 /// <param name="numbers">Issues the run number.</param>
 /// <param name="setup">Supplies the accounts and the number series.</param>
 /// <param name="overrides">Records every protection somebody pushed past.</param>
@@ -43,6 +44,7 @@ public sealed class PayrollService(
     AsapDbContext context,
     IMessageCatalog messages,
     DocumentPostingService documents,
+    Leave.LeaveService leave,
     INumberSeriesService numbers,
     ISetupService setup,
     OverrideAuditor overrides,
@@ -99,9 +101,15 @@ public sealed class PayrollService(
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+        // One query for the whole run. Unpaid leave is not a rare case that can afford a round
+        // trip each: a shop with fifty staff has somebody on unpaid or long-term sick most months.
+        var awayByEmployee = await leave
+            .UnpaidByEmployeeAsync(from, to, cancellationToken: cancellationToken)
+            .ConfigureAwait(false);
+
         foreach (var employee in employees)
         {
-            var line = LineFor(run, employee, from, to, found);
+            var line = LineFor(run, employee, from, to, awayByEmployee, found);
 
             if (line is not null)
             {
@@ -141,11 +149,15 @@ public sealed class PayrollService(
     }
 
     /// <summary>What one person is owed, and where it should be charged.</summary>
+    private static decimal Round(decimal value)
+        => Math.Round(value, 2, MidpointRounding.AwayFromZero);
+
     private PayrollLine? LineFor(
         PayrollRun run,
         Employee employee,
         DateOnly from,
         DateOnly to,
+        IReadOnlyDictionary<Guid, Leave.LeavePay> awayByEmployee,
         List<AsapMessage> found)
     {
         var byBranch = WageApportionment.DaysByBranch(employee, from, to);
@@ -187,6 +199,16 @@ public sealed class PayrollService(
             Allowances = allowances,
             EndOfServiceCharge = EndOfServiceChargeFor(employee, from, to),
         };
+
+        // Days away that carry no pay come off as a deduction rather than off the days worked.
+        // Both arrive at the same net figure, and only one of them leaves a payslip that says
+        // what happened -- somebody looking at twenty-two days instead of thirty-one has no way
+        // to tell unpaid leave from having joined mid-month.
+        if (awayByEmployee.TryGetValue(employee.Id, out var away) && away.UnpaidDays > 0m)
+        {
+            line.Deductions = Round(employee.TotalWage / 30m * away.UnpaidDays);
+            line.Note = $"{away.UnpaidDays:N1} days of leave carrying no pay";
+        }
 
         foreach (var share in WageApportionment.Split(employee, from, to, line.GrossPay))
         {

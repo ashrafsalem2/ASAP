@@ -175,6 +175,11 @@ export const routes: Routes = [
         loadComponent: () => import('./features/hr/employees').then((m) => m.Employees),
       },
       {
+        path: 'hr/leave',
+        canActivate: [requirePermission('Hr.Leave.Read')],
+        loadComponent: () => import('./features/hr/leave').then((m) => m.Leave),
+      },
+      {
         path: 'hr/payroll',
         canActivate: [requirePermission('Hr.Wage.Read')],
         loadComponent: () => import('./features/hr/payroll').then((m) => m.Payroll),

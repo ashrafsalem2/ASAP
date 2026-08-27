@@ -68,6 +68,7 @@ public sealed class HrModule : IAsapModule, ISyncContributor
 
         services.AddScoped<People.EmployeeService>();
         services.AddScoped<Payroll.PayrollService>();
+        services.AddScoped<Leave.LeaveService>();
     }
 
     /// <inheritdoc />
@@ -119,6 +120,30 @@ public sealed class HrModule : IAsapModule, ISyncContributor
                 + "يُتدارك بملاحظته لاحقًا، فلا ينبغي أن يقدر عليه كل من يشغّل الرواتب دون بيان "
                 + "السبب."),
             isSensitive: true),
+
+        PermissionDescriptor.Define(
+            Id, "Leave", PermissionAction.Read,
+            new LocalizedText("See leave", "الاطلاع على الإجازات"),
+            new LocalizedText(
+                "Who is away, when, and what is left of their entitlement.",
+                "من هو في إجازة ومتى، وما تبقى من رصيده."),
+            implies: [$"{Id}.Employee.Read"]),
+
+        PermissionDescriptor.Define(
+            Id, "Leave", PermissionAction.Create,
+            new LocalizedText("Ask for leave", "طلب إجازة"),
+            implies: [$"{Id}.Leave.Read"]),
+
+        PermissionDescriptor.Define(
+            Id, "Leave", PermissionAction.Approve,
+            new LocalizedText("Decide on leave", "البتّ في طلبات الإجازة"),
+            new LocalizedText(
+                "Separate from asking for it on purpose. Granting leave commits the company to "
+                + "paying for days nobody works and to being short-staffed on them, which is not "
+                + "a decision the person going away should be making alone.",
+                "منفصلة عن طلبها عمدًا. فمنح الإجازة يُلزم الشركة بدفع أيام لا عمل فيها وبنقص "
+                + "العمالة خلالها، وليس قرارًا يخص من سيغيب وحده."),
+            implies: [$"{Id}.Leave.Read"]),
 
         PermissionDescriptor.Define(
             Id, "Report", PermissionAction.Read,
@@ -223,6 +248,21 @@ public sealed class HrModule : IAsapModule, ISyncContributor
         },
         new()
         {
+            Key = $"{Id}.Leave.NumberSeries",
+            Module = Id,
+            Group = new LocalizedText("Numbering", "الترقيم"),
+            DisplayName = new LocalizedText("Leave request numbers", "ترقيم طلبات الإجازة"),
+            Description = new LocalizedText(
+                "The series leave requests are numbered from.",
+                "المسلسل الذي تصدر منه أرقام طلبات الإجازة."),
+            ValueType = SetupValueType.Text,
+            Scope = SetupScope.Company,
+            DefaultValue = "LEAVE",
+            RequiresPermission = $"{Id}.Employee.Update",
+            HelpTopic = "hr/setup",
+        },
+        new()
+        {
             Key = $"{Id}.Employees.NumberSeries",
             Module = Id,
             Group = new LocalizedText("Numbering", "الترقيم"),
@@ -274,6 +314,17 @@ public sealed class HrModule : IAsapModule, ISyncContributor
             Route = "/hr/payroll",
             RequiresPermission = $"{Id}.Wage.Read",
             Order = 15,
+        },
+        new()
+        {
+            Id = "Hr.Leave",
+            Module = Id,
+            ParentId = "Hr.Root",
+            DisplayName = new LocalizedText("Leave", "الإجازات"),
+            Kind = NavigationKind.Page,
+            Route = "/hr/leave",
+            RequiresPermission = $"{Id}.Leave.Read",
+            Order = 12,
         },
         new()
         {

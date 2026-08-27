@@ -142,6 +142,29 @@ public sealed class HrSchema : IModuleSchema
             builder.HasIndex(s => new { s.CompanyId, s.BranchId });
         });
 
+        modelBuilder.Entity<Leave.LeaveRequest>(builder =>
+        {
+            builder.ToTable("LeaveRequests", SchemaName);
+
+            builder.Property(r => r.No).HasMaxLength(20).IsRequired();
+            builder.Property(r => r.EmployeeNo).HasMaxLength(20).IsRequired();
+            builder.Property(r => r.EmployeeName).HasMaxLength(200).IsRequired();
+            builder.Property(r => r.Reason).HasMaxLength(500);
+            builder.Property(r => r.DecisionNote).HasMaxLength(500);
+
+            builder.HasIndex(r => new { r.CompanyId, r.No })
+                   .IsUnique()
+                   .HasFilter("[IsDeleted] = 0");
+
+            // Payroll and the liability report both ask "what did this person have between these
+            // dates", which is what this is seeked on.
+            builder.HasIndex(r => new { r.EmployeeId, r.FromDate });
+
+            builder.Ignore(r => r.Days);
+            builder.Ignore(r => r.Counts);
+            builder.Ignore(r => r.IsEditable);
+        });
+
         modelBuilder.Entity<BranchAssignment>(builder =>
         {
             builder.ToTable("BranchAssignments", SchemaName);

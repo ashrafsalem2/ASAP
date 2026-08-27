@@ -66,12 +66,12 @@ public static class PromotionsMessages
                 + "{FloorPercent:N2}%. أي بفارق {Shortfall:N2} لكل وحدة."),
             Resolution = new LocalizedText(
                 "Reduce the offer, take {ItemNo} out of it, or have somebody holding "
-                + "Promotions.Offer.OverrideMargin approve it. Costs move, so an offer that was "
+                + "Promotions.Offer.Override approve it. Costs move, so an offer that was "
                 + "sound when it was written may not be today.",
                 "خفّض العرض، أو استبعد {ItemNo} منه، أو اطلب اعتماده ممن يملك صلاحية "
-                + "Promotions.Offer.OverrideMargin. فالتكاليف تتغير، وقد لا يكون العرض السليم عند "
+                + "Promotions.Offer.Override. فالتكاليف تتغير، وقد لا يكون العرض السليم عند "
                 + "إعداده سليمًا اليوم."),
-            OverridePermission = "Promotions.Offer.OverrideMargin",
+            OverridePermission = "Promotions.Offer.Override",
             HelpTopic = "promotions/margin",
         },
         new()

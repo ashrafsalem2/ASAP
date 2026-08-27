@@ -39,11 +39,13 @@ public readonly record struct OfferMarginRow(
 /// </remarks>
 /// <param name="context">The unit of work.</param>
 /// <param name="messages">Renders refusals.</param>
+/// <param name="overrides">Records every floor somebody pushed past.</param>
 /// <param name="setup">Supplies the margin floor.</param>
 /// <param name="logger">Records offers saved.</param>
 public sealed class OfferService(
     AsapDbContext context,
     IMessageCatalog messages,
+    OverrideAuditor overrides,
     ISetupService setup,
     ILogger<OfferService> logger)
 {
@@ -135,6 +137,12 @@ public sealed class OfferService(
         {
             Apply(existing, offer);
         }
+
+        // The text somebody just read says the override has been recorded against their name.
+        // Something has to make that true, and it is not enough that a previous module remembered
+        // to -- this one had the same message and no auditor behind it, which is a promise printed
+        // and not kept.
+        overrides.Record(found, "Promotions.Offer", offer.Code, overrideReason);
 
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 

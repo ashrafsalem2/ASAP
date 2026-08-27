@@ -1,0 +1,36 @@
+.draft {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.draft__actions {
+  display: flex;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.offer__narrow {
+  flex: 0 0 9rem;
+}
+
+.offer__wide {
+  flex: 1 1 18rem;
+}
+
+.offer__desc {
+  color: var(--text-muted);
+  margin-inline-start: 0.5rem;
+}
+
+/* Anything below the floor. Coloured rather than merely listed, because the whole point of the
+   preview is that somebody scanning it spots the two items out of forty that ruin the offer. */
+.offer__breach {
+  color: var(--caution);
+  font-weight: 600;
+}
+
+.offer__breach-row td {
+  background: color-mix(in srgb, var(--caution) 8%, transparent);
+}

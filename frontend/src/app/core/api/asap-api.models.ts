@@ -777,3 +777,107 @@ export interface PosReceiptPosted {
   costAmount: number;
   messages?: AsapMessage[];
 }
+
+/** What shape an offer takes. */
+export type OfferKind = 'Percentage' | 'AmountPerUnit' | 'BuyXGetY' | 'Threshold' | 'FixedPrice';
+
+/** What an offer applies to. */
+export type OfferScope = 'Item' | 'Category' | 'Everything';
+
+/** What happens when more than one offer could apply. */
+export type StackingRule = 'Stacks' | 'Exclusive' | 'Blocking';
+
+/** One thing an offer applies to. */
+export interface OfferTarget {
+  itemNo?: string;
+  categoryId?: string;
+}
+
+/** A reason to charge less than the price list says. */
+export interface Offer {
+  code: string;
+  name: string;
+  nameArabic?: string;
+  kind: OfferKind;
+  scope: OfferScope;
+  value: number;
+  buyQuantity: number;
+  getQuantity: number;
+  getDiscountPercent: number;
+  startsOn: string;
+  endsOn?: string;
+  startsAt?: string;
+  endsAt?: string;
+
+  /** Which days it runs, as a bit per day of week, or null for every day. */
+  daysOfWeek?: number | null;
+  channels: string;
+  branchId?: string;
+  customerGroup?: string;
+  couponCode?: string;
+  stacking: StackingRule;
+  priority: number;
+  isActive: boolean;
+  timesApplied: number;
+  totalGivenAway: number;
+  targets: OfferTarget[];
+}
+
+/** What a client sends to write an offer. */
+export interface SaveOfferRequest {
+  code: string;
+  name: string;
+  nameArabic?: string;
+  kind: OfferKind;
+  scope: OfferScope;
+  value?: number;
+  buyQuantity?: number;
+  getQuantity?: number;
+  getDiscountPercent?: number;
+  startsOn: string;
+  endsOn?: string;
+  startsAt?: string;
+  endsAt?: string;
+  daysOfWeek?: number | null;
+  channels?: string;
+  branchId?: string;
+  customerGroup?: string;
+  couponCode?: string;
+  stacking?: StackingRule;
+  priority?: number;
+  isActive?: boolean;
+  targets?: OfferTarget[];
+  overrideReason?: string;
+}
+
+/** What an offer would do to one item, at today's cost. */
+export interface OfferMarginRow {
+  itemNo: string;
+  description: string;
+  unitPrice: number;
+  unitCost: number;
+  offerPrice: number;
+  marginPercent: number;
+
+  /** How far under the floor, per unit. The figure a decision gets made on. */
+  shortfallPerUnit: number;
+  isAcceptable: boolean;
+}
+
+/** What an offer would do across everything it covers. */
+export interface OfferPreview {
+  floorPercent: number;
+
+  /** The worst margin the offer would leave anywhere, or null when it covers nothing. */
+  worst: number | null;
+
+  /** How many items it would take below the floor. */
+  breaches: number;
+  rows: OfferMarginRow[];
+}
+
+/** What writing an offer produced. */
+export interface OfferSaved {
+  offer: Offer;
+  messages?: AsapMessage[];
+}

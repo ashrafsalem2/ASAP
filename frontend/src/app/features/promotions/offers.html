@@ -1,0 +1,262 @@
+<div class="page">
+  <h1>{{ t('promotions.offers.title') }}</h1>
+
+  @if (canWrite()) {
+    <section class="panel">
+      <div class="panel__header">
+        <h2>{{ t('promotions.offers.write') }}</h2>
+      </div>
+
+      <p class="panel__body page__intro">{{ t('promotions.offers.intro') }}</p>
+
+      <div class="panel__body draft">
+        <div class="field offer__narrow">
+          <label class="field__label" for="code">{{ t('promotions.offers.code') }}</label>
+          <input id="code" class="input code" [(ngModel)]="code" />
+        </div>
+
+        <div class="field offer__wide">
+          <label class="field__label" for="name">{{ t('promotions.offers.name') }}</label>
+          <input id="name" class="input" [(ngModel)]="name" />
+        </div>
+
+        <div class="field offer__wide">
+          <label class="field__label" for="nameArabic">{{ t('promotions.offers.nameArabic') }}</label>
+          <input id="nameArabic" class="input" dir="rtl" [(ngModel)]="nameArabic" />
+        </div>
+      </div>
+
+      <div class="panel__body draft">
+        <div class="field">
+          <label class="field__label" for="kind">{{ t('promotions.offers.kind') }}</label>
+          <select id="kind" class="select" [(ngModel)]="kind">
+            <option value="Percentage">{{ t('promotions.kind.Percentage') }}</option>
+            <option value="AmountPerUnit">{{ t('promotions.kind.AmountPerUnit') }}</option>
+            <option value="BuyXGetY">{{ t('promotions.kind.BuyXGetY') }}</option>
+            <option value="Threshold">{{ t('promotions.kind.Threshold') }}</option>
+            <option value="FixedPrice">{{ t('promotions.kind.FixedPrice') }}</option>
+          </select>
+        </div>
+
+        @if (kind !== 'BuyXGetY') {
+          <div class="field offer__narrow">
+            <label class="field__label" for="value">{{ t('promotions.offers.value') }}</label>
+            <input
+              id="value"
+              class="input input--number"
+              type="number"
+              inputmode="decimal"
+              [(ngModel)]="value"
+            />
+          </div>
+        } @else {
+          <div class="field offer__narrow">
+            <label class="field__label" for="buyQuantity">{{ t('promotions.offers.buy') }}</label>
+            <input
+              id="buyQuantity"
+              class="input input--number"
+              type="number"
+              inputmode="decimal"
+              min="0"
+              [(ngModel)]="buyQuantity"
+            />
+          </div>
+
+          <div class="field offer__narrow">
+            <label class="field__label" for="getQuantity">{{ t('promotions.offers.get') }}</label>
+            <input
+              id="getQuantity"
+              class="input input--number"
+              type="number"
+              inputmode="decimal"
+              min="0"
+              [(ngModel)]="getQuantity"
+            />
+          </div>
+        }
+
+        <div class="field">
+          <label class="field__label" for="scope">{{ t('promotions.offers.scope') }}</label>
+          <select id="scope" class="select" [(ngModel)]="scope">
+            <option value="Everything">{{ t('promotions.scope.Everything') }}</option>
+            <option value="Item">{{ t('promotions.scope.Item') }}</option>
+          </select>
+        </div>
+
+        @if (scope === 'Item') {
+          <div class="field offer__wide">
+            <label class="field__label" for="targetItemNo">{{ t('promotions.offers.item') }}</label>
+            <select id="targetItemNo" class="select" [(ngModel)]="targetItemNo">
+              <option value=""></option>
+              @for (item of items(); track item.no) {
+                <option [value]="item.no">{{ itemLabel(item) }}</option>
+              }
+            </select>
+          </div>
+        }
+      </div>
+
+      <div class="panel__body draft">
+        <div class="field">
+          <label class="field__label" for="startsOn">{{ t('promotions.offers.startsOn') }}</label>
+          <input id="startsOn" class="input" type="date" [(ngModel)]="startsOn" />
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="endsOn">{{ t('promotions.offers.endsOn') }}</label>
+          <input id="endsOn" class="input" type="date" [(ngModel)]="endsOn" />
+        </div>
+
+        <div class="field">
+          <label class="field__label" for="stacking">{{ t('promotions.offers.stacking') }}</label>
+          <select id="stacking" class="select" [(ngModel)]="stacking">
+            <option value="Stacks">{{ t('promotions.stacking.Stacks') }}</option>
+            <option value="Exclusive">{{ t('promotions.stacking.Exclusive') }}</option>
+            <option value="Blocking">{{ t('promotions.stacking.Blocking') }}</option>
+          </select>
+        </div>
+
+        <div class="field offer__narrow">
+          <label class="field__label" for="couponCode">{{ t('promotions.offers.coupon') }}</label>
+          <input id="couponCode" class="input code" [(ngModel)]="couponCode" />
+        </div>
+      </div>
+
+      <div class="panel__body draft__actions">
+        <button
+          type="button"
+          class="button"
+          [disabled]="!isReady() || busy() !== null"
+          (click)="check()"
+        >
+          @if (busy() === 'preview') {
+            <span class="spinner"></span>
+          }
+          {{ t('promotions.preview.action') }}
+        </button>
+
+        <button
+          type="button"
+          class="button button--primary"
+          [disabled]="!isReady() || busy() !== null"
+          (click)="save()"
+        >
+          @if (busy() === 'save') {
+            <span class="spinner"></span>
+            {{ t('promotions.offers.saving') }}
+          } @else {
+            {{ t('promotions.offers.save') }}
+          }
+        </button>
+      </div>
+    </section>
+  }
+
+  @if (preview(); as p) {
+    <section class="panel">
+      <div class="panel__header">
+        <h2>{{ t('promotions.preview.title') }}</h2>
+      </div>
+
+      <!-- The headline, because it is the one thing somebody needs to read. A percentage says
+           there is a problem; the count says how widespread it is. -->
+      <p class="panel__body page__intro" [class.offer__breach]="breaches() > 0">
+        @if (breaches() > 0) {
+          {{ t('promotions.preview.breaches', { Count: breaches(), Floor: percent(p.floorPercent) }) }}
+        } @else {
+          {{ t('promotions.preview.clear', { Worst: percent(p.worst), Floor: percent(p.floorPercent) }) }}
+        }
+      </p>
+
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('promotions.preview.item') }}</th>
+              <th class="numeric">{{ t('promotions.preview.price') }}</th>
+              <th class="numeric">{{ t('promotions.preview.cost') }}</th>
+              <th class="numeric">{{ t('promotions.preview.offerPrice') }}</th>
+              <th class="numeric">{{ t('promotions.preview.margin') }}</th>
+              <th class="numeric">{{ t('promotions.preview.shortfall') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of rows(); track row.itemNo) {
+              <tr [class.offer__breach-row]="!row.isAcceptable">
+                <td>
+                  <span class="code">{{ row.itemNo }}</span>
+                  <span class="offer__desc">{{ row.description }}</span>
+                </td>
+                <td class="numeric">{{ i18n.total(row.unitPrice) }}</td>
+                <td class="numeric">{{ i18n.total(row.unitCost) }}</td>
+                <td class="numeric">{{ i18n.total(row.offerPrice) }}</td>
+                <td class="numeric" [class.offer__breach]="!row.isAcceptable">
+                  {{ percent(row.marginPercent) }}
+                </td>
+
+                <!-- Blank where there is no hole. A zero here would read as "we checked and it is
+                     exactly at the line", which is a different and more alarming thing. -->
+                <td class="numeric offer__breach">
+                  @if (!row.isAcceptable) {
+                    {{ i18n.total(row.shortfallPerUnit) }}
+                  }
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="6" class="empty">{{ t('promotions.preview.nothingCovered') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+
+  <section class="panel">
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('promotions.offers.code') }}</th>
+              <th>{{ t('promotions.offers.name') }}</th>
+              <th>{{ t('promotions.offers.does') }}</th>
+              <th>{{ t('promotions.offers.startsOn') }}</th>
+              <th>{{ t('promotions.offers.endsOn') }}</th>
+              <th>{{ t('promotions.offers.stacking') }}</th>
+              <th class="numeric">{{ t('promotions.offers.timesApplied') }}</th>
+              <th class="numeric">{{ t('promotions.offers.givenAway') }}</th>
+              <th>{{ t('promotions.offers.status') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (offer of offers(); track offer.code) {
+              <tr>
+                <td class="code">{{ offer.code }}</td>
+                <td>{{ offerName(offer) }}</td>
+                <td>{{ describe(offer) }}</td>
+                <td class="code">{{ offer.startsOn }}</td>
+                <td class="code">{{ offer.endsOn }}</td>
+                <td>{{ stackingLabel(offer.stacking) }}</td>
+                <td class="numeric">{{ offer.timesApplied }}</td>
+                <td class="numeric">{{ i18n.total(offer.totalGivenAway) }}</td>
+                <td>
+                  <span class="tag">
+                    {{ offer.isActive ? t('promotions.offers.running') : t('promotions.offers.stopped') }}
+                  </span>
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="9" class="empty">{{ t('promotions.offers.nothingYet') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+</div>

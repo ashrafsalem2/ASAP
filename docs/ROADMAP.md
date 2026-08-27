@@ -111,16 +111,20 @@ Everything else posts here, so it goes first.
 - **done** Till sessions with an opening float, X and Z readings, cash declaration and the
   variance posted rather than argued about. Card takings are excluded from the drawer, which is
   the mistake that otherwise leaves every till short by the day's card sales
-- *in progress* **Sales and split tender done** — several tenders on one receipt, change from
-  cash only, cash totals rounded to a coin that exists. Returns are modelled (a negative
-  quantity, so an exchange is representable) and not yet driven from a screen; park and recall
-  are modelled and not yet wired
+- **done** Sales, returns, exchanges, park and recall, split and mixed tender. A return refunds
+  at the price paid, discount and all, and is counted against every earlier return on that
+  receipt — checking only the transaction in hand lets somebody return two, then two more,
+  against a sale of two
 - **done** A receipt posts exactly as a sales invoice does: revenue at list with the discount as
   a contra, tax on both, stock out at what the goods cost. The P&L cannot tell which door a sale
   came through
-- Offline-first till that queues and reconciles when the link returns
-- **Two-way branch synchronisation** over an explicit contract: master data down from head
-  office, transactions up from the branch, with conflict rules stated rather than implied
+- *in progress* Offline-first till: the idempotent push a queued till reconciles through is
+  built and tested; the local queue and the branch-side applier need the split deployment
+- *in progress* **Two-way branch synchronisation** — the contract, the ordered resumable change
+  feed, the idempotent push and the per-branch cursor are done and documented in
+  docs/architecture/branch-synchronisation.md. Every row has exactly one writer, which is what
+  makes the conflict rules short enough to state. The branch-side applier that consumes the feed
+  into a second database waits on there being a second database
 - **done** Client screens: the till, and every session with what its drawer came to
 - Branch performance reporting, consolidated at head office
 

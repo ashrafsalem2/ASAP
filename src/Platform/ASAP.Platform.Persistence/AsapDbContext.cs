@@ -4,9 +4,11 @@ using ASAP.Platform.Core.Events;
 using ASAP.Platform.Core.Numbering;
 using ASAP.Platform.Core.Security;
 using ASAP.Platform.Core.Setup;
+using ASAP.Platform.Core.Sync;
 using ASAP.Platform.Core.Tenancy;
 using ASAP.Platform.Kernel.Entities;
 using ASAP.Platform.Kernel.Security;
+using ASAP.Platform.Kernel.Sync;
 using ASAP.Platform.Kernel.Tenancy;
 using ASAP.Platform.Kernel.Time;
 using ASAP.Platform.Persistence.Conventions;
@@ -37,12 +39,17 @@ namespace ASAP.Platform.Persistence;
 /// <param name="userContext">Supplies the user that audit stamping records.</param>
 /// <param name="clock">Supplies the time that audit stamping records.</param>
 /// <param name="moduleSchemas">Every loaded module that owns tables.</param>
+/// <param name="syncRegistry">
+/// What the loaded modules said branches hold a copy of, or null in a deployment that does not
+/// synchronise. Optional so the migration tooling and the tests can build a context without it.
+/// </param>
 public sealed class AsapDbContext(
     DbContextOptions<AsapDbContext> options,
     ITenantContext tenantContext,
     IUserContext userContext,
     IClock clock,
-    IEnumerable<IModuleSchema> moduleSchemas) : DbContext(options)
+    IEnumerable<IModuleSchema> moduleSchemas,
+    SyncRegistry? syncRegistry = null) : DbContext(options)
 {
     private readonly IEnumerable<IModuleSchema> _moduleSchemas = moduleSchemas;
 
@@ -118,6 +125,15 @@ public sealed class AsapDbContext(
     /// <summary>Integration events waiting to be delivered.</summary>
     public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
 
+    /// <summary>What has changed that branches hold a copy of.</summary>
+    public DbSet<SyncChange> SyncChanges => Set<SyncChange>();
+
+    /// <summary>How far each branch has got.</summary>
+    public DbSet<BranchSyncState> BranchSyncState => Set<BranchSyncState>();
+
+    /// <summary>Documents branches have pushed, recorded so a replay is not posted twice.</summary>
+    public DbSet<SyncInboxEntry> SyncInbox => Set<SyncInboxEntry>();
+
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -148,6 +164,8 @@ public sealed class AsapDbContext(
         CancellationToken cancellationToken = default)
     {
         StampChanges();
+        CaptureSyncChanges();
+
         return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
     }
 
@@ -155,6 +173,8 @@ public sealed class AsapDbContext(
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
         StampChanges();
+        CaptureSyncChanges();
+
         return base.SaveChanges(acceptAllChangesOnSuccess);
     }
 
@@ -191,6 +211,149 @@ public sealed class AsapDbContext(
                     break;
             }
         }
+    }
+
+    /// <summary>
+    /// Records what changed, for the branches that hold a copy of it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Here rather than in each module, and for the same reason tenancy stamping is here: a
+    /// module that had to remember to publish its own changes would one day forget, and the
+    /// failure is a shop quietly selling at last month's prices. Nobody notices until a customer
+    /// is charged the wrong amount and is right about it.
+    /// </para>
+    /// <para>
+    /// Runs after <see cref="StampChanges"/>, so a delete has already become a soft delete and is
+    /// seen here as the modification it now is. Only entities a module registered are captured,
+    /// which is what keeps the audit log and the feed itself out of the feed.
+    /// </para>
+    /// </remarks>
+    private void CaptureSyncChanges()
+    {
+        if (syncRegistry is null)
+        {
+            return;
+        }
+
+        var now = clock.UtcNow;
+        var captured = new List<SyncChange>();
+
+        foreach (var entry in ChangeTracker.Entries())
+        {
+            if (entry.State is not (EntityState.Added or EntityState.Modified or EntityState.Deleted))
+            {
+                continue;
+            }
+
+            var descriptor = syncRegistry.Describe(entry.Entity.GetType());
+
+            // Only what travels down. What a branch writes is pushed as a document, which is a
+            // different mechanism answering a different question -- see
+            // docs/architecture/branch-synchronisation.md.
+            if (descriptor is null || descriptor.Direction is not SyncDirection.Down)
+            {
+                continue;
+            }
+
+            if (entry.Entity is not Entity tracked)
+            {
+                continue;
+            }
+
+            if (entry.State is EntityState.Modified && OnlyVolatileChanged(entry, descriptor))
+            {
+                continue;
+            }
+
+            captured.Add(new SyncChange
+            {
+                TenantId = tenantContext.TenantId ?? Guid.Empty,
+                CompanyId = tenantContext.CompanyId,
+                EntityType = descriptor.EntityType,
+                EntityId = tracked.Id,
+                DisplayNo = DisplayNoOf(entry),
+                Operation = IsGone(entry) ? SyncOperation.Delete : SyncOperation.Upsert,
+                OccurredAtUtc = now,
+            });
+        }
+
+        if (captured.Count > 0)
+        {
+            SyncChanges.AddRange(captured);
+        }
+    }
+
+    /// <summary>
+    /// Whether the only thing that moved was a figure a branch works out for itself.
+    /// </summary>
+    /// <remarks>
+    /// A general ledger account's balance moves on every posting, and so does a customer's, and
+    /// so does an item's quantity on hand. None of them is what a branch holds a copy of the row
+    /// for -- it wants the name, the category, the price, the rules. Publishing on every balance
+    /// change would bury the changes that matter under the day's trading.
+    /// </remarks>
+    private static bool OnlyVolatileChanged(EntityEntry entry, SyncEntityDescriptor descriptor)
+    {
+        if (descriptor.VolatileProperties is not { Count: > 0 } volatileNames)
+        {
+            return false;
+        }
+
+        var changed = entry.Properties
+            .Where(static p => p.IsModified)
+            .Select(static p => p.Metadata.Name)
+            .Where(static name => !AlwaysVolatile.Contains(name))
+            .ToList();
+
+        // Nothing left once the stamps are set aside means nothing a branch would notice.
+        return changed.Count == 0
+               || changed.TrueForAll(name => volatileNames.Contains(name, StringComparer.Ordinal));
+    }
+
+    /// <summary>
+    /// Columns that move on every write and mean nothing to a branch.
+    /// </summary>
+    /// <remarks>
+    /// Not something a module should have to remember. Audit stamping runs immediately before
+    /// capture, so <c>ModifiedAtUtc</c> is modified on every single update — and without this,
+    /// every row that changed for any reason looks like a row whose definition changed, which
+    /// made the volatile list above do exactly nothing.
+    /// </remarks>
+    private static readonly HashSet<string> AlwaysVolatile = new(StringComparer.Ordinal)
+    {
+        nameof(IAuditable.CreatedAtUtc),
+        nameof(IAuditable.CreatedBy),
+        nameof(IAuditable.ModifiedAtUtc),
+        nameof(IAuditable.ModifiedBy),
+        nameof(IConcurrencyAware.RowVersion),
+    };
+
+    /// <summary>Whether this change means the branch should stop offering the thing.</summary>
+    private static bool IsGone(EntityEntry entry)
+        => entry.State is EntityState.Deleted
+           || (entry.Entity is ISoftDeletable { IsDeleted: true });
+
+    /// <summary>
+    /// What a person would call the row, when it has a name of that kind.
+    /// </summary>
+    /// <remarks>
+    /// Read by convention rather than by an interface. Adding one would mean touching every
+    /// entity in the system to improve a report, and a null here costs nothing.
+    /// </remarks>
+    private static string? DisplayNoOf(EntityEntry entry)
+    {
+        foreach (var name in new[] { "No", "Code" })
+        {
+            var property = entry.Metadata.FindProperty(name);
+
+            if (property is not null && entry.Property(name).CurrentValue is string value)
+            {
+                return value;
+            }
+        }
+
+        return null;
     }
 
     /// <summary>

@@ -10,7 +10,7 @@ namespace ASAP.Modules.Pos;
 /// <summary>
 /// The point of sale module: tills, sessions and receipts.
 /// </summary>
-public sealed class PosModule : IAsapModule
+public sealed class PosModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISyncContributor
 {
     /// <summary>The module identifier used in every point of sale permission and setting key.</summary>
     public const string Id = "Pos";
@@ -45,6 +45,20 @@ public sealed class PosModule : IAsapModule
         Modules.Inventory.InventoryModule.Id,
         Modules.Finance.FinanceModule.Id,
         Modules.Sales.SalesModule.Id,
+    ];
+
+    /// <summary>
+    /// Which tills exist is head office's business; what they took is theirs.
+    /// </summary>
+    /// <remarks>
+    /// The direction of a receipt is the clearest case in the system. It records money that
+    /// changed hands in a shop, and head office has no standing to restate it.
+    /// </remarks>
+    public IReadOnlyCollection<ASAP.Platform.Kernel.Sync.SyncEntityDescriptor> SyncEntities =>
+    [
+        new("Pos.Station", typeof(Stations.PosStation), ASAP.Platform.Kernel.Sync.SyncDirection.Down, Id),
+        new("Pos.Session", typeof(Sessions.PosSession), ASAP.Platform.Kernel.Sync.SyncDirection.Up, Id),
+        new("Pos.Receipt", typeof(Receipts.PosReceipt), ASAP.Platform.Kernel.Sync.SyncDirection.Up, Id),
     ];
 
     /// <inheritdoc />

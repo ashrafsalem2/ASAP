@@ -42,6 +42,11 @@ public static class AsapCoreServiceCollectionExtensions
 
         services.AddSingleton<IModuleCatalog>(catalog);
 
+        // What each module said branches hold a copy of. Built once, and it throws when two
+        // modules claim the same published name -- a failure worth having at startup rather than
+        // at a shop applying two different tables under one name.
+        services.AddSingleton(new Sync.SyncRegistry(catalog.Modules));
+
         RegisterMessages(services, catalog);
         RegisterPermissions(services, catalog);
         RegisterSetups(services, catalog);

@@ -11,7 +11,7 @@ namespace ASAP.Modules.Inventory;
 /// <summary>
 /// The Inventory module: items, locations, stock movements, costing and transfers.
 /// </summary>
-public sealed class InventoryModule : IAsapModule
+public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISyncContributor
 {
     /// <summary>The module identifier used in every Inventory permission and setting key.</summary>
     public const string Id = "Inventory";
@@ -43,6 +43,24 @@ public sealed class InventoryModule : IAsapModule
     /// see across the boundary at all.
     /// </remarks>
     public IReadOnlyCollection<string> DependsOn => [Platform.Core.Modules.PlatformModule.Id, "Finance"];
+
+    /// <summary>
+    /// The catalogue and the map of where stock lives travel down; what moved travels up.
+    /// </summary>
+    /// <remarks>
+    /// A shop reads the item list and never writes it, and writes its own movements and never
+    /// reads another shop's. That is the whole conflict story for this module. See
+    /// docs/architecture/branch-synchronisation.md.
+    /// </remarks>
+    public IReadOnlyCollection<ASAP.Platform.Kernel.Sync.SyncEntityDescriptor> SyncEntities =>
+    [
+        // Quantity on hand is the company total and moves on every movement; a shop knows its
+        // own. The costs stay published, because a till warns on selling below them.
+        new("Inventory.Item", typeof(Items.Item), ASAP.Platform.Kernel.Sync.SyncDirection.Down, Id, [nameof(Items.Item.QuantityOnHand)]),
+        new("Inventory.ItemCategory", typeof(Items.ItemCategory), ASAP.Platform.Kernel.Sync.SyncDirection.Down, Id),
+        new("Inventory.Location", typeof(Locations.Location), ASAP.Platform.Kernel.Sync.SyncDirection.Down, Id),
+        new("Inventory.ItemLedgerEntry", typeof(Ledger.ItemLedgerEntry), ASAP.Platform.Kernel.Sync.SyncDirection.Up, Id),
+    ];
 
     /// <inheritdoc />
     public IReadOnlyCollection<MessageDefinition> Messages => InventoryMessages.All;

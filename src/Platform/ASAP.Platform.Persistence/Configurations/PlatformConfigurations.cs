@@ -247,3 +247,62 @@ public sealed class TransactionCounterConfiguration
         builder.HasIndex(c => c.CompanyId).IsUnique();
     }
 }
+
+/// <summary>Maps <see cref="Core.Sync.SyncChange"/>.</summary>
+public sealed class SyncChangeConfiguration : IEntityTypeConfiguration<Core.Sync.SyncChange>
+{
+    /// <inheritdoc />
+    public void Configure(EntityTypeBuilder<Core.Sync.SyncChange> builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.ToTable("SyncChanges");
+
+        builder.Property(c => c.EntityType).HasMaxLength(128).IsRequired();
+        builder.Property(c => c.DisplayNo).HasMaxLength(64);
+
+        // Database-generated, because this is the cursor a branch keeps and only the database can
+        // order concurrent writers against each other.
+        builder.Property(c => c.Sequence).ValueGeneratedOnAdd();
+
+        // The whole protocol on the way down is "everything after this number, in order", so this
+        // is the only index the feed needs and it is the one it always uses.
+        builder.HasIndex(c => new { c.CompanyId, c.Sequence });
+    }
+}
+
+/// <summary>Maps <see cref="Core.Sync.BranchSyncState"/>.</summary>
+public sealed class BranchSyncStateConfiguration : IEntityTypeConfiguration<Core.Sync.BranchSyncState>
+{
+    /// <inheritdoc />
+    public void Configure(EntityTypeBuilder<Core.Sync.BranchSyncState> builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.ToTable("BranchSyncState");
+
+        builder.HasIndex(s => new { s.CompanyId, s.BranchId }).IsUnique();
+    }
+}
+
+/// <summary>Maps <see cref="Core.Sync.SyncInboxEntry"/>.</summary>
+public sealed class SyncInboxEntryConfiguration : IEntityTypeConfiguration<Core.Sync.SyncInboxEntry>
+{
+    /// <inheritdoc />
+    public void Configure(EntityTypeBuilder<Core.Sync.SyncInboxEntry> builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+
+        builder.ToTable("SyncInbox");
+
+        builder.Property(e => e.IdempotencyKey).HasMaxLength(128).IsRequired();
+        builder.Property(e => e.DocumentType).HasMaxLength(128).IsRequired();
+        builder.Property(e => e.DocumentNo).HasMaxLength(40);
+        builder.Property(e => e.HeldReason).HasMaxLength(1000);
+
+        // Unique, and that uniqueness is the whole mechanism: a replay collides here rather than
+        // posting a second time. Per branch, because two shops choosing the same key by accident
+        // is likelier than it sounds when keys are counters.
+        builder.HasIndex(e => new { e.CompanyId, e.BranchId, e.IdempotencyKey }).IsUnique();
+    }
+}

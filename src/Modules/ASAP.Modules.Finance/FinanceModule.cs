@@ -12,7 +12,7 @@ namespace ASAP.Modules.Finance;
 /// The Finance module: chart of accounts, fiscal periods, journals, the general ledger and the
 /// posting engine every other module writes through.
 /// </summary>
-public sealed class FinanceModule : IAsapModule
+public sealed class FinanceModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISyncContributor
 {
     /// <summary>The module identifier used in every Finance permission and setting key.</summary>
     public const string Id = "Finance";
@@ -40,6 +40,25 @@ public sealed class FinanceModule : IAsapModule
     /// today, and quietly wrong the moment Finance seeding needs a platform number series to exist.
     /// </remarks>
     public IReadOnlyCollection<string> DependsOn => [Platform.Core.Modules.PlatformModule.Id];
+
+    /// <summary>
+    /// The chart, the parties and the tax rules travel down; ledger entries travel up.
+    /// </summary>
+    /// <remarks>
+    /// A branch must not invent an account or a tax code. Both are things an auditor reads across
+    /// the whole company, and a shop that could add its own would be a shop whose numbers cannot
+    /// be added to anybody else's.
+    /// </remarks>
+    public IReadOnlyCollection<ASAP.Platform.Kernel.Sync.SyncEntityDescriptor> SyncEntities =>
+    [
+        // The running balance is not why a branch holds a copy of an account, and it moves on
+        // every posting. Publishing it would bury the changes that matter under the day's trading.
+        new("Finance.GlAccount", typeof(Accounts.GlAccount), ASAP.Platform.Kernel.Sync.SyncDirection.Down, Id, [nameof(Accounts.GlAccount.Balance)]),
+        new("Finance.Customer", typeof(Parties.Customer), ASAP.Platform.Kernel.Sync.SyncDirection.Down, Id, [nameof(Parties.Party.Balance)]),
+        new("Finance.Vendor", typeof(Parties.Vendor), ASAP.Platform.Kernel.Sync.SyncDirection.Down, Id, [nameof(Parties.Party.Balance)]),
+        new("Finance.TaxCode", typeof(Tax.TaxCode), ASAP.Platform.Kernel.Sync.SyncDirection.Down, Id),
+        new("Finance.GlEntry", typeof(Ledger.GlEntry), ASAP.Platform.Kernel.Sync.SyncDirection.Up, Id),
+    ];
 
     /// <inheritdoc />
     public IReadOnlyCollection<MessageDefinition> Messages => FinanceMessages.All;

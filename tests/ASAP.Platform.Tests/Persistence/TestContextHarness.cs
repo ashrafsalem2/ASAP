@@ -97,9 +97,15 @@ internal sealed class TestContextHarness : IDisposable
     /// filters had baked in the first tenant, a later context acting as a different one would
     /// still return the first tenant rows.
     /// </remarks>
-    public AsapDbContext NewContext()
+    public AsapDbContext NewContext() => NewContext(null);
+
+    /// <summary>
+    /// Opens a context that also captures sync changes for whatever the registry publishes.
+    /// </summary>
+    /// <param name="syncRegistry">What branches hold a copy of, or null to capture nothing.</param>
+    public AsapDbContext NewContext(ASAP.Platform.Core.Sync.SyncRegistry? syncRegistry)
     {
-        var context = new AsapDbContext(_options, Tenancy, User, Clock, []);
+        var context = new AsapDbContext(_options, Tenancy, User, Clock, [], syncRegistry);
         _opened.Add(context);
         return context;
     }

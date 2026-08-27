@@ -84,6 +84,25 @@ public sealed class PlatformModule : IAsapModule
             isSensitive: true),
 
         PermissionDescriptor.Define(
+            Id, "Sync", PermissionAction.Read,
+            new LocalizedText("View branch synchronisation", "عرض مزامنة الفروع"),
+            new LocalizedText(
+                "See which branches are behind and by how much, without telephoning them.",
+                "معرفة الفروع المتأخرة ومقدار تأخرها دون الاتصال بها.")),
+
+        PermissionDescriptor.Define(
+            Id, "Sync", PermissionAction.Execute,
+            new LocalizedText("Synchronise a branch", "مزامنة فرع"),
+            new LocalizedText(
+                "Pull master data down to a branch and push its documents up. Held by the branch "
+                + "itself rather than by a person: it is what a shop signs in as to keep working "
+                + "when the line comes back.",
+                "سحب البيانات الأساسية إلى الفرع ودفع مستنداته إلى المركز. وهي صلاحية للفرع نفسه "
+                + "لا لشخص، فهي ما يستخدمه المتجر لمواصلة العمل عند عودة الاتصال."),
+            implies: [$"{Id}.Sync.Read"],
+            isSensitive: true),
+
+        PermissionDescriptor.Define(
             Id, "AuditLog", PermissionAction.Read,
             new LocalizedText("View the audit log", "عرض سجل التدقيق"),
             new LocalizedText(

@@ -101,3 +101,25 @@
 .input--compact {
   max-width: 7rem;
 }
+
+/* Return mode is stated, not implied by a minus sign somebody has to notice. The whole strip
+   changes colour, because ringing a sale up while the till is set to refund is the one mistake
+   here that hands money away. */
+.till__mode {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.till__mode--returning {
+  border-inline-start: 3px solid var(--caution);
+  padding-inline-start: 0.75rem;
+}
+
+.field__check {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  font-weight: 600;
+}

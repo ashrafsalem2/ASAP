@@ -745,6 +745,25 @@ export interface PosSessionClosed {
   messages?: AsapMessage[];
 }
 
+/** A sale set aside and not yet paid for. */
+export interface ParkedSale {
+  /** Its handle. Not a receipt number, because it is not a receipt until somebody pays. */
+  no: string;
+  parkedAs?: string;
+  takenAtUtc: string;
+  lineCount: number;
+  netAmount: number;
+  lines: {
+    type: 'Item' | 'GlAccount';
+    no: string;
+    quantity: number;
+    unitPrice: number;
+    discountPercent: number;
+    description?: string;
+    taxCode?: string;
+  }[];
+}
+
 /** What a receipt posted. */
 export interface PosReceiptPosted {
   receiptNo: string;

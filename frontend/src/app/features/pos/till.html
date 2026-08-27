@@ -21,6 +21,28 @@
         </div>
 
         @if (canSell()) {
+          <div class="panel__body till__mode" [class.till__mode--returning]="returning">
+            <label class="field__check">
+              <input type="checkbox" [(ngModel)]="returning" />
+              {{ t('pos.till.returning') }}
+            </label>
+
+            @if (returning) {
+              <div class="field till__scan">
+                <label class="field__label" for="returnsReceiptNo">
+                  {{ t('pos.till.againstReceipt') }}
+                </label>
+                <input id="returnsReceiptNo" class="input code" [(ngModel)]="returnsReceiptNo" />
+              </div>
+
+              <!-- Naming the original is what lets the till refund at the price paid and refuse
+                   to take back more than was bought. Optional, because somebody may genuinely
+                   have lost their receipt, and refusing them at the counter is not the shop's
+                   policy to make here. -->
+              <p class="till__hint">{{ t('pos.till.againstReceiptHint') }}</p>
+            }
+          </div>
+
           <div class="panel__body draft">
             <div class="field till__scan">
               <label class="field__label" for="scanned">{{ t('pos.till.scan') }}</label>
@@ -179,26 +201,62 @@
           }
 
           <div class="panel__body">
-            <dl class="totals">
-              <dt>{{ t('pos.till.tendered') }}</dt>
-              <dd class="numeric">{{ i18n.total(tendered()) }}</dd>
+            <!-- Which way the money is going changes every word here. A refund that borrowed the
+                 sale's wording would tell a cashier they owe change on money they are paying
+                 out, which is the opposite of the truth. -->
+            @if (isRefund()) {
+              <dl class="totals">
+                <dt>{{ t('pos.till.handedBack') }}</dt>
+                <dd class="numeric">{{ i18n.total(handedBack()) }}</dd>
 
-              @if (outstanding() > 0) {
-                <dt class="till__owing">{{ t('pos.till.outstanding') }}</dt>
-                <dd class="numeric till__owing">{{ i18n.total(outstanding()) }}</dd>
-              } @else if (change() > 0) {
-                <!-- Worked out as the money is keyed, not after. It is the one number a cashier
-                     cannot proceed without and the one they should never have to do in their
-                     head with somebody waiting. -->
-                <dt class="totals__grand">{{ t('pos.till.change') }}</dt>
-                <dd class="numeric totals__grand">{{ i18n.total(change()) }}</dd>
-              }
-            </dl>
+                <dt class="totals__grand">{{ t('pos.till.toHandBack') }}</dt>
+                <dd class="numeric totals__grand">{{ i18n.total(toHandBack()) }}</dd>
+              </dl>
+            } @else {
+              <dl class="totals">
+                <dt>{{ t('pos.till.tendered') }}</dt>
+                <dd class="numeric">{{ i18n.total(tendered()) }}</dd>
+
+                @if (outstanding() > 0) {
+                  <dt class="till__owing">{{ t('pos.till.outstanding') }}</dt>
+                  <dd class="numeric till__owing">{{ i18n.total(outstanding()) }}</dd>
+                } @else if (change() > 0) {
+                  <!-- Worked out as the money is keyed, not after. It is the one number a cashier
+                       cannot proceed without and the one they should never have to do in their
+                       head with somebody waiting. -->
+                  <dt class="totals__grand">{{ t('pos.till.change') }}</dt>
+                  <dd class="numeric totals__grand">{{ i18n.total(change()) }}</dd>
+                }
+              </dl>
+            }
           </div>
 
-          @if (change() > cashOffered()) {
+          @if (isRefund() && change() !== 0) {
+            <p class="panel__body till__hint till__owing">
+              {{ t('pos.till.refundMustMatch', { Amount: i18n.total(toHandBack()) }) }}
+            </p>
+          } @else if (!isRefund() && change() > cashOffered()) {
             <p class="panel__body till__hint">{{ t('pos.till.changeNeedsCash') }}</p>
           }
+
+          <div class="panel__body draft">
+            <div class="field till__scan">
+              <label class="field__label" for="parkedAs">{{ t('pos.park.as') }}</label>
+              <input id="parkedAs" class="input" [(ngModel)]="parkedAs" />
+            </div>
+
+            <button
+              type="button"
+              class="button"
+              [disabled]="lines().length === 0 || busy() !== null"
+              (click)="park()"
+            >
+              @if (busy() === 'park') {
+                <span class="spinner"></span>
+              }
+              {{ t('pos.park.action') }}
+            </button>
+          </div>
 
           <div class="panel__body draft__actions">
             <button
@@ -210,6 +268,8 @@
               @if (busy() === 'pay') {
                 <span class="spinner"></span>
                 {{ t('pos.receipt.taking') }}
+              } @else if (isRefund()) {
+                {{ t('pos.receipt.refund') }}
               } @else {
                 {{ t('pos.receipt.take') }}
               }
@@ -224,6 +284,47 @@
         }
       </section>
     </div>
+
+    @if (parked().length > 0) {
+      <section class="panel">
+        <div class="panel__header">
+          <h2>{{ t('pos.park.waiting', { Count: parked().length }) }}</h2>
+        </div>
+
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('pos.park.as') }}</th>
+                <th class="numeric">{{ t('pos.park.items') }}</th>
+                <th class="numeric">{{ t('pos.till.net') }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (sale of parked(); track sale.no) {
+                <tr>
+                  <td>
+                    {{ sale.parkedAs }}
+                    <span class="code till__desc">{{ sale.no }}</span>
+                  </td>
+                  <td class="numeric">{{ sale.lineCount }}</td>
+                  <td class="numeric">{{ i18n.total(sale.netAmount) }}</td>
+                  <td>
+                    <button type="button" class="button button--quiet" (click)="recall(sale)">
+                      {{ t('pos.park.recall') }}
+                    </button>
+                    <button type="button" class="button button--quiet" (click)="voidParked(sale)">
+                      {{ t('pos.park.void') }}
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    }
 
     <section class="panel">
       <div class="panel__header">

@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
+  ParkedSale,
   PosReading,
   PosReceiptPosted,
   PosSession,
@@ -96,6 +97,44 @@ export class PosService {
     );
   }
 
+  /** What has been set aside and not paid for at this till. */
+  parked(sessionNo: string): Promise<ParkedSale[]> {
+    return firstValueFrom(
+      this.http.get<ParkedSale[]>(
+        `${this.base}/sessions/${encodeURIComponent(sessionNo)}/parked`,
+      ),
+    );
+  }
+
+  /** Sets a sale aside so the till can serve somebody else. Nothing posts. */
+  park(
+    sessionNo: string,
+    lines: PosLinePayload[],
+    parkedAs?: string,
+    customerNo?: string,
+  ): Promise<ParkedSale> {
+    return firstValueFrom(
+      this.http.post<ParkedSale>(
+        `${this.base}/sessions/${encodeURIComponent(sessionNo)}/parked`,
+        { lines, parkedAs, customerNo },
+      ),
+    );
+  }
+
+  /** Reads a parked sale back so the till can carry on with it. */
+  recall(receiptNo: string): Promise<ParkedSale> {
+    return firstValueFrom(
+      this.http.get<ParkedSale>(`${this.base}/parked/${encodeURIComponent(receiptNo)}`),
+    );
+  }
+
+  /** Throws a parked sale away. Voided rather than deleted, so the trail keeps it. */
+  voidParked(receiptNo: string): Promise<ParkedSale> {
+    return firstValueFrom(
+      this.http.delete<ParkedSale>(`${this.base}/parked/${encodeURIComponent(receiptNo)}`),
+    );
+  }
+
   /** Rings a sale up, takes the money and posts everything. */
   postReceipt(
     sessionNo: string,
@@ -104,6 +143,7 @@ export class PosService {
     options: {
       customerNo?: string;
       returnsReceiptNo?: string;
+      parkedReceiptNo?: string;
       overrideReason?: string;
     } = {},
   ): Promise<PosReceiptPosted> {

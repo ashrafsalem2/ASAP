@@ -2,6 +2,7 @@ import { ChangeDetectionStrategy, Component, OnInit, computed, inject, signal } 
 import { FormsModule } from '@angular/forms';
 import {
   Item,
+  ParkedSale,
   PosSession,
   PosStation,
   TaxCodeSummary,
@@ -67,6 +68,10 @@ export class Till implements OnInit {
   /** The sale being rung up, held as signals so the totals recompute as it is keyed. */
   protected readonly lines = signal<TillLine[]>([]);
   protected readonly tenders = signal<TillTender[]>([]);
+  protected readonly parked = signal<ParkedSale[]>([]);
+
+  /** The basket this sale came from, so paying for it closes that basket rather than orphaning it. */
+  protected readonly recalledFrom = signal<string | null>(null);
 
   protected stationCode = '';
   protected openingFloat: number | null = null;
@@ -74,6 +79,17 @@ export class Till implements OnInit {
   protected scanned = '';
   protected scannedQuantity: number | null = null;
   protected scannedDiscount: number | null = null;
+  protected parkedAs = '';
+  protected returnsReceiptNo = '';
+
+  /**
+   * Whether the till is taking goods back rather than selling them.
+   *
+   * A mode rather than a negative quantity typed by hand. Asking a cashier to key a minus sign
+   * under pressure is asking for a sale of minus three to be rung up by accident, and the
+   * arithmetic of that mistake is the shop paying somebody to take stock away.
+   */
+  protected returning = false;
 
   protected readonly net = computed(() =>
     round(this.lines().reduce((total, line) => total + lineAmount(line), 0)),
@@ -124,12 +140,33 @@ export class Till implements OnInit {
     ),
   );
 
-  protected readonly canTakePayment = computed(
-    () =>
-      this.lines().length > 0 &&
-      this.outstanding() === 0 &&
-      this.change() <= this.cashOffered(),
-  );
+  /** True once anything on the sale is going back rather than out. */
+  protected readonly isRefund = computed(() => this.total() < 0);
+
+  /**
+   * A refund read the way a cashier counts it: what is owed, and what has gone back, both
+   * positive.
+   *
+   * Negating in the template printed "-0.00" before anything had been handed over, which on a
+   * till reads as a fault rather than as nothing.
+   */
+  protected readonly toHandBack = computed(() => round(-this.total()));
+
+  protected readonly handedBack = computed(() => round(-this.tendered()));
+
+  protected readonly canTakePayment = computed(() => {
+    if (this.lines().length === 0) {
+      return false;
+    }
+
+    // A refund is paid out exactly. There is no change on money going the other way, so the
+    // only acceptable state is that what is handed back matches what is owed.
+    if (this.isRefund()) {
+      return this.change() === 0;
+    }
+
+    return this.outstanding() === 0 && this.change() <= this.cashOffered();
+  });
 
   async ngOnInit(): Promise<void> {
     try {
@@ -211,7 +248,8 @@ export class Till implements OnInit {
       return;
     }
 
-    const quantity = this.scannedQuantity ?? 1;
+    const keyed = this.scannedQuantity ?? 1;
+    const quantity = this.returning ? -Math.abs(keyed) : Math.abs(keyed);
     const discountPercent = this.scannedDiscount ?? 0;
     const taxCode = this.taxCodes()[0]?.code ?? '';
     const taxPercent = this.taxCodes()[0]?.percentage ?? 0;
@@ -262,12 +300,16 @@ export class Till implements OnInit {
     );
   }
 
-  /** Offers the exact amount outstanding, which is what most customers hand over. */
+  /**
+   * Offers the exact amount outstanding, which is what most customers hand over.
+   *
+   * On a refund that is the whole total, negative: the drawer is paying out, and a cashier
+   * should not have to key a minus sign to say so.
+   */
   protected addTender(kind: TenderKind): void {
-    this.tenders.update((tenders) => [
-      ...tenders,
-      { kind, amount: round(Math.max(this.outstanding(), 0)), reference: '' },
-    ]);
+    const amount = this.isRefund() ? this.total() : Math.max(this.outstanding(), 0);
+
+    this.tenders.update((tenders) => [...tenders, { kind, amount: round(amount), reference: '' }]);
   }
 
   protected setTenderAmount(index: number, value: number): void {
@@ -285,7 +327,92 @@ export class Till implements OnInit {
   protected clearSale(): void {
     this.lines.set([]);
     this.tenders.set([]);
+    this.recalledFrom.set(null);
+    this.returnsReceiptNo = '';
+    this.returning = false;
     this.messages.clear();
+  }
+
+  /** Sets the sale aside. Nothing posts and nothing is reserved. */
+  protected async park(): Promise<void> {
+    const session = this.session();
+
+    if (this.busy() || !session || this.lines().length === 0) {
+      return;
+    }
+
+    this.messages.clear();
+    this.busy.set('park');
+
+    try {
+      const saved = await this.pos.park(session.no, this.payloadLines(), this.parkedAs || undefined);
+
+      this.messages.showSuccess(
+        this.t('pos.park.done', { No: saved.parkedAs || saved.no, Amount: this.i18n.total(saved.netAmount) }),
+      );
+
+      this.parkedAs = '';
+      this.clearSale();
+
+      await this.loadParked(session.no);
+    } catch (error) {
+      this.messages.showError(error, this.t('pos.park.action'));
+    } finally {
+      this.busy.set(null);
+    }
+  }
+
+  /** Brings a set-aside sale back to the screen exactly as it was left. */
+  protected async recall(sale: ParkedSale): Promise<void> {
+    if (this.busy()) {
+      return;
+    }
+
+    this.messages.clear();
+
+    try {
+      const recalled = await this.pos.recall(sale.no);
+
+      this.lines.set(
+        recalled.lines.map((line) => ({
+          itemNo: line.no,
+          description: line.description ?? line.no,
+          quantity: line.quantity,
+          unitPrice: line.unitPrice,
+          discountPercent: line.discountPercent,
+          taxCode: line.taxCode ?? '',
+          taxPercent: this.taxCodes().find((code) => code.code === line.taxCode)?.percentage ?? 0,
+        })),
+      );
+
+      this.tenders.set([]);
+      this.recalledFrom.set(recalled.no);
+    } catch (error) {
+      this.messages.showError(error, this.t('pos.park.recall'));
+    }
+  }
+
+  /** Throws a set-aside sale away. It is voided, not deleted. */
+  protected async voidParked(sale: ParkedSale): Promise<void> {
+    const session = this.session();
+
+    if (this.busy() || !session) {
+      return;
+    }
+
+    this.messages.clear();
+
+    try {
+      await this.pos.voidParked(sale.no);
+
+      if (this.recalledFrom() === sale.no) {
+        this.clearSale();
+      }
+
+      await this.loadParked(session.no);
+    } catch (error) {
+      this.messages.showError(error, this.t('pos.park.void'));
+    }
   }
 
   protected async open(): Promise<void> {
@@ -322,22 +449,16 @@ export class Till implements OnInit {
     this.busy.set('pay');
 
     try {
-      const lines: PosLinePayload[] = this.lines().map((line) => ({
-        type: 'Item',
-        no: line.itemNo,
-        quantity: line.quantity,
-        unitPrice: line.unitPrice,
-        discountPercent: line.discountPercent,
-        taxCode: line.taxCode || undefined,
-      }));
-
       const tenders: PosTenderPayload[] = this.tenders().map((tender) => ({
         kind: tender.kind,
         amount: tender.amount,
         reference: tender.reference || undefined,
       }));
 
-      const posted = await this.pos.postReceipt(session.no, lines, tenders);
+      const posted = await this.pos.postReceipt(session.no, this.payloadLines(), tenders, {
+        returnsReceiptNo: this.returnsReceiptNo || undefined,
+        parkedReceiptNo: this.recalledFrom() ?? undefined,
+      });
 
       this.report(posted.messages);
       this.messages.showSuccess(
@@ -353,10 +474,10 @@ export class Till implements OnInit {
             }),
       );
 
-      this.lines.set([]);
-      this.tenders.set([]);
+      this.clearSale();
 
       await this.loadSession(session.no);
+      await this.loadParked(session.no);
     } catch (error) {
       this.messages.showError(error, this.t('pos.receipt.take'));
     } finally {
@@ -444,6 +565,21 @@ export class Till implements OnInit {
     this.messages.showAll((messages ?? []).filter((message) => message.severity !== 'Success'));
   }
 
+  private payloadLines(): PosLinePayload[] {
+    return this.lines().map((line) => ({
+      type: 'Item',
+      no: line.itemNo,
+      quantity: line.quantity,
+      unitPrice: line.unitPrice,
+      discountPercent: line.discountPercent,
+      taxCode: line.taxCode || undefined,
+    }));
+  }
+
+  private async loadParked(sessionNo: string): Promise<void> {
+    this.parked.set(await this.pos.parked(sessionNo));
+  }
+
   private async refreshStations(): Promise<void> {
     this.stations.set((await this.pos.stations()).filter((station) => !station.isBlocked));
   }
@@ -452,6 +588,7 @@ export class Till implements OnInit {
     const detail = await this.pos.session(sessionNo);
 
     this.session.set(detail.session);
+    await this.loadParked(sessionNo);
   }
 }
 
@@ -460,5 +597,9 @@ function lineAmount(line: TillLine): number {
 }
 
 function round(value: number): number {
-  return Math.round((value + Number.EPSILON) * 100) / 100;
+  const rounded = Math.round((value + Number.EPSILON) * 100) / 100;
+
+  // Negative zero prints as "-0.00", which on a till reads as a fault rather than as nothing.
+  // It arises the moment a refund total is negated before anything has been handed back.
+  return rounded === 0 ? 0 : rounded;
 }

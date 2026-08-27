@@ -44,6 +44,7 @@ public readonly record struct PostingReceipt(
 /// <param name="context">The unit of work.</param>
 /// <param name="validator">Checks the lines before anything is written.</param>
 /// <param name="partyLedger">Writes the customer and vendor side of the same posting.</param>
+/// <param name="overrides">Records every protection this posting pushed past.</param>
 /// <param name="taxPosting">Works out the tax and records it for the return.</param>
 /// <param name="events">Gives extensions their say, and announces the result.</param>
 /// <param name="messages">Renders messages.</param>
@@ -56,6 +57,7 @@ public sealed class JournalPostingService(
     AsapDbContext context,
     JournalPostingValidator validator,
     Parties.PartyLedgerWriter partyLedger,
+    OverrideAuditor overrides,
     Tax.TaxPostingService taxPosting,
     IEventPublisher events,
     IMessageCatalog messages,
@@ -149,7 +151,11 @@ public sealed class JournalPostingService(
         // Warnings that started life as blocks record an override. This is the whole reason the
         // audit log carries a message code: "show me every time someone posted into a closed
         // period last quarter" becomes one indexed query.
-        RecordOverrides(validation, vetoed, request, transactionNo);
+        overrides.Record(
+            [.. validation.Messages, .. vetoed.Messages],
+            "Finance.GlEntry",
+            request.DocumentNo ?? transactionNo.ToString(System.Globalization.CultureInfo.InvariantCulture),
+            request.OverrideReason);
 
         var totalAmount = entries.Sum(static e => e.DebitAmount);
 
@@ -264,6 +270,14 @@ public sealed class JournalPostingService(
     }
 
     /// <summary>
+    /// Takes the next transaction number.
+    /// </summary>
+    /// <remarks>
+    /// A platform service rather than a Finance one, because a transaction number spans modules:
+    /// one sale writes item ledger entries and general ledger entries that all carry the same
+    /// number. Owning the counter here would have meant Inventory reading a Finance table.
+    /// </remarks>
+    /// <summary>
     /// Moves the running balance on every account the posting touched.
     /// </summary>
     /// <remarks>
@@ -290,48 +304,6 @@ public sealed class JournalPostingService(
         }
     }
 
-    private void RecordOverrides(
-        Result validation,
-        Result vetoed,
-        PostingRequest request,
-        long transactionNo)
-    {
-        foreach (var warning in validation.Messages.Concat(vetoed.Messages))
-        {
-            // Only messages that were actually downgraded. Severity plus permission used to be
-            // the test, but that shape also matches a message that was never more than a warning,
-            // and logging those as overrides would bury the real ones.
-            if (!warning.WasOverridden)
-            {
-                continue;
-            }
-
-            context.AuditLog.Add(new AuditLogEntry
-            {
-                TenantId = tenantContext.TenantId ?? Guid.Empty,
-                CompanyId = tenantContext.CompanyId,
-                BranchId = tenantContext.BranchId,
-                UserId = userContext.UserId,
-                UserName = userContext.UserName,
-                OccurredAtUtc = clock.UtcNow,
-                Action = AuditAction.Override,
-                EntityType = "Finance.GlEntry",
-                DisplayNo = request.DocumentNo ?? transactionNo.ToString(),
-                OverriddenMessageCode = warning.Code.Value,
-                OverrideReason = request.OverrideReason,
-                Changes = warning.Detail,
-            });
-        }
-    }
-
-    /// <summary>
-    /// Takes the next transaction number.
-    /// </summary>
-    /// <remarks>
-    /// A platform service rather than a Finance one, because a transaction number spans modules:
-    /// one sale writes item ledger entries and general ledger entries that all carry the same
-    /// number. Owning the counter here would have meant Inventory reading a Finance table.
-    /// </remarks>
     private Task<long> NextTransactionNoAsync(CancellationToken cancellationToken)
         => transactionNumbers.NextAsync(cancellationToken);
 }

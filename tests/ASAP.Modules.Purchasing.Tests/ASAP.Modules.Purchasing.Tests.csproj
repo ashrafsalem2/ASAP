@@ -3,23 +3,14 @@
     <IsPackable>false</IsPackable>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>
-
-  <!--
-    Every module, because these tests are about what the modules collectively promise rather than
-    about any one of them. A rule that only holds for the modules a suite happens to reference is
-    not a rule.
-  -->
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Modules\ASAP.Modules.Finance\ASAP.Modules.Finance.csproj" />
-    <ProjectReference Include="..\..\src\Modules\ASAP.Modules.Inventory\ASAP.Modules.Inventory.csproj" />
     <ProjectReference Include="..\..\src\Modules\ASAP.Modules.Purchasing\ASAP.Modules.Purchasing.csproj" />
-    <ProjectReference Include="..\..\src\Platform\ASAP.Platform.Core\ASAP.Platform.Core.csproj" />
   </ItemGroup>
-
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="xunit" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="Shouldly" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" />
   </ItemGroup>
 </Project>

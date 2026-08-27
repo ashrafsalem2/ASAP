@@ -52,6 +52,13 @@ public sealed class DemoSeeder(
         if (await context.Tenants.IgnoreQueryFilters().AnyAsync(cancellationToken).ConfigureAwait(false))
         {
             logger.LogInformation("Database already holds a tenant; the demo seed was skipped.");
+
+            // Except the number series, which are topped up by code on every start. Installing a
+            // module adds documents that need numbering, and gating that behind "is this database
+            // empty" means an established company gets the module, the screens, and a refusal the
+            // first time anybody raises one.
+            await TopUpNumberSeriesAsync(cancellationToken).ConfigureAwait(false);
+
             return null;
         }
 
@@ -63,7 +70,7 @@ public sealed class DemoSeeder(
         var sets = SeedPermissionSets(tenant);
         var generatedPassword = adminPassword is null ? GeneratePassword() : null;
         SeedAdministrator(tenant, company, branches, sets, adminPassword ?? generatedPassword!);
-        SeedNumberSeries(company, branches);
+        SeedNumberSeries(company, branches, skip: null);
         SeedDimensions(company);
 
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
@@ -76,6 +83,57 @@ public sealed class DemoSeeder(
             sets.Count);
 
         return generatedPassword;
+    }
+
+    /// <summary>
+    /// Adds any number series a company is missing, without touching the ones it has.
+    /// </summary>
+    /// <remarks>
+    /// Adds only. A seeder that reasserts its idea of the right starting number would one day
+    /// reset a series a customer had already issued from, and the numbers it reissued would
+    /// collide with documents that already exist.
+    /// </remarks>
+    private async Task TopUpNumberSeriesAsync(CancellationToken cancellationToken)
+    {
+        var companies = await context.Companies
+            .IgnoreQueryFilters()
+            .Where(static c => !c.IsDeleted)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var added = 0;
+
+        foreach (var company in companies)
+        {
+            var existing = await context.Set<NumberSeries>()
+                .IgnoreQueryFilters()
+                .Where(s => s.CompanyId == company.Id)
+                .Select(static s => s.Code)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var have = existing.ToHashSet(StringComparer.OrdinalIgnoreCase);
+            var branches = await context.Branches
+                .IgnoreQueryFilters()
+                .Where(b => b.CompanyId == company.Id && !b.IsDeleted)
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false);
+
+            var before = context.ChangeTracker.Entries<NumberSeries>().Count();
+
+            SeedNumberSeries(company, branches, have);
+
+            added += context.ChangeTracker.Entries<NumberSeries>().Count() - before;
+        }
+
+        if (added == 0)
+        {
+            return;
+        }
+
+        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        logger.LogInformation("Added {Count} number series that had no rows yet.", added);
     }
 
     private Tenant SeedTenant()
@@ -249,7 +307,10 @@ public sealed class DemoSeeder(
         });
     }
 
-    private void SeedNumberSeries(Company company, List<Branch> branches)
+    private void SeedNumberSeries(
+        Company company,
+        List<Branch> branches,
+        HashSet<string>? skip = null)
     {
         var yearStart = new DateOnly(DateTime.UtcNow.Year, 1, 1);
 
@@ -258,6 +319,7 @@ public sealed class DemoSeeder(
         Add("GJ", "General journal", allowGaps: true, "GJ-{YYYY}-00001");
         Add("SALES-INV", "Sales invoices", allowGaps: false, "INV-{YYYY}-00001");
         Add("SALES-CM", "Sales credit memos", allowGaps: false, "SCM-{YYYY}-00001");
+        Add("PURCH-ORD", "Purchase orders", allowGaps: true, "PO-{YYYY}-00001");
         Add("PURCH-INV", "Purchase invoices", allowGaps: true, "PINV-{YYYY}-00001");
         Add("TRANSFER", "Stock transfers", allowGaps: true, "TR-{YYYY}-00001");
 
@@ -275,6 +337,12 @@ public sealed class DemoSeeder(
 
         void Add(string code, string description, bool allowGaps, string startingNumber, Guid? branchId = null)
         {
+            // Already there, so leave it exactly as the company has it.
+            if (skip?.Contains(code) == true)
+            {
+                return;
+            }
+
             var series = new NumberSeries
             {
                 TenantId = company.TenantId,

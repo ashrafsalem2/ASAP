@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>ASAP.Modules.Purchasing</RootNamespace>
+    <Description>ASAP ERP Purchasing module: purchase orders, receipts, invoices and the three-way match between them.</Description>
+  </PropertyGroup>
+
+  <!--
+    Purchasing sits above Inventory and Finance rather than beside them: a receipt is a stock
+    movement and an invoice is a vendor ledger entry, and there is no company that owns Purchasing
+    but not the things it posts into. See docs/architecture/module-dependencies.md.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="..\ASAP.Modules.Inventory\ASAP.Modules.Inventory.csproj" />
+    <ProjectReference Include="..\ASAP.Modules.Finance\ASAP.Modules.Finance.csproj" />
+  </ItemGroup>
+</Project>

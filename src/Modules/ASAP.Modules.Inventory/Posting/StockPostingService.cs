@@ -27,6 +27,12 @@ namespace ASAP.Modules.Inventory.Posting;
 /// hand, which is the entire point of the costing engine.
 /// </param>
 /// <param name="EntryType">What caused the movement.</param>
+/// <param name="ContraAccountNo">
+/// What the value posts against, when the caller knows better than the item category does.
+/// The entry type says what kind of movement it is; the counterparty depends on the document
+/// behind it, and only the module owning that document knows it. A purchase receipt posts
+/// against goods-received-not-invoiced, which Inventory has no business knowing about.
+/// </param>
 /// <param name="SalesAmount">What the goods sold for, on an issue.</param>
 public sealed record StockMovementRequest(
     string ItemNo,
@@ -34,7 +40,8 @@ public sealed record StockMovementRequest(
     decimal Quantity,
     decimal UnitCost = 0m,
     ItemLedgerEntryType EntryType = ItemLedgerEntryType.PositiveAdjustment,
-    decimal SalesAmount = 0m);
+    decimal SalesAmount = 0m,
+    string? ContraAccountNo = null);
 
 /// <summary>What a stock posting produced.</summary>
 /// <param name="TransactionNo">The number grouping every entry written.</param>
@@ -61,6 +68,7 @@ public readonly record struct StockPostingReceipt(
 /// <param name="messages">Renders messages.</param>
 /// <param name="tenantContext">Supplies the company and branch.</param>
 /// <param name="userContext">Names who is posting, so an override can be recorded against them.</param>
+/// <param name="overrides">Records every protection this posting pushed past.</param>
 /// <param name="clock">Supplies the time.</param>
 /// <param name="transactionNumbers">Issues the number that groups the entries.</param>
 /// <param name="logger">Records postings.</param>
@@ -71,6 +79,7 @@ public sealed partial class StockPostingService(
     IMessageCatalog messages,
     ITenantContext tenantContext,
     IUserContext userContext,
+    OverrideAuditor overrides,
     IClock clock,
     ITransactionNumberAllocator transactionNumbers,
     ILogger<StockPostingService> logger)
@@ -133,7 +142,11 @@ public sealed partial class StockPostingService(
         // Anything that reached here carrying an overridden block was a refusal a moment ago.
         // Recorded against the transaction number so the trail and the entries point at each
         // other; both live or die with the same transaction.
-        RecordOverrides(checkResult, vetoed, documentNo, transactionNo, overrideReason);
+        overrides.Record(
+            [.. checkResult.Messages, .. vetoed.Messages],
+            "Inventory.ItemLedgerEntry",
+            documentNo ?? transactionNo.ToString(CultureInfo.InvariantCulture),
+            overrideReason);
         var written = new List<ItemLedgerEntry>();
         var costAmount = 0m;
         var estimatedAmount = 0m;
@@ -142,7 +155,7 @@ public sealed partial class StockPostingService(
         // database afterwards. The value entries are still sitting in the change tracker at this
         // point, unsaved, so a query would find nothing and the ledger posting would silently be
         // for zero -- a posting that never happens and never complains.
-        var settledByEntry = new List<(ItemLedgerEntry Entry, decimal SettledCost)>();
+        var settledByEntry = new List<(ItemLedgerEntry Entry, decimal SettledCost, string? ContraAccountNo)>();
 
         foreach (var (request, movement) in requests.Zip(movements))
         {
@@ -162,7 +175,7 @@ public sealed partial class StockPostingService(
 
             // Estimated cost is excluded: a figure nobody has confirmed must not reach the
             // inventory account, or the ledger drifts from the valuation by the amount in doubt.
-            settledByEntry.Add((outcome.Entry, outcome.CostAmount - outcome.EstimatedCostAmount));
+            settledByEntry.Add((outcome.Entry, outcome.CostAmount - outcome.EstimatedCostAmount, request.ContraAccountNo));
         }
 
         await RequestLedgerPostingAsync(
@@ -528,46 +541,6 @@ public sealed partial class StockPostingService(
     /// in Finance, because reaching into another module table would mean Inventory could not run
     /// without it.
     /// </remarks>
-    /// <summary>
-    /// Writes an audit row for every protection this posting pushed past.
-    /// </summary>
-    /// <remarks>
-    /// Inventory kept none of these for a while, so a sale could go out below zero from a
-    /// location that was not sellable and leave nothing behind saying who allowed it. An override
-    /// nobody recorded is indistinguishable from a rule that was never there.
-    /// </remarks>
-    private void RecordOverrides(
-        Result validation,
-        Result vetoed,
-        string? documentNo,
-        long transactionNo,
-        string? overrideReason)
-    {
-        foreach (var warning in validation.Messages.Concat(vetoed.Messages))
-        {
-            if (!warning.WasOverridden)
-            {
-                continue;
-            }
-
-            context.AuditLog.Add(new AuditLogEntry
-            {
-                TenantId = tenantContext.TenantId ?? Guid.Empty,
-                CompanyId = tenantContext.CompanyId,
-                BranchId = tenantContext.BranchId,
-                UserId = userContext.UserId,
-                UserName = userContext.UserName,
-                OccurredAtUtc = clock.UtcNow,
-                Action = AuditAction.Override,
-                EntityType = "Inventory.ItemLedgerEntry",
-                DisplayNo = documentNo ?? transactionNo.ToString(CultureInfo.InvariantCulture),
-                OverriddenMessageCode = warning.Code.Value,
-                OverrideReason = overrideReason,
-                Changes = warning.Detail,
-            });
-        }
-    }
-
     private Task<long> NextTransactionNoAsync(CancellationToken cancellationToken)
         => transactionNumbers.NextAsync(cancellationToken);
 }

@@ -54,6 +54,9 @@ public static class InventoryAccounts
     /// </param>
     /// <param name="accounts">The accounts the item's category posts to.</param>
     /// <param name="description">What the entries should say.</param>
+    /// <param name="contraAccountNo">
+    /// What inventory posts against, when the caller knows. Overrides the category default.
+    /// </param>
     /// <returns>
     /// A balanced pair of lines, or none at all when the movement is worth nothing or the category
     /// has not been given the accounts it needs.
@@ -62,7 +65,8 @@ public static class InventoryAccounts
         ItemLedgerEntryType entryType,
         decimal costAmount,
         CategoryAccounts accounts,
-        string description)
+        string description,
+        string? contraAccountNo = null)
     {
         // A movement worth nothing produces no entries. A zero-value posting balances perfectly
         // and tells a reader nothing, which is a poor trade for two more rows on every account.
@@ -76,7 +80,12 @@ public static class InventoryAccounts
             return [];
         }
 
-        var contra = ContraAccountFor(entryType, accounts);
+        // The caller wins where it named one. The entry type says what kind of movement this
+        // is; the counterparty depends on the document behind it, and the module owning that
+        // document is the only thing that knows.
+        var contra = contraAccountNo is { Length: > 0 } named
+            ? named
+            : ContraAccountFor(entryType, accounts);
 
         if (contra is not { Length: > 0 })
         {
@@ -136,9 +145,10 @@ public static class InventoryAccounts
             ItemLedgerEntryType.Sale or ItemLedgerEntryType.SalesReturn
                 => accounts.CostOfGoodsSoldAccountNo,
 
-            // A purchase and its return are settled against the vendor by Purchasing, which owns
-            // that side of the transaction. Until that module exists the variance account holds
-            // the balance, so the books stay square rather than waiting for a module to arrive.
+            // A purchase and its return are settled against the vendor by whichever module owns
+            // that side, and it says so by naming the account: goods-received-not-invoiced while
+            // the invoice is outstanding. Variance is the fallback for stock arriving with no
+            // document behind it at all, which keeps the books square rather than refusing.
             ItemLedgerEntryType.Purchase or ItemLedgerEntryType.PurchaseReturn
                 => accounts.VarianceAccountNo,
 

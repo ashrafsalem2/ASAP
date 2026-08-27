@@ -29,6 +29,7 @@ public sealed class BilingualTests
         new PlatformModule(),
         new ASAP.Modules.Finance.FinanceModule(),
         new ASAP.Modules.Inventory.InventoryModule(),
+        new ASAP.Modules.Purchasing.PurchasingModule(),
     ];
 
     /// <summary>Collects the English text of anything missing its Arabic.</summary>

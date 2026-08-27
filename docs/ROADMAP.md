@@ -79,11 +79,13 @@ Everything else posts here, so it goes first.
 
 ## Phase 3 — Purchasing
 
-- Vendors, purchase prices, discounts, lead times
-- Requisition, request for quotation, purchase order, receipt, invoice, return, credit memo
+- **done** Vendors (through the Finance party ledger); purchase prices, discounts and lead times to come
+- *in progress* **Purchase order, goods receipt and vendor invoice done**, with the three-way match
+  between them; requisition, request for quotation, return and credit memo to come
 - Approval limits and the approval workflow
 - Landed cost applied across an item charge
-- Posting into inventory and the vendor ledger
+- **done** Posting into inventory and the vendor ledger, through a goods-received-not-invoiced
+  accrual so the company owes for stock from the day it lands rather than the day the post does
 - Reports: purchase analysis, vendor performance, open orders
 
 ## Phase 4 — Sales

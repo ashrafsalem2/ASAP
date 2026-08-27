@@ -106,6 +106,7 @@ public sealed class NegativeStockLifecycleTests : IDisposable
             catalog,
             _tenancy,
             new StubUser(),
+            new OverrideAuditor(context, _tenancy, new StubUser(), _clock),
             _clock,
             _allocator,
             NullLogger<StockPostingService>.Instance);

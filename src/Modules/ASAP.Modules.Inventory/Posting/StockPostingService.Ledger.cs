@@ -42,7 +42,7 @@ public sealed partial class StockPostingService
     /// </para>
     /// </remarks>
     private async Task RequestLedgerPostingAsync(
-        IReadOnlyList<(ItemLedgerEntry Entry, decimal SettledCost)> movements,
+        IReadOnlyList<(ItemLedgerEntry Entry, decimal SettledCost, string? ContraAccountNo)> movements,
         DateOnly postingDate,
         string sourceCode,
         string? documentNo,
@@ -51,7 +51,7 @@ public sealed partial class StockPostingService
     {
         var lines = new List<LedgerPostingLine>();
 
-        foreach (var (entry, settledCost) in movements)
+        foreach (var (entry, settledCost, contraAccountNo) in movements)
         {
             if (settledCost == 0m)
             {
@@ -64,7 +64,8 @@ public sealed partial class StockPostingService
                 entry.EntryType,
                 settledCost,
                 accounts,
-                $"{entry.EntryType} {entry.ItemNo} at {entry.LocationCode}"));
+                $"{entry.EntryType} {entry.ItemNo} at {entry.LocationCode}",
+                contraAccountNo));
         }
 
         if (lines.Count == 0)

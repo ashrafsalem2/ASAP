@@ -34,6 +34,11 @@ namespace ASAP.Modules.Finance.Journals;
 /// Whether <paramref name="Amount"/> already contains the tax. False for a net figure the tax is
 /// added to; true for a shelf price the tax comes out of.
 /// </param>
+/// <param name="BranchId">
+/// Which branch the entry belongs to, or null for the branch the caller is signed in to. Stated
+/// per line because one document can belong to several -- a payroll run splits a month's wage
+/// between the branches somebody actually worked at.
+/// </param>
 public sealed record PostJournalLine(
     string AccountNo,
     decimal Amount,
@@ -43,7 +48,8 @@ public sealed record PostJournalLine(
     JournalAccountType AccountType = JournalAccountType.GlAccount,
     string? ExternalDocumentNo = null,
     string? TaxCode = null,
-    bool TaxIncludedInAmount = false);
+    bool TaxIncludedInAmount = false,
+    Guid? BranchId = null);
 
 /// <summary>
 /// Posts a set of journal lines to the general ledger.

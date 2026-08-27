@@ -1,3 +1,4 @@
+using ASAP.Modules.Hr.Payroll;
 using ASAP.Modules.Hr.People;
 using ASAP.Platform.Persistence;
 using ASAP.Platform.Persistence.Conventions;
@@ -71,6 +72,74 @@ public sealed class HrSchema : IModuleSchema
 
             builder.Ignore(e => e.TotalWage);
             builder.Ignore(e => e.IsEmployed);
+        });
+
+        modelBuilder.Entity<PayrollRun>(builder =>
+        {
+            builder.ToTable("PayrollRuns", SchemaName);
+
+            builder.Property(r => r.No).HasMaxLength(20).IsRequired();
+            builder.Property(r => r.Description).HasMaxLength(250);
+
+            builder.HasIndex(r => new { r.CompanyId, r.No })
+                   .IsUnique()
+                   .HasFilter("[IsDeleted] = 0");
+
+            builder.HasIndex(r => new { r.CompanyId, r.FromDate });
+
+            builder.HasMany(r => r.Lines)
+                   .WithOne(l => l.PayrollRun!)
+                   .HasForeignKey(l => l.PayrollRunId)
+                   .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Ignore(r => r.DaysInPeriod);
+            builder.Ignore(r => r.GrossPay);
+            builder.Ignore(r => r.Deductions);
+            builder.Ignore(r => r.NetPay);
+            builder.Ignore(r => r.EndOfServiceCharge);
+            builder.Ignore(r => r.IsEditable);
+        });
+
+        modelBuilder.Entity<PayrollLine>(builder =>
+        {
+            builder.ToTable("PayrollLines", SchemaName);
+
+            builder.Property(l => l.EmployeeNo).HasMaxLength(20).IsRequired();
+            builder.Property(l => l.EmployeeName).HasMaxLength(200).IsRequired();
+            builder.Property(l => l.Note).HasMaxLength(500);
+
+            foreach (var money in new[]
+                     {
+                         nameof(PayrollLine.BasicPay),
+                         nameof(PayrollLine.Allowances),
+                         nameof(PayrollLine.OtherEarnings),
+                         nameof(PayrollLine.Deductions),
+                         nameof(PayrollLine.EndOfServiceCharge),
+                     })
+            {
+                builder.Property(money).HasColumnType(DecimalPrecisionConventions.Money);
+            }
+
+            // "What has this person been paid" reads this one, which is what a leaver asks for.
+            builder.HasIndex(l => new { l.CompanyId, l.EmployeeNo });
+
+            builder.HasMany(l => l.BranchShares)
+                   .WithOne(s => s.PayrollLine!)
+                   .HasForeignKey(s => s.PayrollLineId)
+                   .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Ignore(l => l.GrossPay);
+            builder.Ignore(l => l.NetPay);
+        });
+
+        modelBuilder.Entity<PayrollBranchShare>(builder =>
+        {
+            builder.ToTable("PayrollBranchShares", SchemaName);
+
+            builder.Property(s => s.Amount).HasColumnType(DecimalPrecisionConventions.Money);
+
+            // "What did staff cost this branch" reads this one.
+            builder.HasIndex(s => new { s.CompanyId, s.BranchId });
         });
 
         modelBuilder.Entity<BranchAssignment>(builder =>

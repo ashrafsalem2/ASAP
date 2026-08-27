@@ -164,6 +164,15 @@ public sealed record PostingTaxView(
 /// the party entry, where it is what somebody searches by when a supplier telephones.
 /// </param>
 /// <param name="Tax">The tax to post beside this line, or null for a line carrying none.</param>
+/// <param name="BranchId">
+/// Which branch the entry belongs to, or null to take the branch the caller is signed in to.
+/// <para>
+/// Stated per line because one document can belong to several. A payroll run covering somebody
+/// who transferred mid-month charges part of their wage to each branch, and a run posted from
+/// head office with every entry taking the ambient branch would charge the whole company's wages
+/// to head office and make cost per branch unanswerable.
+/// </para>
+/// </param>
 /// <remarks>
 /// A line naming a party still produces an ordinary general ledger entry -- on the party's control
 /// account -- and a subsidiary ledger entry beside it, in the same transaction. That is what makes
@@ -181,7 +190,8 @@ public sealed record PostingLineView(
     string? Description = null,
     PostingPartyView? Party = null,
     string? ExternalDocumentNo = null,
-    PostingTaxView? Tax = null);
+    PostingTaxView? Tax = null,
+    Guid? BranchId = null);
 
 /// <summary>Whether a date may be posted to, and why not when it may not.</summary>
 public enum PeriodAvailability

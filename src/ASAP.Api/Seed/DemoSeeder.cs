@@ -324,6 +324,8 @@ public sealed class DemoSeeder(
         Add("PURCH-INV", "Purchase invoices", allowGaps: true, "PINV-{YYYY}-00001");
         Add("TRANSFER", "Stock transfers", allowGaps: true, "TR-{YYYY}-00001");
         Add("POS-SESS", "Till sessions", allowGaps: true, "Z-{YYYY}-00001");
+        Add("EMP", "Employees", allowGaps: true, "EMP-0001");
+        Add("PAYROLL", "Payroll runs", allowGaps: true, "PAY-{YYYY}-001");
 
         // Gapless: a till receipt is a simplified tax invoice, and a sequence with holes in it is
         // a question from the authority. Branches that want their own may override the setting.

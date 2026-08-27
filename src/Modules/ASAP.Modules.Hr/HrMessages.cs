@@ -39,6 +39,22 @@ public static class HrMessages
     /// <summary>A wage below nothing.</summary>
     public static readonly MessageCode WageNegative = new("HR.EMPLOYEE.WAGE_NEGATIVE");
 
+    /// <summary>The payroll run named does not exist.</summary>
+    public static readonly MessageCode PayrollRunNotFound = new("HR.PAYROLL.NOT_FOUND");
+
+    /// <summary>Something tried to post a run that has already been posted.</summary>
+    public static readonly MessageCode PayrollAlreadyPosted = new("HR.PAYROLL.ALREADY_POSTED");
+
+    /// <summary>Something tried to throw away a run that has been posted.</summary>
+    public static readonly MessageCode PayrollPostedCannotDiscard =
+        new("HR.PAYROLL.POSTED_CANNOT_BE_DISCARDED");
+
+    /// <summary>A draft run already covers some of the same days.</summary>
+    public static readonly MessageCode PeriodAlreadyRun = new("HR.PAYROLL.PERIOD_ALREADY_RUN");
+
+    /// <summary>A posted run already paid some of the same days.</summary>
+    public static readonly MessageCode PeriodAlreadyPaid = new("HR.PAYROLL.PERIOD_ALREADY_PAID");
+
     /// <summary>No account is set up for what the end-of-service provision is carried in.</summary>
     public static readonly MessageCode NoProvisionAccount = new("HR.SETUP.NO_PROVISION_ACCOUNT");
 
@@ -173,6 +189,90 @@ public static class HrMessages
                 + "against the contract.",
                 "أدخل ما يتقاضاه فعلاً. فالاستقطاع يُسجَّل على مسيّر الرواتب لا على العقد."),
             HelpTopic = "hr/employees",
+        },
+        new()
+        {
+            Code = PayrollRunNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such payroll run", "لا يوجد مسيّر رواتب بهذا الرقم"),
+            Detail = new LocalizedText(
+                "No payroll run in this company is numbered {RunNo}.",
+                "لا يوجد في هذه الشركة مسيّر رواتب يحمل الرقم {RunNo}."),
+            Resolution = new LocalizedText(
+                "Check the number against the payroll list.",
+                "تحقق من الرقم في قائمة مسيّرات الرواتب."),
+            HelpTopic = "hr/payroll",
+        },
+        new()
+        {
+            Code = PayrollAlreadyPosted,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("This run has been posted", "تم ترحيل هذا المسيّر"),
+            Detail = new LocalizedText(
+                "{RunNo} posted as transaction {TransactionNo}. What people are owed is already a "
+                + "liability the company carries, and posting it again would owe it twice.",
+                "رُحّل المسيّر {RunNo} ضمن الحركة {TransactionNo}. وما يستحقه الموظفون أصبح التزامًا "
+                + "قائمًا على الشركة، وترحيله ثانية يجعله مستحقًا مرتين."),
+            Resolution = new LocalizedText(
+                "Correct it with an adjustment run rather than by posting this one again.",
+                "صحّحه بمسيّر تسوية بدلاً من إعادة ترحيل هذا المسيّر."),
+            HelpTopic = "hr/payroll",
+        },
+        new()
+        {
+            Code = PayrollPostedCannotDiscard,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("A posted run is not thrown away", "المسيّر المرحّل لا يُحذف"),
+            Detail = new LocalizedText(
+                "{RunNo} was posted as transaction {TransactionNo}. Removing it would leave the "
+                + "ledger holding what it paid and nothing saying who it was paid to.",
+                "رُحّل المسيّر {RunNo} ضمن الحركة {TransactionNo}. وحذفه يترك في الدفاتر مبلغًا "
+                + "مدفوعًا دون ما يبيّن لمن دُفع."),
+            Resolution = new LocalizedText(
+                "Reverse transaction {TransactionNo} instead. A reversal leaves both the payment "
+                + "and its undoing on the record, which is what somebody asking next year what "
+                + "happened needs to see.",
+                "اعكس الحركة {TransactionNo} بدلاً من ذلك. فالعكس يُبقي القيد وإلغاءه معًا في "
+                + "السجل، وهو ما يحتاج أن يراه من يسأل بعد عام عمّا جرى."),
+            HelpTopic = "hr/payroll",
+        },
+        new()
+        {
+            Code = PeriodAlreadyRun,
+            Severity = MessageSeverity.Warning,
+            Title = new LocalizedText("Another run covers these days", "مسيّر آخر يغطي هذه الأيام"),
+            Detail = new LocalizedText(
+                "{RunNo} is a draft covering {ExistingFrom:d} to {ExistingTo:d}, which overlaps "
+                + "this period.",
+                "المسيّر {RunNo} مسودة تغطي من {ExistingFrom:d} إلى {ExistingTo:d}، وهي فترة "
+                + "متداخلة مع هذه."),
+            Resolution = new LocalizedText(
+                "Two drafts for the same days are not wrong by themselves — only one of them can "
+                + "be posted. Decide which, before somebody else has to.",
+                "وجود مسودتين لنفس الأيام ليس خطأً بذاته، لكن لا يجوز ترحيل إلا واحدة منهما. "
+                + "فاحسم أيّهما قبل أن يقرر ذلك غيرك."),
+            HelpTopic = "hr/payroll",
+        },
+        new()
+        {
+            Code = PeriodAlreadyPaid,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("These days have been paid", "هذه الأيام مدفوعة بالفعل"),
+            Detail = new LocalizedText(
+                "{RunNo} was posted as transaction {TransactionNo} and covers {ExistingFrom:d} to "
+                + "{ExistingTo:d}. Posting this one as well would owe everybody for the "
+                + "overlapping days twice.",
+                "رُحّل المسيّر {RunNo} ضمن الحركة {TransactionNo} وهو يغطي من {ExistingFrom:d} "
+                + "إلى {ExistingTo:d}. وترحيل هذا المسيّر أيضًا يجعل الأيام المتداخلة مستحقة "
+                + "مرتين لكل الموظفين."),
+            Resolution = new LocalizedText(
+                "Narrow this run to the days not already paid. If it is a correction to what was "
+                + "paid, that is a real thing to post, and somebody with the override permission "
+                + "may post it with a reason.",
+                "اقصر هذا المسيّر على الأيام غير المدفوعة. وإن كان تصحيحًا لما دُفع فهو ترحيل "
+                + "مشروع، ويمكن لمن يملك صلاحية التجاوز ترحيله مع بيان السبب."),
+            OverridePermission = "Hr.Payroll.Override",
+            HelpTopic = "hr/payroll",
         },
         new()
         {

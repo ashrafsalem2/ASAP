@@ -133,8 +133,13 @@ public sealed class EmployeeService(
                 .GetAsync<string>($"{HrModule.Id}.Employees.NumberSeries", cancellationToken)
                 .ConfigureAwait(false) ?? "EMP";
 
+            // Issued against today rather than the hiring date. An employee number is an
+            // identifier, not a document in a dated sequence -- the date-order rule exists so an
+            // invoice sequence agrees with its dates for the tax authority, and applying it here
+            // makes it impossible to record somebody who was hired before the system was
+            // installed, which is every employee on the day a company migrates.
             var numbered = await numbers
-                .NextAsync(series, employee.HiredOn, cancellationToken)
+                .NextAsync(series, clock.Today, cancellationToken)
                 .ConfigureAwait(false);
 
             if (numbered.Failed)
@@ -259,14 +264,25 @@ public sealed class EmployeeService(
             current.ToDate = lastDay;
         }
 
-        employee.BranchAssignments.Add(new BranchAssignment
+        var assignment = new BranchAssignment
         {
             TenantId = employee.TenantId,
             CompanyId = employee.CompanyId,
+            EmployeeId = employee.Id,
             BranchId = branchId,
             FromDate = fromDate,
             Reason = reason,
-        });
+        };
+
+        // Added through the set, not only through the collection. Every key here is a UUID v7
+        // handed out by the constructor, so a row hung off an employee that was loaded from the
+        // database arrives with its key already set -- and EF reads a key that is already set as
+        // "this row exists", issuing an UPDATE that matches nothing. Saying which of the two it
+        // is beats leaving it to be inferred from whether the key happens to be empty.
+        // Adding it to the set is enough: the foreign key is set, so EF puts it on the
+        // employee's collection itself. Adding it there as well would show the transfer twice
+        // to whoever is handed the employee back, and payroll counts those days.
+        context.Set<BranchAssignment>().Add(assignment);
 
         await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
 

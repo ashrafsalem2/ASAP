@@ -67,6 +67,7 @@ public sealed class HrModule : IAsapModule, ISyncContributor
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddScoped<People.EmployeeService>();
+        services.AddScoped<Payroll.PayrollService>();
     }
 
     /// <inheritdoc />
@@ -106,6 +107,20 @@ public sealed class HrModule : IAsapModule, ISyncContributor
             isSensitive: true),
 
         PermissionDescriptor.Define(
+            Id, "Payroll", PermissionAction.Override,
+            new LocalizedText("Post payroll past a protection", "ترحيل الرواتب رغم الاعتراض"),
+            new LocalizedText(
+                "Chiefly: post a run covering days a posted run already paid. A correction run "
+                + "is a real thing and does exactly that, so this cannot simply be forbidden — "
+                + "but paying a month twice is not recoverable by noticing later, so it is not "
+                + "something anybody running payroll should be able to do without saying why.",
+                "وأبرزها ترحيل مسيّر يغطي أيامًا سبق دفعها بمسيّر مرحّل. فمسيّر التصحيح أمر "
+                + "مشروع ويفعل ذلك تمامًا، فلا يصح منعه منعًا مطلقًا — لكن دفع الشهر مرتين لا "
+                + "يُتدارك بملاحظته لاحقًا، فلا ينبغي أن يقدر عليه كل من يشغّل الرواتب دون بيان "
+                + "السبب."),
+            isSensitive: true),
+
+        PermissionDescriptor.Define(
             Id, "Report", PermissionAction.Read,
             new LocalizedText("Run staff reports", "تشغيل تقارير الموظفين"),
             new LocalizedText(
@@ -135,6 +150,57 @@ public sealed class HrModule : IAsapModule, ISyncContributor
             ValueType = SetupValueType.Text,
             Scope = SetupScope.Company,
             DefaultValue = "2500",
+            RequiresPermission = $"{Id}.Wage.Update",
+            HelpTopic = "hr/setup",
+        },
+        new()
+        {
+            Key = $"{Id}.Posting.WageAccount",
+            Module = Id,
+            Group = new LocalizedText("Posting", "الترحيل"),
+            DisplayName = new LocalizedText("Wages and salaries", "الأجور والرواتب"),
+            Description = new LocalizedText(
+                "Where the cost of employing people is charged. Debited per branch, so the shop "
+                + "that had somebody carries their wage for the days they were there.",
+                "الحساب الذي تُحمَّل عليه تكلفة الموظفين. ويُخصم لكل فرع، فيتحمّل الفرع الذي عمل "
+                + "به الموظف أجره عن الأيام التي قضاها فيه."),
+            ValueType = SetupValueType.Text,
+            Scope = SetupScope.Company,
+            DefaultValue = "6100",
+            RequiresPermission = $"{Id}.Wage.Update",
+            HelpTopic = "hr/setup",
+        },
+        new()
+        {
+            Key = $"{Id}.Posting.PayableAccount",
+            Module = Id,
+            Group = new LocalizedText("Posting", "الترحيل"),
+            DisplayName = new LocalizedText("Net pay owed", "صافي الرواتب المستحقة"),
+            Description = new LocalizedText(
+                "Where what people are owed sits between the payroll being posted and the money "
+                + "leaving the bank. Posting a payroll does not pay anybody; conflating the two "
+                + "is how a company comes to believe it has paid staff it has not.",
+                "الحساب الذي يُقيَّد فيه المستحق للموظفين بين ترحيل المسيّر وخروج المبلغ من البنك. "
+                + "فترحيل الرواتب ليس صرفًا لها، والخلط بينهما يجعل الشركة تظن أنها دفعت لموظفين "
+                + "لم تدفع لهم."),
+            ValueType = SetupValueType.Text,
+            Scope = SetupScope.Company,
+            DefaultValue = "2400",
+            RequiresPermission = $"{Id}.Wage.Update",
+            HelpTopic = "hr/setup",
+        },
+        new()
+        {
+            Key = $"{Id}.Payroll.NumberSeries",
+            Module = Id,
+            Group = new LocalizedText("Numbering", "الترقيم"),
+            DisplayName = new LocalizedText("Payroll run numbers", "ترقيم مسيّرات الرواتب"),
+            Description = new LocalizedText(
+                "The series payroll runs are numbered from.",
+                "المسلسل الذي تصدر منه أرقام مسيّرات الرواتب."),
+            ValueType = SetupValueType.Text,
+            Scope = SetupScope.Company,
+            DefaultValue = "PAYROLL",
             RequiresPermission = $"{Id}.Wage.Update",
             HelpTopic = "hr/setup",
         },
@@ -197,6 +263,17 @@ public sealed class HrModule : IAsapModule, ISyncContributor
             Route = "/hr/employees",
             RequiresPermission = $"{Id}.Employee.Read",
             Order = 10,
+        },
+        new()
+        {
+            Id = "Hr.Payroll",
+            Module = Id,
+            ParentId = "Hr.Root",
+            DisplayName = new LocalizedText("Payroll", "الرواتب"),
+            Kind = NavigationKind.Page,
+            Route = "/hr/payroll",
+            RequiresPermission = $"{Id}.Wage.Read",
+            Order = 15,
         },
         new()
         {

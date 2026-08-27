@@ -103,4 +103,51 @@ public sealed class MessageTemplateRendererTests
     {
         MessageTemplateRenderer.Render(template, null, English).ShouldBe(template);
     }
+
+    [Fact]
+    public void A_date_reads_the_same_in_every_culture()
+    {
+        // 8/1/2026 is August in one country and January in another, and a refusal about which
+        // days somebody is being paid for cannot leave that to the reader.
+        var rendered = MessageTemplateRenderer.Render(
+            "Covers {From:d} to {To:d}.",
+            new Dictionary<string, object?>
+            {
+                ["From"] = new DateOnly(2026, 8, 1),
+                ["To"] = new DateOnly(2026, 8, 31),
+            },
+            new CultureInfo("en-US"));
+
+        rendered.ShouldBe("Covers 2026-08-01 to 2026-08-31.");
+    }
+
+    [Fact]
+    public void An_arabic_culture_does_not_move_the_date_to_another_calendar()
+    {
+        // The framework renders dates under ar-SA in the Hijri calendar. That is not another
+        // spelling of the same day; it is a different number for it, in a message whose entire
+        // subject is which days are meant.
+        var arguments = new Dictionary<string, object?> { ["On"] = new DateOnly(2026, 8, 1) };
+
+        MessageTemplateRenderer.Render("{On:d}", arguments, new CultureInfo("ar-SA"))
+            .ShouldBe(MessageTemplateRenderer.Render("{On:d}", arguments, new CultureInfo("en-GB")));
+
+        MessageTemplateRenderer.Render("{On:d}", arguments, new CultureInfo("ar-SA"))
+            .ShouldBe("2026-08-01");
+    }
+
+    [Fact]
+    public void A_moment_carries_its_time_and_a_number_still_takes_its_format()
+    {
+        var rendered = MessageTemplateRenderer.Render(
+            "{At} — {Amount:N2}",
+            new Dictionary<string, object?>
+            {
+                ["At"] = new DateTime(2026, 8, 1, 14, 5, 0, DateTimeKind.Utc),
+                ["Amount"] = 582.8m,
+            },
+            CultureInfo.InvariantCulture);
+
+        rendered.ShouldBe("2026-08-01 14:05 — 582.80");
+    }
 }

@@ -160,7 +160,8 @@ public sealed class DocumentPostingService(
                     Description: line.Description,
                     Party: party,
                     ExternalDocumentNo: line.ExternalDocumentNo,
-                    Tax: TaxFor(line, party?.Kind ?? documentKind, taxCodes, line.PostingDate ?? today));
+                    Tax: TaxFor(line, party?.Kind ?? documentKind, taxCodes, line.PostingDate ?? today),
+                    BranchId: line.BranchId);
             })
             .ToList();
 

@@ -256,7 +256,9 @@ public sealed class JournalPostingService(
             ShortcutDimension1Id = request.ShortcutDimension1Id ?? FirstShortcut(line.Dimensions, request, 1),
             ShortcutDimension2Id = request.ShortcutDimension2Id ?? FirstShortcut(line.Dimensions, request, 2),
             SourceCode = request.SourceCode,
-            BranchId = tenantContext.BranchId,
+            // The line first, because one document can span several branches; the caller's own
+            // branch only when the line does not say.
+            BranchId = line.BranchId ?? tenantContext.BranchId,
         };
     }
 

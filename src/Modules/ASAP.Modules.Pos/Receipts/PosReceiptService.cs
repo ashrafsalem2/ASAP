@@ -90,6 +90,7 @@ public readonly record struct PosReceiptPosted(
 /// <param name="promotions">Decides which offers apply and what they take off.</param>
 /// <param name="stock">Moves the goods.</param>
 /// <param name="documents">Posts the money.</param>
+/// <param name="branches">Says which branch a till stands in.</param>
 /// <param name="numbers">Issues the receipt number.</param>
 /// <param name="setup">Supplies the accounts, the rounding and the discount limit.</param>
 /// <param name="clock">Supplies the time and the business date.</param>
@@ -102,6 +103,7 @@ public sealed class PosReceiptService(
     PromotionEngine promotions,
     StockPostingService stock,
     DocumentPostingService documents,
+    Stations.StationBranchLookup branches,
     INumberSeriesService numbers,
     ISetupService setup,
     IClock clock,
@@ -1211,6 +1213,13 @@ public sealed class PosReceiptService(
                     DocumentType: GlDocumentType.PosReceipt,
                     DocumentNo: receipt.No,
                     Description: $"{receipt.StationCode} — {receipt.No}",
+
+                    // The shop the till stands in. This is the whole of branch reporting for a
+                    // retailer: without it every sale in the chain reports at head office,
+                    // because head office is where the software runs.
+                    BranchId: await branches
+                        .BranchOfAsync(receipt.StationCode, cancellationToken)
+                        .ConfigureAwait(false),
                     OverrideReason: overrideReason),
                 cancellationToken)
             .ConfigureAwait(false);

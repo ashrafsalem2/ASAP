@@ -76,7 +76,8 @@ public sealed class LedgerPostingRequestHandler(
                 BalancingAccount: null,
                 Dimensions: default,
                 DocumentNo: asapEvent.DocumentNo,
-                Description: line.Description))
+                Description: line.Description,
+                BranchId: line.BranchId))
             .ToList();
 
         var environment = new PostingEnvironment(

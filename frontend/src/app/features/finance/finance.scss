@@ -1,0 +1,26 @@
+
+.branch__name {
+  color: var(--text-muted);
+  margin-inline-start: 0.5rem;
+}
+
+/* A shop losing money is the one thing this page exists to make impossible to scroll past. */
+.branch__loss {
+  color: var(--caution);
+  font-weight: 600;
+}
+
+.branch__unattributed td {
+  background: color-mix(in srgb, var(--text-muted) 8%, transparent);
+  font-style: italic;
+}
+
+.branch__total td {
+  font-weight: 600;
+  border-top: 2px solid var(--border);
+}
+
+.branch__note {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}

@@ -126,7 +126,13 @@ Everything else posts here, so it goes first.
   makes the conflict rules short enough to state. The branch-side applier that consumes the feed
   into a second database waits on there being a second database
 - **done** Client screens: the till, and every session with what its drawer came to
-- Branch performance reporting, consolidated at head office
+- **done** Branch performance reporting, consolidated at head office. The income statement cut
+  by branch, reconciling to it exactly because it is built from the same entries. The work was not
+  the report: it was that nothing outside payroll ever said which branch an entry belonged to, so
+  every sale in the chain landed wherever the person who posted it happened to be signed in. A
+  sale now posts at the till that rang it up, a purchase at the place the goods arrived, a stock
+  movement at the location it moved in — per line, so a transfer between two shops has a side in
+  each. What names none of them is shown on its own line rather than shared out
 
 ## Phase 6 — Promotions
 
@@ -165,8 +171,16 @@ Everything else posts here, so it goes first.
   thereafter, cumulative like tax bands rather than revalued at the final rate, and reduced by
   tenure on resignation. The bands are data, so another jurisdiction is a policy and not a fork.
   Earnings, deductions and posting into finance still to come
+- **done** Payroll: what everybody is owed for a period, each wage split across the branches the
+  days were worked at and posted one debit per branch, with end-of-service and deductions
+  dividing the same way. Posting over days a posted run already paid is blocked and overridable
+  with a reason, because a correction run is a real thing that does exactly that
+- **done** Client screens: employees with their branch history, payroll with each line's split,
+  and what the company owes
 - Employee self-service
-- Reports: headcount, turnover, cost per branch, leave liability
+- Reports: headcount and turnover. **Cost per branch done** — see branch performance in Phase 5.
+  Leave liability is reported as leave *earned*, which is an upper bound until a leave register
+  records what was taken
 
 ## Phase 8 — Hardware stations
 

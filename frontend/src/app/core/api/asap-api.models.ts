@@ -1083,3 +1083,37 @@ export interface PayrollSaved {
   run: PayrollRun;
   messages: AsapMessage[];
 }
+
+/** What one branch earned and spent over a range. */
+export interface BranchPerformanceRow {
+  branchId: string | null;
+  code: string | null;
+  name: string;
+  nameArabic: string | null;
+  revenue: number;
+  costOfSales: number;
+  grossProfit: number;
+  expenses: number;
+
+  /** Broken out because it is the largest cost a shop manager is actually asked about. */
+  staffCost: number;
+  result: number;
+
+  /** Null where nothing was sold, which is not the same as a margin of nil. */
+  grossMarginPercent: number | null;
+}
+
+/** What every branch earned and spent, and what was charged to none of them. */
+export interface BranchPerformance {
+  from: string;
+  to: string;
+  currencyCode: string;
+  branches: BranchPerformanceRow[];
+
+  /**
+   * What carries no branch. Shown rather than spread, so the reader knows how much of the
+   * company's result the branch rows do not account for.
+   */
+  unattributed: BranchPerformanceRow | null;
+  total: BranchPerformanceRow;
+}

@@ -256,9 +256,12 @@ public sealed class JournalPostingService(
             ShortcutDimension1Id = request.ShortcutDimension1Id ?? FirstShortcut(line.Dimensions, request, 1),
             ShortcutDimension2Id = request.ShortcutDimension2Id ?? FirstShortcut(line.Dimensions, request, 2),
             SourceCode = request.SourceCode,
-            // The line first, because one document can span several branches; the caller's own
-            // branch only when the line does not say.
-            BranchId = line.BranchId ?? tenantContext.BranchId,
+            // The line first, because one document can span several branches -- a payroll run
+            // charges each shop the days it had somebody. Then the document, which is where a
+            // sale gets the branch of the till that rang it up. The caller's own branch only
+            // when neither says, which for a hand-keyed journal is the right answer and for
+            // anything else means somebody forgot.
+            BranchId = line.BranchId ?? request.BranchId ?? tenantContext.BranchId,
         };
     }
 
@@ -318,6 +321,11 @@ public sealed class JournalPostingService(
 /// <param name="ShortcutDimension2DefinitionId">Which dimension is shortcut 2.</param>
 /// <param name="ShortcutDimension1Id">An explicit shortcut 1 value, overriding what the line carries.</param>
 /// <param name="ShortcutDimension2Id">An explicit shortcut 2 value.</param>
+/// <param name="BranchId">
+/// Where the document happened, used for every line that does not name a branch itself. A sale
+/// belongs to the shop that made it, not to whoever was signed in when it posted -- and without
+/// this it was the latter, which put every shop's takings at head office.
+/// </param>
 /// <param name="OverrideReason">Why the user pushed past a block, recorded in the audit log.</param>
 /// <param name="TransactionNo">
 /// The transaction to write under, when the entries belong to one another module already opened.
@@ -334,5 +342,6 @@ public sealed record PostingRequest(
     Guid? ShortcutDimension2DefinitionId = null,
     Guid? ShortcutDimension1Id = null,
     Guid? ShortcutDimension2Id = null,
+    Guid? BranchId = null,
     string? OverrideReason = null,
     long? TransactionNo = null);

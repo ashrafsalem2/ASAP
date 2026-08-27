@@ -120,6 +120,7 @@ public sealed class TransferLifecycleTests : IDisposable
         return new StockPostingService(
             context,
             new StockAvailability(catalog),
+            new LocationBranchLookup(context),
             new NullPublisher(),
             catalog,
             _tenancy,

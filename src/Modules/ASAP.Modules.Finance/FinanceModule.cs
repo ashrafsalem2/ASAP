@@ -96,6 +96,9 @@ public sealed class FinanceModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISync
             ASAP.Platform.Kernel.Cqrs.IRequestHandler<Reporting.BalanceSheetQuery, Reporting.BalanceSheet>,
             Reporting.BalanceSheetQueryHandler>();
         services.AddScoped<
+            ASAP.Platform.Kernel.Cqrs.IRequestHandler<Reporting.BranchPerformanceQuery, Reporting.BranchPerformance>,
+            Reporting.BranchPerformanceQueryHandler>();
+        services.AddScoped<
             ASAP.Platform.Kernel.Cqrs.IRequestHandler<Reporting.AgedAnalysisQuery, Reporting.AgedAnalysis>,
             Reporting.AgedAnalysisQueryHandler>();
         services.AddScoped<
@@ -421,6 +424,17 @@ public sealed class FinanceModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISync
             Route = "/finance/reports/income-statement",
             RequiresPermission = $"{Id}.Report.Read",
             Order = 60,
+        },
+        new()
+        {
+            Id = "Finance.BranchPerformance",
+            Module = Id,
+            ParentId = "Finance.Root",
+            DisplayName = new LocalizedText("Branch performance", "أداء الفروع"),
+            Kind = NavigationKind.Report,
+            Route = "/finance/reports/branch-performance",
+            RequiresPermission = $"{Id}.Report.Read",
+            Order = 65,
         },
         new()
         {

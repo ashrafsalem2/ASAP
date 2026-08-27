@@ -1,0 +1,104 @@
+<div class="page">
+  <h1>{{ t('finance.branches.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('finance.branches.intro') }}</p>
+
+    <div class="panel__body draft">
+      <div class="field">
+        <label class="field__label" for="from">{{ t('finance.branches.from') }}</label>
+        <input id="from" class="input" type="date" [(ngModel)]="from" />
+      </div>
+
+      <div class="field">
+        <label class="field__label" for="to">{{ t('finance.branches.to') }}</label>
+        <input id="to" class="input" type="date" [(ngModel)]="to" />
+      </div>
+
+      <button type="button" class="button" [disabled]="loading()" (click)="run()">
+        @if (loading()) {
+          <span class="spinner"></span>
+        }
+        {{ t('finance.branches.show') }}
+      </button>
+    </div>
+  </section>
+
+  <section class="panel">
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else if (report(); as r) {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('finance.branches.branch') }}</th>
+              <th class="numeric">{{ t('finance.branches.revenue') }}</th>
+              <th class="numeric">{{ t('finance.branches.costOfSales') }}</th>
+              <th class="numeric">{{ t('finance.branches.grossProfit') }}</th>
+              <th class="numeric">{{ t('finance.branches.margin') }}</th>
+              <th class="numeric">{{ t('finance.branches.staffCost') }}</th>
+              <th class="numeric">{{ t('finance.branches.expenses') }}</th>
+              <th class="numeric">{{ t('finance.branches.result') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of r.branches; track row.branchId) {
+              <tr>
+                <td>
+                  <span class="code">{{ row.code }}</span>
+                  <span class="branch__name">{{ name(row) }}</span>
+                </td>
+                <td class="numeric">{{ i18n.total(row.revenue) }}</td>
+                <td class="numeric">{{ i18n.total(row.costOfSales) }}</td>
+                <td class="numeric">{{ i18n.total(row.grossProfit) }}</td>
+                <td class="numeric">{{ margin(row.grossMarginPercent) }}</td>
+                <td class="numeric">{{ i18n.total(row.staffCost) }}</td>
+                <td class="numeric">{{ i18n.total(row.expenses) }}</td>
+
+                <!-- Coloured, because a shop losing money is the one thing this page exists to
+                     make impossible to scroll past. -->
+                <td class="numeric" [class.branch__loss]="row.result < 0">
+                  {{ i18n.total(row.result) }}
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="8" class="empty">{{ t('common.nothingHere') }}</td>
+              </tr>
+            }
+
+            @if (r.unattributed; as none) {
+              <tr class="branch__unattributed">
+                <td>{{ t('finance.branches.unattributed') }}</td>
+                <td class="numeric">{{ i18n.total(none.revenue) }}</td>
+                <td class="numeric">{{ i18n.total(none.costOfSales) }}</td>
+                <td class="numeric">{{ i18n.total(none.grossProfit) }}</td>
+                <td class="numeric">{{ margin(none.grossMarginPercent) }}</td>
+                <td class="numeric">{{ i18n.total(none.staffCost) }}</td>
+                <td class="numeric">{{ i18n.total(none.expenses) }}</td>
+                <td class="numeric">{{ i18n.total(none.result) }}</td>
+              </tr>
+            }
+          </tbody>
+          <tfoot>
+            <tr class="branch__total">
+              <td>{{ t('finance.branches.company') }}</td>
+              <td class="numeric">{{ i18n.total(r.total.revenue) }}</td>
+              <td class="numeric">{{ i18n.total(r.total.costOfSales) }}</td>
+              <td class="numeric">{{ i18n.total(r.total.grossProfit) }}</td>
+              <td class="numeric">{{ margin(r.total.grossMarginPercent) }}</td>
+              <td class="numeric">{{ i18n.total(r.total.staffCost) }}</td>
+              <td class="numeric">{{ i18n.total(r.total.expenses) }}</td>
+              <td class="numeric">{{ i18n.total(r.total.result) }}</td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <!-- The caveat belongs on the page. A reader comparing two shops needs to know that the
+           comparison is only as good as what was stamped on the entries. -->
+      <p class="panel__body branch__note">{{ t('finance.branches.caveat') }}</p>
+    }
+  </section>
+</div>

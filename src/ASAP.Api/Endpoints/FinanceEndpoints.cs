@@ -92,6 +92,10 @@ public static class FinanceEndpoints
              .WithName("IncomeStatement")
              .WithSummary("Reports revenue, cost of sales and expenses over a range.");
 
+        group.MapGet("/reports/branch-performance", BranchPerformanceAsync)
+             .WithName("BranchPerformance")
+             .WithSummary("Reports what each branch earned and spent, and what was charged to none.");
+
         group.MapGet("/reports/balance-sheet", BalanceSheetAsync)
              .WithName("BalanceSheet")
              .WithSummary("Reports what the company owned and owed on a given day.");
@@ -274,6 +278,27 @@ public static class FinanceEndpoints
             compare ? start.AddYears(-1) : null,
             compare ? end.AddYears(-1) : null,
             includeAll ?? false);
+
+        return Results.Ok(await dispatcher.SendAsync(query, cancellationToken).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> BranchPerformanceAsync(
+        IDispatcher dispatcher,
+        [FromQuery] DateOnly? from,
+        [FromQuery] DateOnly? to,
+        [FromQuery] bool? includeInactive,
+        IClock clock,
+        CancellationToken cancellationToken)
+    {
+        var today = clock.Today;
+
+        // The month to date by default, not the year. A branch report is read to decide something
+        // about this month; a year-to-date figure buries a shop that has been losing money since
+        // April under the three good months before it.
+        var start = from ?? new DateOnly(today.Year, today.Month, 1);
+        var end = to ?? today;
+
+        var query = new BranchPerformanceQuery(start, end, includeInactive ?? false);
 
         return Results.Ok(await dispatcher.SendAsync(query, cancellationToken).ConfigureAwait(false));
     }

@@ -60,12 +60,20 @@ public sealed partial class StockPostingService
 
             var accounts = await AccountsForAsync(entry.ItemId, cancellationToken).ConfigureAwait(false);
 
+            // The shop the stock moved in or out of, taken per movement rather than per
+            // posting: a transfer is one transaction with a side in each of two branches, and a
+            // single branch for the whole of it would be wrong for one of them by construction.
+            var branchId = await branches
+                .BranchOfAsync(entry.LocationCode, cancellationToken)
+                .ConfigureAwait(false);
+
             lines.AddRange(InventoryAccounts.ForMovement(
                 entry.EntryType,
                 settledCost,
                 accounts,
                 $"{entry.EntryType} {entry.ItemNo} at {entry.LocationCode}",
-                contraAccountNo));
+                contraAccountNo,
+                branchId));
         }
 
         if (lines.Count == 0)

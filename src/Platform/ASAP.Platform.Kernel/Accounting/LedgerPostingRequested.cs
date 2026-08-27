@@ -6,7 +6,16 @@ namespace ASAP.Platform.Kernel.Accounting;
 /// <param name="AccountNo">The general ledger account number.</param>
 /// <param name="Amount">Signed. Positive debits the account, negative credits it.</param>
 /// <param name="Description">What the entry should say on the ledger.</param>
-public readonly record struct LedgerPostingLine(string AccountNo, decimal Amount, string Description);
+/// <param name="BranchId">
+/// Where it happened. Per line rather than per posting, because one stock transaction can span
+/// two branches: a transfer out of one shop and into another is a single movement with a side in
+/// each. Null leaves the ledger to fall back to whoever is posting.
+/// </param>
+public readonly record struct LedgerPostingLine(
+    string AccountNo,
+    decimal Amount,
+    string Description,
+    Guid? BranchId = null);
 
 /// <summary>
 /// A module asking for value to be posted to the general ledger.

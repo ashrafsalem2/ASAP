@@ -69,6 +69,7 @@ public readonly record struct PurchaseInvoiceReceipt(
 /// <param name="context">The unit of work.</param>
 /// <param name="orders">Loads the order.</param>
 /// <param name="documents">Posts the journal, as a document rather than by hand.</param>
+/// <param name="branches">Says which branch a location belongs to.</param>
 /// <param name="messages">Renders refusals.</param>
 /// <param name="overrides">Records every protection this invoice pushed past.</param>
 /// <param name="setup">Supplies the accrual and variance accounts.</param>
@@ -78,6 +79,7 @@ public sealed class PurchaseInvoiceService(
     AsapDbContext context,
     PurchaseOrderService orders,
     DocumentPostingService documents,
+    Inventory.Locations.LocationBranchLookup branches,
     IMessageCatalog messages,
     OverrideAuditor overrides,
     ISetupService setup,
@@ -144,6 +146,12 @@ public sealed class PurchaseInvoiceService(
         var rates = await RatesAsync(billed, cancellationToken).ConfigureAwait(false);
         var journal = BuildJournal(order, billed, accrualAccount, varianceAccount, rates);
 
+        // The place the goods were received into. A price variance belongs to the shop that
+        // bought at the wrong price, not to head office for having processed the invoice.
+        var branchId = await branches
+            .BranchOfAsync(order.LocationCode, cancellationToken)
+            .ConfigureAwait(false);
+
         var posted = await documents
             .PostAsync(
                 new DocumentPosting(
@@ -162,6 +170,7 @@ public sealed class PurchaseInvoiceService(
                     DocumentType: GlDocumentType.Invoice,
                     DocumentNo: vendorInvoiceNo,
                     Description: $"{order.VendorName} — {order.No}",
+                    BranchId: branchId,
                     OverrideReason: overrideReason),
                 cancellationToken)
             .ConfigureAwait(false);

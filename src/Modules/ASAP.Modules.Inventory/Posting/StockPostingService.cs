@@ -63,6 +63,7 @@ public readonly record struct StockPostingReceipt(
 /// everything after that point inside one transaction.
 /// </remarks>
 /// <param name="context">The unit of work.</param>
+/// <param name="branches">Says which branch a location belongs to.</param>
 /// <param name="availability">Decides whether stock may move.</param>
 /// <param name="events">Gives extensions their say, and announces the result.</param>
 /// <param name="messages">Renders messages.</param>
@@ -74,6 +75,7 @@ public readonly record struct StockPostingReceipt(
 public sealed partial class StockPostingService(
     AsapDbContext context,
     StockAvailability availability,
+    Locations.LocationBranchLookup branches,
     IEventPublisher events,
     IMessageCatalog messages,
     ITenantContext tenantContext,

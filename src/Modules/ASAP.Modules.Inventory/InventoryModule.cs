@@ -70,6 +70,7 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
     {
         ArgumentNullException.ThrowIfNull(services);
 
+        services.AddScoped<Locations.LocationBranchLookup>();
         services.AddScoped<StockAvailability>();
         services.AddScoped<Posting.StockPostingService>();
         services.AddScoped<CostSettlementService>();

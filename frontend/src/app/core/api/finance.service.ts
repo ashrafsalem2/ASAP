@@ -8,6 +8,7 @@ import {
   TaxReturn,
   ApplicationReceipt,
   BalanceSheet,
+  BranchPerformance,
   GlAccount,
   GlEntry,
   IncomeStatement,
@@ -108,6 +109,20 @@ export class FinanceService {
 
     return firstValueFrom(
       this.http.get<IncomeStatement>(`${this.base}/finance/reports/income-statement`, { params }),
+    );
+  }
+
+  /** What each branch earned and spent over a range, and what was charged to none of them. */
+  branchPerformance(from: string, to: string, includeInactive = false): Promise<BranchPerformance> {
+    const params = new HttpParams()
+      .set('from', from)
+      .set('to', to)
+      .set('includeInactive', includeInactive);
+
+    return firstValueFrom(
+      this.http.get<BranchPerformance>(`${this.base}/finance/reports/branch-performance`, {
+        params,
+      }),
     );
   }
 

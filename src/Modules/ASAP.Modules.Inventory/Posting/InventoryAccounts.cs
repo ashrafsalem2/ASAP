@@ -57,6 +57,7 @@ public static class InventoryAccounts
     /// <param name="contraAccountNo">
     /// What inventory posts against, when the caller knows. Overrides the category default.
     /// </param>
+    /// <param name="branchId">The branch the stock moved at, carried onto both sides.</param>
     /// <returns>
     /// A balanced pair of lines, or none at all when the movement is worth nothing or the category
     /// has not been given the accounts it needs.
@@ -66,7 +67,8 @@ public static class InventoryAccounts
         decimal costAmount,
         CategoryAccounts accounts,
         string description,
-        string? contraAccountNo = null)
+        string? contraAccountNo = null,
+        Guid? branchId = null)
     {
         // A movement worth nothing produces no entries. A zero-value posting balances perfectly
         // and tells a reader nothing, which is a poor trade for two more rows on every account.
@@ -97,8 +99,8 @@ public static class InventoryAccounts
         // absorbed.
         return
         [
-            new LedgerPostingLine(inventory, costAmount, description),
-            new LedgerPostingLine(contra, -costAmount, description),
+            new LedgerPostingLine(inventory, costAmount, description, branchId),
+            new LedgerPostingLine(contra, -costAmount, description, branchId),
         ];
     }
 

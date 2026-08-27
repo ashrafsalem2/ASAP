@@ -63,6 +63,7 @@ public readonly record struct SalesInvoiceReceipt(
 /// <param name="context">The unit of work.</param>
 /// <param name="orders">Loads the order.</param>
 /// <param name="documents">Posts the journal, as a document rather than by hand.</param>
+/// <param name="branches">Says which branch a location belongs to.</param>
 /// <param name="messages">Renders refusals.</param>
 /// <param name="overrides">Records every protection this invoice pushed past.</param>
 /// <param name="numbers">Issues the invoice number.</param>
@@ -73,6 +74,7 @@ public sealed class SalesInvoiceService(
     AsapDbContext context,
     SalesOrderService orders,
     DocumentPostingService documents,
+    Inventory.Locations.LocationBranchLookup branches,
     IMessageCatalog messages,
     OverrideAuditor overrides,
     INumberSeriesService numbers,
@@ -145,6 +147,12 @@ public sealed class SalesInvoiceService(
         var rates = await RatesAsync(billed, cancellationToken).ConfigureAwait(false);
         var journal = BuildJournal(order, billed, revenueAccount, discountAccount, rates);
 
+        // The shop the goods went out of, not whoever posted the invoice. Without this every
+        // sale in the company reports against the branch of the person keying it.
+        var branchId = await branches
+            .BranchOfAsync(order.LocationCode, cancellationToken)
+            .ConfigureAwait(false);
+
         var posted = await documents
             .PostAsync(
                 new DocumentPosting(
@@ -163,6 +171,7 @@ public sealed class SalesInvoiceService(
                     DocumentType: GlDocumentType.Invoice,
                     DocumentNo: numbered.Value,
                     Description: $"{order.CustomerName} — {order.No}",
+                    BranchId: branchId,
                     OverrideReason: overrideReason),
                 cancellationToken)
             .ConfigureAwait(false);

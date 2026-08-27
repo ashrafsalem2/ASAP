@@ -37,6 +37,10 @@ namespace ASAP.Modules.Finance.Journals;
 /// <param name="DocumentType">What kind of document this is, for reporting.</param>
 /// <param name="DocumentNo">The document number the entries carry.</param>
 /// <param name="Description">Default description for lines that supply none.</param>
+/// <param name="BranchId">
+/// Where the document happened, for every line that does not name a branch itself. A sale
+/// belongs to the shop that made it rather than to whoever was signed in when it posted.
+/// </param>
 /// <param name="OverrideReason">
 /// Why the caller is pushing past a block. Recorded in the audit log alongside the code overridden.
 /// </param>
@@ -49,6 +53,7 @@ public sealed record DocumentPosting(
     GlDocumentType DocumentType = GlDocumentType.None,
     string? DocumentNo = null,
     string? Description = null,
+    Guid? BranchId = null,
     string? OverrideReason = null);
 
 /// <summary>
@@ -204,6 +209,7 @@ public sealed class DocumentPostingService(
             DocumentType: request.DocumentType,
             DocumentNo: request.DocumentNo,
             Description: request.Description,
+            BranchId: request.BranchId,
             OverrideReason: request.OverrideReason);
 
         return await posting

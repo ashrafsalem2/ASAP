@@ -82,6 +82,7 @@ public readonly record struct PosSessionClosed(
 /// <param name="messages">Renders refusals.</param>
 /// <param name="overrides">Records every protection a close pushed past.</param>
 /// <param name="documents">Posts the difference a count leaves behind.</param>
+/// <param name="branches">Says which branch a till stands in.</param>
 /// <param name="numbers">Issues the session number.</param>
 /// <param name="setup">Supplies the number series and the variance account.</param>
 /// <param name="userContext">Names the cashier.</param>
@@ -92,6 +93,7 @@ public sealed class PosSessionService(
     IMessageCatalog messages,
     OverrideAuditor overrides,
     DocumentPostingService documents,
+    Stations.StationBranchLookup branches,
     INumberSeriesService numbers,
     ISetupService setup,
     IUserContext userContext,
@@ -379,7 +381,14 @@ public sealed class PosSessionService(
                     // The till module owns both accounts. Nobody keyed this.
                     IsManualEntry: false,
                     DocumentNo: session.No,
-                    Description: description),
+                    Description: description,
+
+                    // A till difference belongs to the till's shop. Charged centrally it becomes
+                    // a single company-wide number nobody owns, which is the state in which
+                    // small differences stay small differences for years.
+                    BranchId: await branches
+                        .BranchOfAsync(session.StationCode, cancellationToken)
+                        .ConfigureAwait(false)),
                 cancellationToken)
             .ConfigureAwait(false);
 

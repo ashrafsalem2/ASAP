@@ -46,6 +46,21 @@ public static class InventoryMessages
     /// <summary>A transfer names one location as both source and destination.</summary>
     public static readonly MessageCode TransferToSameLocation = new("INV.TRANSFER.SAME_LOCATION");
 
+    /// <summary>The stock count named does not exist.</summary>
+    public static readonly MessageCode CountNotFound = new("INV.COUNT.NOT_FOUND");
+
+    /// <summary>Something tried to change a count that has been posted.</summary>
+    public static readonly MessageCode CountAlreadyPosted = new("INV.COUNT.ALREADY_POSTED");
+
+    /// <summary>A count posted with lines nobody had reached.</summary>
+    public static readonly MessageCode CountIncomplete = new("INV.COUNT.INCOMPLETE");
+
+    /// <summary>A count where everything agreed with the system.</summary>
+    public static readonly MessageCode CountNoDifferences = new("INV.COUNT.NO_DIFFERENCES");
+
+    /// <summary>A count sheet that is already open for the same location.</summary>
+    public static readonly MessageCode CountAlreadyOpen = new("INV.COUNT.ALREADY_OPEN");
+
     /// <summary>The transfer named does not exist.</summary>
     public static readonly MessageCode TransferNotFound = new("INV.TRANSFER.NOT_FOUND");
 
@@ -240,6 +255,89 @@ public static class InventoryMessages
                 + "ASAP partner about a revaluation.",
                 "أنشئ صنفًا جديدًا بالطريقة المطلوبة واسحب هذا الصنف، أو استشر شريك ASAP بشأن إعادة التقييم."),
             HelpTopic = "inventory/costing-methods",
+        },
+        new()
+        {
+            Code = CountNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such count", "لا يوجد جرد بهذا الرقم"),
+            Detail = new LocalizedText(
+                "No stock count in this company is numbered {CountNo}.",
+                "لا يوجد في هذه الشركة جرد يحمل الرقم {CountNo}."),
+            Resolution = new LocalizedText(
+                "Check the number against the count list.",
+                "تحقق من الرقم في قائمة عمليات الجرد."),
+            HelpTopic = "inventory/stock-count",
+        },
+        new()
+        {
+            Code = CountAlreadyPosted,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("This count has been posted", "تم ترحيل هذا الجرد"),
+            Detail = new LocalizedText(
+                "{CountNo} posted as transaction {TransactionNo}. Its differences are movements "
+                + "now, and posting it again would move the same stock twice.",
+                "رُحّل الجرد {CountNo} ضمن الحركة {TransactionNo}. وفروقه أصبحت حركات، وترحيله "
+                + "ثانية يحرّك المخزون نفسه مرتين."),
+            Resolution = new LocalizedText(
+                "Count again. A second count is the honest way to correct a first one, and both "
+                + "stay on the record where somebody can see what changed between them.",
+                "أجرِ جردًا جديدًا. فالجرد الثاني هو الطريق الصادق لتصحيح الأول، ويبقى الاثنان في "
+                + "السجل حيث يرى المطّلع ما تغيّر بينهما."),
+            HelpTopic = "inventory/stock-count",
+        },
+        new()
+        {
+            Code = CountIncomplete,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("Some shelves were not reached", "لم تُجرد بعض الأصناف"),
+            Detail = new LocalizedText(
+                "{CountNo} has {NotCountedQuantity} lines nobody has counted. A line nobody looked "
+                + "at is not a line found empty, and posting the sheet would write off everything "
+                + "the counters ran out of time for.",
+                "في الجرد {CountNo} عدد {NotCountedQuantity} من الأسطر لم يجردها أحد. والسطر الذي "
+                + "لم ينظر إليه أحد ليس سطرًا وُجد فارغًا، وترحيل الورقة يشطب كل ما لم يسع الوقت "
+                + "لجرده."),
+            Resolution = new LocalizedText(
+                "Count them, or enter nought where the shelf really is empty. If the rest is "
+                + "right and you mean to post anyway, somebody with the override permission may "
+                + "do so and say why — the uncounted lines are left exactly as they were.",
+                "اجردها، أو أدخل صفرًا حيث يكون الرف فارغًا فعلاً. وإن كان الباقي صحيحًا وأردت "
+                + "الترحيل رغم ذلك، فبإمكان من يملك صلاحية التجاوز فعل ذلك مع بيان السبب — وتبقى "
+                + "الأسطر غير المجرودة كما هي تمامًا."),
+            OverridePermission = "Inventory.Stock.Override",
+            HelpTopic = "inventory/stock-count",
+        },
+        new()
+        {
+            Code = CountNoDifferences,
+            Severity = MessageSeverity.Warning,
+            Title = new LocalizedText("Everything agreed", "لا فروق"),
+            Detail = new LocalizedText(
+                "{CountNo} found exactly what the system said, so nothing was posted.",
+                "وجد الجرد {CountNo} ما يقوله النظام تمامًا، فلم يُرحَّل شيء."),
+            Resolution = new LocalizedText(
+                "The count is closed regardless, which is the record that it was done. A shop "
+                + "that counted and matched is worth knowing about as much as one that did not.",
+                "أُقفل الجرد على أي حال، وهو سجل بأنه أُجري. فالمتجر الذي جرد وطابق يستحق التسجيل "
+                + "كما يستحقه الذي لم يطابق."),
+            HelpTopic = "inventory/stock-count",
+        },
+        new()
+        {
+            Code = CountAlreadyOpen,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("A count is already open there", "يوجد جرد مفتوح لهذا الموقع"),
+            Detail = new LocalizedText(
+                "{CountNo} is open for {LocationCode}. Two sheets for one location would each be "
+                + "measured against a different moment, and posting both would apply the same "
+                + "difference twice.",
+                "الجرد {CountNo} مفتوح للموقع {LocationCode}. ووجود ورقتين لموقع واحد يجعل كلاً "
+                + "منهما مقيسة على لحظة مختلفة، وترحيلهما معًا يطبّق الفرق نفسه مرتين."),
+            Resolution = new LocalizedText(
+                "Finish or cancel {CountNo} first.",
+                "أنهِ الجرد {CountNo} أو ألغه أولاً."),
+            HelpTopic = "inventory/stock-count",
         },
         new()
         {

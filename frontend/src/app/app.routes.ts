@@ -147,6 +147,12 @@ export const routes: Routes = [
           import('./features/pos/promotion-uptake').then((m) => m.PromotionUptakeReport),
       },
       {
+        path: 'inventory/counts',
+        canActivate: [requirePermission('Inventory.Count.Read')],
+        loadComponent: () =>
+          import('./features/inventory/stock-counts').then((m) => m.StockCounts),
+      },
+      {
         path: 'inventory/transfers',
         canActivate: [requirePermission('Inventory.Transfer.Read')],
         loadComponent: () => import('./features/inventory/transfers').then((m) => m.Transfers),

@@ -76,6 +76,7 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
         services.AddScoped<CostSettlementService>();
         services.AddScoped<Seed.InventorySeeder>();
         services.AddScoped<Transfers.TransferService>();
+        services.AddScoped<Counting.StockCountService>();
     }
 
     /// <inheritdoc />
@@ -141,6 +142,30 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
             isSensitive: true),
 
         PermissionDescriptor.Define(
+            Id, "Count", PermissionAction.Read,
+            new LocalizedText("See stock counts", "الاطلاع على عمليات الجرد"),
+            new LocalizedText(
+                "What was counted, when, and what did not match.",
+                "ما جُرد ومتى وما لم يطابق.")),
+
+        PermissionDescriptor.Define(
+            Id, "Count", PermissionAction.Create,
+            new LocalizedText("Start and record a count", "بدء الجرد وتسجيله"),
+            implies: [$"{Id}.Count.Read"]),
+
+        PermissionDescriptor.Define(
+            Id, "Count", PermissionAction.Post,
+            new LocalizedText("Post what a count found", "ترحيل نتيجة الجرد"),
+            new LocalizedText(
+                "Separate from counting on purpose. A count writes stock off, and the person "
+                + "holding the clipboard is not usually the person who should decide that what "
+                + "they could not find has gone.",
+                "منفصلة عن الجرد عمدًا. فالجرد يشطب مخزونًا، ومن يحمل ورقة الجرد ليس عادةً من "
+                + "ينبغي أن يقرر أن ما لم يجده قد فُقد."),
+            implies: [$"{Id}.Count.Read"],
+            isSensitive: true),
+
+        PermissionDescriptor.Define(
             Id, "Report", PermissionAction.Read,
             new LocalizedText("Run inventory reports", "تشغيل تقارير المخزون")),
     ];
@@ -148,6 +173,21 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
     /// <inheritdoc />
     public IReadOnlyCollection<SetupDescriptor> Setups =>
     [
+        new()
+        {
+            Key = $"{Id}.Count.NumberSeries",
+            Module = Id,
+            Group = new LocalizedText("Numbering", "الترقيم"),
+            DisplayName = new LocalizedText("Stock count numbers", "ترقيم عمليات الجرد"),
+            Description = new LocalizedText(
+                "The series stock counts are numbered from.",
+                "المسلسل الذي تصدر منه أرقام عمليات الجرد."),
+            ValueType = SetupValueType.Text,
+            Scope = SetupScope.Company,
+            DefaultValue = "COUNT",
+            RequiresPermission = $"{Id}.Item.Update",
+            HelpTopic = "inventory/stock-count",
+        },
         new()
         {
             Key = $"{Id}.Costing.AllowNegativeInventory",
@@ -251,6 +291,17 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
             "/inventory/transfers",
             $"{Id}.Transfer.Read",
             35),
+        new()
+        {
+            Id = "Inventory.StockCounts",
+            Module = Id,
+            ParentId = "Inventory.Root",
+            DisplayName = new LocalizedText("Stock counts", "الجرد"),
+            Kind = NavigationKind.Page,
+            Route = "/inventory/counts",
+            RequiresPermission = $"{Id}.Count.Read",
+            Order = 35,
+        },
         new()
         {
             Id = "Inventory.StockOnHand",

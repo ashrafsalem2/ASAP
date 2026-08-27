@@ -162,5 +162,6 @@ public sealed partial class InventorySchema : IModuleSchema
         });
 
         ConfigureTransfers(modelBuilder);
+        ConfigureCounting(modelBuilder);
     }
 }

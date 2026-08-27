@@ -1,6 +1,7 @@
 using ASAP.Api.Infrastructure;
 using ASAP.Modules.Inventory;
 using ASAP.Modules.Inventory.Costing;
+using ASAP.Modules.Inventory.Counting;
 using ASAP.Modules.Inventory.Items;
 using ASAP.Modules.Inventory.Ledger;
 using ASAP.Modules.Inventory.Locations;
@@ -69,6 +70,36 @@ public sealed record PostStockRequest(
     string SourceCode = "INVJNL",
     string? OverrideReason = null);
 
+/// <summary>What a client sends to start a stock count.</summary>
+/// <param name="LocationCode">The location to count.</param>
+/// <param name="CountDate">The day to report it on. Defaults to today.</param>
+/// <param name="Description">What the count is for.</param>
+/// <param name="ItemNos">
+/// Specific items, or null for everything the location has ever held. A partial count is the
+/// ordinary case: nobody counts a supermarket in one evening.
+/// </param>
+public sealed record StartCountRequest(
+    string LocationCode,
+    DateOnly? CountDate = null,
+    string? Description = null,
+    IReadOnlyList<string>? ItemNos = null);
+
+/// <summary>What a client sends when something has been counted.</summary>
+/// <param name="ItemNo">The item.</param>
+/// <param name="CountedQuantity">
+/// What was on the shelf, or null to mark it uncounted again. Nought is a shelf somebody looked
+/// at and found empty; null is a shelf nobody reached, and the two must not be confused.
+/// </param>
+/// <param name="Note">Why, where somebody wants to say.</param>
+public sealed record RecordCountRequest(
+    string ItemNo,
+    decimal? CountedQuantity,
+    string? Note = null);
+
+/// <summary>What a client sends to post a count.</summary>
+/// <param name="OverrideReason">Why a protection is being pushed past.</param>
+public sealed record PostCountRequest(string? OverrideReason = null);
+
 /// <summary>Items, locations, stock levels and movements.</summary>
 public static class InventoryEndpoints
 {
@@ -99,6 +130,30 @@ public static class InventoryEndpoints
         group.MapPost("/stock/post", PostStockAsync)
              .WithName("PostStock")
              .WithSummary("Receives, issues or adjusts stock, valuing the movement as it goes.");
+
+        group.MapGet("/counts", CountsAsync)
+             .WithName("StockCounts")
+             .WithSummary("Lists stock counts, most recent first.");
+
+        group.MapGet("/counts/{countNo}", CountAsync)
+             .WithName("StockCount")
+             .WithSummary("Reads one count and its sheet.");
+
+        group.MapPost("/counts", StartCountAsync)
+             .WithName("StartStockCount")
+             .WithSummary("Starts a count and makes the sheet from what the system says now.");
+
+        group.MapPost("/counts/{countNo}/lines", RecordCountAsync)
+             .WithName("RecordStockCount")
+             .WithSummary("Records what was found on a shelf.");
+
+        group.MapPost("/counts/{countNo}/post", PostCountAsync)
+             .WithName("PostStockCount")
+             .WithSummary("Posts the differences as adjustments, and closes the count.");
+
+        group.MapPost("/counts/{countNo}/cancel", CancelCountAsync)
+             .WithName("CancelStockCount")
+             .WithSummary("Abandons a count. It stays on the record.");
 
         group.MapPost("/stock/settle", SettleAsync)
              .WithName("SettleCosts")
@@ -228,6 +283,176 @@ public static class InventoryEndpoints
         return Results.Ok(entries);
     }
 
+    private static async Task<IResult> CountsAsync(
+        StockCountService counts,
+        IUserContext user,
+        HttpContext http,
+        [FromQuery] string? locationCode,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, "Inventory.Count.Read"))
+        {
+            return Forbidden("Inventory.Count.Read", "see stock counts", http);
+        }
+
+        var found = await counts.ListAsync(locationCode, cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(found.Select(Summarise));
+    }
+
+    private static async Task<IResult> CountAsync(
+        string countNo,
+        StockCountService counts,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, "Inventory.Count.Read"))
+        {
+            return Forbidden("Inventory.Count.Read", "see stock counts", http);
+        }
+
+        var count = await counts.LoadAsync(countNo, cancellationToken).ConfigureAwait(false);
+
+        return count is null ? Results.NotFound() : Results.Ok(View(count));
+    }
+
+    private static async Task<IResult> StartCountAsync(
+        StartCountRequest request,
+        StockCountService counts,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, "Inventory.Count.Create"))
+        {
+            return Forbidden("Inventory.Count.Create", "start a stock count", http);
+        }
+
+        var result = await counts
+            .StartAsync(
+                request.LocationCode,
+                request.CountDate,
+                request.Description,
+                request.ItemNos,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.Ok(View(result.Value));
+    }
+
+    private static async Task<IResult> RecordCountAsync(
+        string countNo,
+        RecordCountRequest request,
+        StockCountService counts,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, "Inventory.Count.Create"))
+        {
+            return Forbidden("Inventory.Count.Create", "record a count", http);
+        }
+
+        var result = await counts
+            .RecordAsync(countNo, request.ItemNo, request.CountedQuantity, request.Note, cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.Ok(View(result.Value));
+    }
+
+    private static async Task<IResult> PostCountAsync(
+        string countNo,
+        PostCountRequest? request,
+        StockCountService counts,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, "Inventory.Count.Post"))
+        {
+            return Forbidden("Inventory.Count.Post", "post what a count found", http);
+        }
+
+        var overrides = new[] { "Inventory.Stock.Override" }
+            .Where(permission => Can(user, permission))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var result = await counts
+            .PostAsync(countNo, overrides, request?.OverrideReason, cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed
+            ? Refused(result, http)
+            : Results.Ok(new
+            {
+                count = View(result.Value),
+                messages = MessagePayload.FromAll(result.Messages),
+            });
+    }
+
+    private static async Task<IResult> CancelCountAsync(
+        string countNo,
+        StockCountService counts,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, "Inventory.Count.Create"))
+        {
+            return Forbidden("Inventory.Count.Create", "abandon a stock count", http);
+        }
+
+        var result = await counts.CancelAsync(countNo, cancellationToken).ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.Ok(View(result.Value));
+    }
+
+    private static object Summarise(StockCount count)
+        => new
+        {
+            no = count.No,
+            locationCode = count.LocationCode,
+            countDate = count.CountDate,
+            status = count.Status.ToString(),
+            description = count.Description,
+            lines = count.Lines.Count,
+            notCounted = count.NotCounted,
+            differences = count.Differences.Count(),
+            transactionNo = count.TransactionNo,
+        };
+
+    private static object View(StockCount count)
+        => new
+        {
+            no = count.No,
+            locationCode = count.LocationCode,
+            countDate = count.CountDate,
+            status = count.Status.ToString(),
+            description = count.Description,
+
+            // What the system quantities are as at. A reader comparing a line against the shelf
+            // today needs to know how old the figure they are arguing with is.
+            sheetTakenAtUtc = count.SheetTakenAtUtc,
+            notCounted = count.NotCounted,
+            transactionNo = count.TransactionNo,
+            lines = count.Lines
+                .OrderBy(static l => l.ItemNo, StringComparer.OrdinalIgnoreCase)
+                .Select(static l => new
+                {
+                    itemNo = l.ItemNo,
+                    description = l.Description,
+                    systemQuantity = l.SystemQuantity,
+                    countedQuantity = l.CountedQuantity,
+                    difference = l.Difference,
+                    note = l.Note,
+                }),
+        };
+
     private static async Task<IResult> PostStockAsync(
         PostStockRequest request,
         StockPostingService posting,
@@ -308,4 +533,17 @@ public static class InventoryEndpoints
             messages = MessagePayload.FromAll(result.Messages),
         });
     }
+
+    private static bool Can(IUserContext user, string permission)
+        => user.IsSuperUser || user.Has(permission);
+
+    private static IResult Forbidden(string permission, string doing, HttpContext http)
+        => Results.Json(
+            AsapProblem.Forbidden(permission, doing, http.Request.Path),
+            statusCode: StatusCodes.Status403Forbidden);
+
+    private static IResult Refused(ASAP.Platform.Kernel.Results.Result result, HttpContext http)
+        => Results.Json(
+            AsapProblem.From(result, AsapProblem.StatusFor(result.Messages), http.Request.Path),
+            statusCode: AsapProblem.StatusFor(result.Messages));
 }

@@ -86,7 +86,11 @@ Everything else posts here, so it goes first.
 - **done** Inventory-to-finance posting through a kernel event, with expected cost held back
 - *in progress* Reports: **stock on hand by location done**, with below-zero balances flagged and
   their estimated costs settleable from the screen; valuation, velocity, ageing to come
-- **done** Client screens: items, stock movements, stock on hand, transfers
+- **done** Physical stock count. The sheet freezes what the system said when it was made, so a
+  sale rung up while somebody walks the aisles does not become a discrepancy nobody can explain.
+  Nought and not-counted are different states and posting treats them differently: nought writes
+  the stock off, uncounted is refused and, if overridden, left exactly as it was
+- **done** Client screens: items, stock movements, stock on hand, transfers, stock counts
 
 ## Phase 3 — Purchasing
 

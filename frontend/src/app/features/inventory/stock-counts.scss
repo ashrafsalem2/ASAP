@@ -1,0 +1,41 @@
+.count__wide {
+  flex: 1 1 20rem;
+}
+
+.count__row {
+  cursor: pointer;
+}
+
+.count__row--selected td {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.count__toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.count__note {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  max-width: 70ch;
+}
+
+/* The box somebody types into all evening. Wide enough for a real quantity and no wider, so a
+   sheet of forty lines still fits on a screen. */
+.count__found {
+  width: 6rem;
+}
+
+/* A line that differs is the only line worth reading. */
+.count__differs td {
+  background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.count__short {
+  color: var(--caution);
+  font-weight: 600;
+}

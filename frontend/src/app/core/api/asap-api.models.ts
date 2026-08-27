@@ -1348,3 +1348,51 @@ export interface HelpPage {
   title: string;
   markdown: string;
 }
+
+/** One item on a count sheet. */
+export interface StockCountLine {
+  itemNo: string;
+  description: string;
+
+  /** What the system said when the sheet was made. Frozen, so the comparison is stable. */
+  systemQuantity: number;
+
+  /** What was found, or null where nobody has looked. Nought and null are different states. */
+  countedQuantity: number | null;
+  difference: number;
+  note: string | null;
+}
+
+/** A stock count in the list. */
+export interface StockCountSummary {
+  no: string;
+  locationCode: string;
+  countDate: string;
+  status: string;
+  description: string | null;
+  lines: number;
+  notCounted: number;
+  differences: number;
+  transactionNo: number | null;
+}
+
+/** A stock count and its sheet. */
+export interface StockCount {
+  no: string;
+  locationCode: string;
+  countDate: string;
+  status: string;
+  description: string | null;
+
+  /** When the system quantities were taken. */
+  sheetTakenAtUtc: string;
+  notCounted: number;
+  transactionNo: number | null;
+  lines: StockCountLine[];
+}
+
+/** A posted count, and whatever was worth saying about it. */
+export interface StockCountPosted {
+  count: StockCount;
+  messages: AsapMessage[];
+}

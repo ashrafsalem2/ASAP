@@ -6,14 +6,17 @@ import {
   CreateTransferRequest,
   Item,
   SettlementReceipt,
+  StockCount,
+  StockCountPosted,
+  StockCountSummary,
   StockLocation,
   StockMovement,
   StockMovementRequest,
   StockOnHandRow,
   StockPostingReceipt,
   Transfer,
-  TransferMoveReceipt,
   TransferCreated,
+  TransferMoveReceipt,
 } from './asap-api.models';
 
 /** Talks to the Inventory endpoints. */
@@ -25,6 +28,70 @@ export class InventoryService {
   /** The items in the active company. */
   items(): Promise<Item[]> {
     return firstValueFrom(this.http.get<Item[]>(`${this.base}/items`));
+  }
+
+  /** Stock counts, most recent first. */
+  stockCounts(locationCode?: string): Promise<StockCountSummary[]> {
+    const params = locationCode
+      ? new HttpParams().set('locationCode', locationCode)
+      : new HttpParams();
+
+    return firstValueFrom(
+      this.http.get<StockCountSummary[]>(`${this.base}/counts`, { params }),
+    );
+  }
+
+  /** One count and its sheet. */
+  stockCount(countNo: string): Promise<StockCount> {
+    return firstValueFrom(
+      this.http.get<StockCount>(`${this.base}/counts/${encodeURIComponent(countNo)}`),
+    );
+  }
+
+  /** Starts a count and makes the sheet from what the system says now. */
+  startStockCount(request: {
+    locationCode: string;
+    countDate?: string | null;
+    description?: string | null;
+    itemNos?: string[] | null;
+  }): Promise<StockCount> {
+    return firstValueFrom(this.http.post<StockCount>(`${this.base}/counts`, request));
+  }
+
+  /** Records what was found on a shelf. Null clears it back to uncounted. */
+  recordStockCount(
+    countNo: string,
+    itemNo: string,
+    countedQuantity: number | null,
+    note?: string,
+  ): Promise<StockCount> {
+    return firstValueFrom(
+      this.http.post<StockCount>(`${this.base}/counts/${encodeURIComponent(countNo)}/lines`, {
+        itemNo,
+        countedQuantity,
+        note: note ?? null,
+      }),
+    );
+  }
+
+  /** Posts the differences as adjustments and closes the count. */
+  postStockCount(countNo: string, overrideReason?: string): Promise<StockCountPosted> {
+    return firstValueFrom(
+      this.http.post<StockCountPosted>(
+        `${this.base}/counts/${encodeURIComponent(countNo)}/post`,
+        { overrideReason: overrideReason ?? null },
+      ),
+    );
+  }
+
+  /** Abandons a count. It stays on the record. */
+  cancelStockCount(countNo: string): Promise<StockCount> {
+    return firstValueFrom(
+      this.http.post<StockCount>(
+        `${this.base}/counts/${encodeURIComponent(countNo)}/cancel`,
+        {},
+      ),
+    );
   }
 
   /** The locations stock can be held at. */

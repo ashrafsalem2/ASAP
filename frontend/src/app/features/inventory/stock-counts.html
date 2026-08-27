@@ -1,0 +1,197 @@
+<div class="page">
+  <h1>{{ t('inventory.count.title') }}</h1>
+
+  @if (canCount()) {
+    <section class="panel">
+      <div class="panel__header">
+        <h2>{{ t('inventory.count.start') }}</h2>
+      </div>
+
+      <p class="panel__body page__intro">{{ t('inventory.count.intro') }}</p>
+
+      <div class="panel__body draft">
+        <div class="field">
+          <label class="field__label" for="newLocation">{{ t('inventory.count.location') }}</label>
+          <select id="newLocation" class="select" [(ngModel)]="newLocation">
+            @for (code of locations(); track code) {
+              <option [value]="code">{{ code }}</option>
+            }
+          </select>
+        </div>
+
+        <div class="field count__wide">
+          <label class="field__label" for="newDescription">
+            {{ t('inventory.count.description') }}
+          </label>
+          <input id="newDescription" class="input" [(ngModel)]="newDescription" />
+        </div>
+
+        <button
+          type="button"
+          class="button button--primary"
+          [disabled]="!newLocation || busy() !== null"
+          (click)="start()"
+        >
+          {{ t('inventory.count.start') }}
+        </button>
+      </div>
+    </section>
+  }
+
+  <section class="panel">
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('inventory.count.no') }}</th>
+              <th>{{ t('inventory.count.location') }}</th>
+              <th>{{ t('inventory.count.date') }}</th>
+              <th>{{ t('inventory.count.status') }}</th>
+              <th class="numeric">{{ t('inventory.count.lines') }}</th>
+              <th class="numeric">{{ t('inventory.count.notCounted') }}</th>
+              <th class="numeric">{{ t('inventory.count.differences') }}</th>
+              <th>{{ t('inventory.count.description') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (count of counts(); track count.no) {
+              <tr
+                class="count__row"
+                [class.count__row--selected]="sheet()?.no === count.no"
+                (click)="open(count)"
+              >
+                <td class="code">{{ count.no }}</td>
+                <td class="code">{{ count.locationCode }}</td>
+                <td class="code">{{ count.countDate }}</td>
+                <td><span class="tag">{{ statusLabel(count.status) }}</span></td>
+                <td class="numeric">{{ count.lines }}</td>
+                <td class="numeric" [class.count__short]="count.notCounted > 0">
+                  {{ count.notCounted }}
+                </td>
+                <td class="numeric">{{ count.differences }}</td>
+                <td>{{ count.description }}</td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="8" class="empty">{{ t('common.nothingHere') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+
+  @if (sheet(); as count) {
+    <section class="panel">
+      <div class="panel__header">
+        <h2>{{ count.no }} — {{ count.locationCode }}</h2>
+
+        <label class="count__toggle">
+          <input
+            type="checkbox"
+            [checked]="onlyDifferences()"
+            (change)="onlyDifferences.set($any($event.target).checked)"
+          />
+          {{ t('inventory.count.onlyDifferences') }}
+        </label>
+      </div>
+
+      <!-- The sheet says when it was taken. Somebody arguing with a line needs to know how old
+           the figure they are arguing with is. -->
+      <p class="panel__body count__note">
+        {{ t('inventory.count.sheetTaken', { at: count.sheetTakenAtUtc.slice(0, 16).replace('T', ' ') }) }}
+      </p>
+
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('inventory.count.item') }}</th>
+              <th>{{ t('inventory.count.itemDescription') }}</th>
+              <th class="numeric">{{ t('inventory.count.system') }}</th>
+              <th class="numeric">{{ t('inventory.count.found') }}</th>
+              <th class="numeric">{{ t('inventory.count.difference') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (line of lines(); track line.itemNo) {
+              <tr [class.count__differs]="line.difference !== 0">
+                <td class="code">{{ line.itemNo }}</td>
+                <td>{{ line.description }}</td>
+                <td class="numeric">{{ line.systemQuantity }}</td>
+
+                <td class="numeric">
+                  @if (count.status === 'Open' && canCount()) {
+                    <input
+                      class="input input--number count__found"
+                      type="number"
+                      inputmode="decimal"
+                      [id]="'count-' + line.itemNo"
+                      [value]="line.countedQuantity"
+                      [disabled]="busy() !== null"
+                      (change)="record(line.itemNo, $any($event.target).value)"
+                    />
+                  } @else {
+                    {{ line.countedQuantity }}
+                  }
+                </td>
+
+                <!-- Blank where nothing was found and nothing counted. A zero on an uncounted
+                     line would read as agreement. -->
+                <td class="numeric" [class.count__short]="line.difference < 0">
+                  @if (line.countedQuantity !== null) {
+                    {{ line.difference }}
+                  }
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="5" class="empty">{{ t('inventory.count.nothingToCount') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (count.status === 'Open') {
+        <div class="panel__body draft">
+          @if (count.notCounted > 0) {
+            <div class="field count__wide">
+              <label class="field__label" for="overrideReason">
+                {{ t('inventory.count.overrideReason') }}
+              </label>
+              <input id="overrideReason" class="input" [(ngModel)]="overrideReason" />
+            </div>
+          }
+
+          @if (canPost()) {
+            <button
+              type="button"
+              class="button button--primary"
+              [disabled]="busy() !== null"
+              (click)="post()"
+            >
+              {{ t('inventory.count.post') }}
+            </button>
+          }
+
+          @if (canCount()) {
+            <button type="button" class="button" [disabled]="busy() !== null" (click)="cancel()">
+              {{ t('inventory.count.abandon') }}
+            </button>
+          }
+        </div>
+
+        @if (count.notCounted > 0) {
+          <p class="panel__body count__note">
+            {{ t('inventory.count.notCountedWhy', { count: count.notCounted }) }}
+          </p>
+        }
+      }
+    </section>
+  }
+</div>

@@ -130,13 +130,27 @@ Everything else posts here, so it goes first.
 
 ## Phase 6 — Promotions
 
-- Offer types: percentage, amount, buy-X-get-Y, bundle, threshold, happy hour, coupon, loyalty
-- Eligibility by customer group, branch, channel, date and time window
-- **Margin protection**: an offer is priced against live cost and refused when it would sell
-  below the configured floor, naming the item, its cost, the offer price and the shortfall
-- Stacking rules and priority when several offers could apply
-- Posting the discount to its own account so the cost of promotion is visible in the P&L
+- **done** Offer types: percentage, amount per unit, buy-X-get-Y, threshold and fixed price.
+  Happy hour and coupon are windows and conditions on those rather than kinds of their own, which
+  is why a half-price-second-one needs no new code. Bundles across different items, and loyalty,
+  are still to come
+- **done** Eligibility by branch, channel, coupon, date window, time-of-day window and day of the
+  week. A window that ends before it starts crosses midnight, which is how a late-night offer is
+  written and would otherwise switch every one of them off. Customer group is modelled and needs
+  groups on the customer to be useful
+- **done** **Margin protection**, priced against live cost both when the offer is saved and again
+  at every basket — because a campaign is planned weeks ahead and suppliers put prices up. The
+  message names the item, its cost today, the offer price and the shortfall per unit. It refuses
+  where somebody can act on it, and warns where they cannot: a shop must not stop selling water
+  because a promotion on it was misconfigured last week
+- **done** Stacking and priority. The customer gets the best offer and priority is only a
+  tiebreak; an exclusive offer must beat what the stackable ones would have come to together; a
+  blocking offer is settled before anything is worked out per line
+- **done** The discount posts to its own account, separate from the ordinary sales discount, and
+  the receipt line carries the offer code — so a campaign can be totalled either way
 - Reports: offer uptake, realised margin, cannibalisation
+- Client screens: the offer list, and the margin preview that shows what an offer would do before
+  it runs
 
 ## Phase 7 — Human resources
 

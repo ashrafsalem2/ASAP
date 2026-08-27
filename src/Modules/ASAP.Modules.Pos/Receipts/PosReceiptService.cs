@@ -109,6 +109,7 @@ public sealed class PosReceiptService(
     /// <param name="tenders">How it is being paid for.</param>
     /// <param name="customerNo">Who to record it against, or null for the till's walk-in customer.</param>
     /// <param name="returnsReceiptNo">The receipt being returned against, when there is one.</param>
+    /// <param name="parkedReceiptNo">The parked sale this was recalled from, when it was.</param>
     /// <param name="heldOverridePermissions">Override permissions the caller holds.</param>
     /// <param name="overrideReason">Why a protection is being pushed past.</param>
     /// <param name="cancellationToken">Cancels the work.</param>
@@ -119,6 +120,7 @@ public sealed class PosReceiptService(
         IReadOnlyList<PosTenderRequest> tenders,
         string? customerNo = null,
         string? returnsReceiptNo = null,
+        string? parkedReceiptNo = null,
         IReadOnlySet<string>? heldOverridePermissions = null,
         string? overrideReason = null,
         CancellationToken cancellationToken = default)
@@ -170,7 +172,29 @@ public sealed class PosReceiptService(
         var items = await ResolveItemsAsync(lines, cancellationToken).ConfigureAwait(false);
         var discountLimit = await DiscountLimitAsync(cancellationToken).ConfigureAwait(false);
 
-        var built = BuildLines(lines, items, discountLimit, heldOverridePermissions, found);
+        // What the goods went out at, when this is a return against a receipt we can read. A
+        // customer bringing back something they bought on offer is owed what they paid, not what
+        // it happens to cost today, and only the original document knows which.
+        var original = await OriginalAsync(returnsReceiptNo, found, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (found.Exists(static m => m.IsFailure))
+        {
+            return Result<PosReceiptPosted>.Failure(found);
+        }
+
+        var built = BuildLines(lines, items, discountLimit, original, heldOverridePermissions, found);
+
+        if (original is not null)
+        {
+            await CheckReturnAsync(
+                    original,
+                    built,
+                    heldOverridePermissions,
+                    found,
+                    cancellationToken)
+                .ConfigureAwait(false);
+        }
 
         if (found.Exists(static m => m.IsFailure))
         {
@@ -243,6 +267,21 @@ public sealed class PosReceiptService(
 
         context.Set<PosReceipt>().Add(receipt);
 
+        if (parkedReceiptNo is not null)
+        {
+            // Recalled and paid for. The basket is voided rather than deleted, so the trail still
+            // shows that something was set aside and what became of it.
+            var parked = await context.Set<PosReceipt>()
+                .FirstOrDefaultAsync(r => r.No == parkedReceiptNo, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (parked is { Status: PosReceiptStatus.Parked })
+            {
+                parked.Status = PosReceiptStatus.Voided;
+                parked.ParkedAs = null;
+            }
+        }
+
         Accumulate(session, receipt, settled);
 
         overrides.Record(found, "Pos.Receipt", receipt.No, overrideReason);
@@ -268,6 +307,342 @@ public sealed class PosReceiptService(
                 receipt.ChangeGiven,
                 receipt.CostAmount),
             found);
+    }
+
+    /// <summary>
+    /// Sets a sale aside so the till can serve somebody else.
+    /// </summary>
+    /// <remarks>
+    /// Nothing posts and nothing is reserved. A parked sale is a basket, not a document, so it
+    /// does not take a receipt number: a tax invoice sequence with numbers issued to baskets that
+    /// were never paid for is a sequence somebody has to explain. It takes a handle built from
+    /// the session instead, which is obviously not an invoice number and cannot collide.
+    /// </remarks>
+    /// <param name="sessionNo">The open session it belongs to.</param>
+    /// <param name="lines">What has been scanned so far.</param>
+    /// <param name="parkedAs">What to call it when recalling, such as the customer's name.</param>
+    /// <param name="customerNo">Who it is for, or null for the till's walk-in customer.</param>
+    /// <param name="cancellationToken">Cancels the work.</param>
+    /// <returns>The parked sale, or every reason it could not be set aside.</returns>
+    public async Task<Result<PosReceipt>> ParkAsync(
+        string sessionNo,
+        IReadOnlyList<PosLineRequest> lines,
+        string? parkedAs = null,
+        string? customerNo = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(lines);
+
+        var found = new List<AsapMessage>();
+
+        var session = await OpenSessionAsync(sessionNo, found, cancellationToken).ConfigureAwait(false);
+
+        if (session is null)
+        {
+            return Result<PosReceipt>.Failure(found);
+        }
+
+        var station = await context.Set<PosStation>()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Code == session.StationCode, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (station is null)
+        {
+            return Result<PosReceipt>.Failure(
+                messages.Render(PosMessages.StationNotFound, Args(("StationCode", session.StationCode))));
+        }
+
+        if (lines.Count == 0)
+        {
+            return Result<PosReceipt>.Failure(
+                messages.Render(PosMessages.ReceiptHasNoLines, Args(("SessionNo", session.No))));
+        }
+
+        var items = await ResolveItemsAsync(lines, cancellationToken).ConfigureAwait(false);
+        var discountLimit = await DiscountLimitAsync(cancellationToken).ConfigureAwait(false);
+
+        // The discount limit is not enforced here. Nothing has been agreed with anybody yet, and
+        // refusing to set a basket down is a strange thing for a till to do; it is asked again,
+        // and answered by a supervisor, at the moment the money is taken.
+        var built = BuildLines(lines, items, decimal.MaxValue, original: null, held: null, found);
+
+        _ = discountLimit;
+
+        if (found.Exists(static m => m.IsFailure))
+        {
+            return Result<PosReceipt>.Failure(found);
+        }
+
+        var onSession = await context.Set<PosReceipt>()
+            .CountAsync(r => r.SessionId == session.Id, cancellationToken)
+            .ConfigureAwait(false);
+
+        var receipt = new PosReceipt
+        {
+            // Suffixed rather than separated by a slash: this handle travels in a URL path when
+            // the sale is recalled, and a slash there is a path segment however it is encoded.
+            No = $"{session.No}-P{onSession + 1}",
+            SessionId = session.Id,
+            StationCode = station.Code,
+            CustomerNo = customerNo ?? station.DefaultCustomerNo,
+            CustomerName = parkedAs ?? station.Name,
+            LocationCode = station.LocationCode,
+            TakenAtUtc = clock.UtcNow,
+            BusinessDate = session.BusinessDate,
+            Status = PosReceiptStatus.Parked,
+            ParkedAs = parkedAs,
+            CashierId = session.CashierId,
+        };
+
+        foreach (var line in built)
+        {
+            receipt.Lines.Add(new PosReceiptLine
+            {
+                LineNo = line.LineNo,
+                Type = line.Type,
+                ItemNo = line.Type is PosLineType.Item ? line.No : null,
+                AccountNo = line.Type is PosLineType.GlAccount ? line.No : null,
+                Description = line.Description,
+                Quantity = line.Quantity,
+                UnitPrice = line.UnitPrice,
+                DiscountPercent = line.DiscountPercent,
+                TaxCode = line.TaxCode,
+            });
+        }
+
+        context.Set<PosReceipt>().Add(receipt);
+
+        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        logger.LogInformation(
+            "Parked {ReceiptNo} at {StationCode} with {LineCount} line(s).",
+            receipt.No,
+            receipt.StationCode,
+            receipt.Lines.Count);
+
+        return Result<PosReceipt>.Success(receipt, found);
+    }
+
+    /// <summary>Everything set aside and unpaid at a till.</summary>
+    /// <param name="sessionNo">The session to look at.</param>
+    /// <param name="cancellationToken">Cancels the work.</param>
+    /// <returns>The parked sales, oldest first, which is the order a queue was joined in.</returns>
+    public async Task<IReadOnlyList<PosReceipt>> ParkedAsync(
+        string sessionNo,
+        CancellationToken cancellationToken = default)
+    {
+        var session = await context.Set<PosSession>()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.No == sessionNo, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (session is null)
+        {
+            return [];
+        }
+
+        return await context.Set<PosReceipt>()
+            .AsNoTracking()
+            .Include(r => r.Lines)
+            .Where(r => r.SessionId == session.Id && r.Status == PosReceiptStatus.Parked)
+            .OrderBy(r => r.TakenAtUtc)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    /// <summary>Reads a parked sale back so the till can carry on with it.</summary>
+    /// <param name="receiptNo">The parked sale's handle.</param>
+    /// <param name="cancellationToken">Cancels the work.</param>
+    /// <returns>The parked sale, or the reason it could not be recalled.</returns>
+    public async Task<Result<PosReceipt>> RecallAsync(
+        string receiptNo,
+        CancellationToken cancellationToken = default)
+    {
+        var receipt = await context.Set<PosReceipt>()
+            .AsNoTracking()
+            .Include(r => r.Lines)
+            .FirstOrDefaultAsync(r => r.No == receiptNo, cancellationToken)
+            .ConfigureAwait(false);
+
+        return Parked(receipt, receiptNo) ?? Result<PosReceipt>.Success(receipt!);
+    }
+
+    /// <summary>
+    /// Throws away a parked sale.
+    /// </summary>
+    /// <remarks>
+    /// Voided rather than deleted. A till that can make transactions disappear is a till nobody
+    /// can audit, and "we found forty parked sales thrown away on one shift" is a sentence
+    /// somebody needs to be able to say.
+    /// </remarks>
+    /// <param name="receiptNo">The parked sale's handle.</param>
+    /// <param name="cancellationToken">Cancels the work.</param>
+    /// <returns>The voided sale, or the reason it could not be thrown away.</returns>
+    public async Task<Result<PosReceipt>> VoidAsync(
+        string receiptNo,
+        CancellationToken cancellationToken = default)
+    {
+        var receipt = await context.Set<PosReceipt>()
+            .Include(r => r.Lines)
+            .FirstOrDefaultAsync(r => r.No == receiptNo, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (Parked(receipt, receiptNo) is { } refusal)
+        {
+            return refusal;
+        }
+
+        receipt!.Status = PosReceiptStatus.Voided;
+        receipt.ParkedAs = null;
+
+        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        logger.LogInformation("Voided parked sale {ReceiptNo}.", receiptNo);
+
+        return Result<PosReceipt>.Success(receipt);
+    }
+
+    private Result<PosReceipt>? Parked(PosReceipt? receipt, string receiptNo)
+    {
+        if (receipt is null)
+        {
+            return Result<PosReceipt>.Failure(
+                messages.Render(PosMessages.ReceiptNotFound, Args(("ReceiptNo", receiptNo))));
+        }
+
+        return receipt.Status is PosReceiptStatus.Parked
+            ? null
+            : Result<PosReceipt>.Failure(
+                messages.Render(
+                    PosMessages.ReceiptNotParked,
+                    Args(("ReceiptNo", receiptNo), ("Status", receipt.Status.ToString()))));
+    }
+
+    private async Task<PosSession?> OpenSessionAsync(
+        string sessionNo,
+        List<AsapMessage> found,
+        CancellationToken cancellationToken)
+    {
+        var session = await context.Set<PosSession>()
+            .FirstOrDefaultAsync(s => s.No == sessionNo, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (session is null)
+        {
+            found.Add(messages.Render(PosMessages.SessionNotFound, Args(("SessionNo", sessionNo))));
+
+            return null;
+        }
+
+        if (!session.IsOpen)
+        {
+            found.Add(messages.Render(
+                PosMessages.SessionClosed,
+                Args(("SessionNo", session.No), ("ClosedAt", session.ClosedAtUtc))));
+
+            return null;
+        }
+
+        return session;
+    }
+
+    /// <summary>Loads the receipt a return is being made against, when one was named.</summary>
+    private async Task<PosReceipt?> OriginalAsync(
+        string? returnsReceiptNo,
+        List<AsapMessage> found,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(returnsReceiptNo))
+        {
+            return null;
+        }
+
+        var original = await context.Set<PosReceipt>()
+            .AsNoTracking()
+            .Include(r => r.Lines)
+            .FirstOrDefaultAsync(r => r.No == returnsReceiptNo, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (original is null)
+        {
+            found.Add(messages.Render(
+                PosMessages.ReceiptNotFound,
+                Args(("ReceiptNo", returnsReceiptNo))));
+
+            return null;
+        }
+
+        if (original.IsReturn)
+        {
+            found.Add(messages.Render(
+                PosMessages.ReturnAgainstReturn,
+                Args(("ReceiptNo", returnsReceiptNo))));
+
+            return null;
+        }
+
+        return original;
+    }
+
+    /// <summary>
+    /// Refuses to take back more than was sold.
+    /// </summary>
+    /// <remarks>
+    /// Counted against everything already returned on that receipt, not just this transaction.
+    /// Checking only the receipt in hand lets somebody return two, then two more, then two more,
+    /// against a sale of two -- which is the whole trick, and it is not a clever one.
+    /// </remarks>
+    private async Task CheckReturnAsync(
+        PosReceipt original,
+        IReadOnlyList<BuiltLine> lines,
+        IReadOnlySet<string>? held,
+        List<AsapMessage> found,
+        CancellationToken cancellationToken)
+    {
+        var alreadyBack = await context.Set<PosReceipt>()
+            .AsNoTracking()
+            .Where(r => r.ReturnsReceiptNo == original.No && r.Status == PosReceiptStatus.Posted)
+            .SelectMany(static r => r.Lines)
+            .GroupBy(static l => l.ItemNo)
+            .Select(static g => new { ItemNo = g.Key, Quantity = g.Sum(static l => l.Quantity) })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        // Returned lines carry negative quantities, so the sum is negative and the magnitude is
+        // what came back.
+        var returned = alreadyBack.ToDictionary(
+            static x => x.ItemNo ?? string.Empty,
+            static x => -x.Quantity,
+            StringComparer.OrdinalIgnoreCase);
+
+        foreach (var line in lines.Where(static l => l.Quantity < 0m))
+        {
+            var sold = original.Lines
+                .Where(l => string.Equals(l.ItemNo, line.No, StringComparison.OrdinalIgnoreCase))
+                .Sum(static l => l.Quantity);
+
+            var back = returned.GetValueOrDefault(line.No);
+            var remaining = sold - back;
+            var wanted = -line.Quantity;
+
+            if (wanted <= remaining)
+            {
+                continue;
+            }
+
+            found.Add(Raise(
+                PosMessages.ReturnExceedsSale,
+                Args(
+                    ("ItemNo", line.No),
+                    ("ReceiptNo", original.No),
+                    ("ReturnQuantity", wanted),
+                    ("SoldQuantity", sold),
+                    ("ReturnedQuantity", back),
+                    ("RemainingQuantity", remaining > 0m ? remaining : 0m)),
+                held,
+                MessageTarget.OnField($"Lines[{line.LineNo}]")));
+        }
     }
 
     /// <summary>What a line came out as once the catalogue and the limits had their say.</summary>
@@ -304,6 +679,7 @@ public sealed class PosReceiptService(
         IReadOnlyList<PosLineRequest> lines,
         IReadOnlyDictionary<string, Item> items,
         decimal discountLimit,
+        PosReceipt? original,
         IReadOnlySet<string>? held,
         List<AsapMessage> found)
     {
@@ -349,13 +725,29 @@ public sealed class PosReceiptService(
                 }
             }
 
-            // Zero means the shelf price, which is what a cashier scanning something means.
-            var unitPrice = line.UnitPrice != 0m ? line.UnitPrice : item?.UnitPrice ?? 0m;
+            // What it went out at on the receipt being returned against, when there is one.
+            var sold = line.Quantity < 0m && original is not null
+                ? original.Lines.FirstOrDefault(l =>
+                    string.Equals(l.ItemNo, line.No, StringComparison.OrdinalIgnoreCase))
+                : null;
+
+            // Zero means the shelf price, which is what a cashier scanning something means --
+            // except on a return, where it means what this customer actually paid.
+            var unitPrice = line.UnitPrice != 0m
+                ? line.UnitPrice
+                : sold?.UnitPrice ?? item?.UnitPrice ?? 0m;
+
+            var discountPercent = line.DiscountPercent != 0m
+                ? line.DiscountPercent
+                : sold?.DiscountPercent ?? 0m;
 
             var description = line.Description
                 ?? item?.Description
                 ?? line.No;
 
+            // Only what the cashier keyed. A discount carried back from the original receipt is
+            // one a supervisor already approved, and asking again at the refund counter would
+            // make returning an offer item harder than buying one.
             if (line.DiscountPercent > discountLimit)
             {
                 arguments["DiscountPercent"] = line.DiscountPercent;
@@ -364,7 +756,7 @@ public sealed class PosReceiptService(
                 found.Add(Raise(PosMessages.DiscountAboveLimit, arguments, held, target));
             }
 
-            var net = unitPrice * (1m - (line.DiscountPercent / 100m));
+            var net = unitPrice * (1m - (discountPercent / 100m));
 
             // Said at the till, not found in a margin report next month. A return is not a sale
             // below cost however the arithmetic reads, so only outbound lines are checked.
@@ -390,8 +782,8 @@ public sealed class PosReceiptService(
                 description,
                 line.Quantity,
                 unitPrice,
-                line.DiscountPercent,
-                line.TaxCode));
+                discountPercent,
+                line.TaxCode ?? sold?.TaxCode));
         }
 
         return built;
@@ -452,7 +844,23 @@ public sealed class PosReceiptService(
                     ("CustomerNo", effectiveCustomerNo))));
         }
 
-        if (change < 0m)
+        // Which way the money is going decides everything below, so it is asked first. A refund
+        // is not a sale that happens to be negative: nobody hands change back on money handed
+        // back, and treating an over-refund as change owed is how a till comes to look for a card
+        // tender that is not there.
+        if (total < 0m)
+        {
+            if (change != 0m)
+            {
+                found.Add(messages.Render(
+                    PosMessages.RefundMismatch,
+                    Args(
+                        ("TotalAmount", -total),
+                        ("TenderedAmount", -tendered),
+                        ("DifferenceAmount", change))));
+            }
+        }
+        else if (change < 0m)
         {
             found.Add(messages.Render(
                 PosMessages.Underpaid,
@@ -469,7 +877,9 @@ public sealed class PosReceiptService(
 
             if (cash < change)
             {
-                var offending = tenders.First(static t => t.Kind is not TenderKind.Cash);
+                // There is one, because cash alone can never leave less cash than was offered.
+                // Guarded anyway: a crash at a till is the worst possible way to learn otherwise.
+                var offending = tenders.FirstOrDefault(static t => t.Kind is not TenderKind.Cash);
 
                 found.Add(messages.Render(
                     PosMessages.NoChangeFromTender,

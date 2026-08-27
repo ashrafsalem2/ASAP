@@ -47,13 +47,39 @@ public sealed record PosTenderPayload(TenderKind Kind, decimal Amount, string? R
 /// <param name="Tenders">How it is being paid for.</param>
 /// <param name="CustomerNo">Who to record it against, or null for the till's walk-in customer.</param>
 /// <param name="ReturnsReceiptNo">The receipt being returned against, when there is one.</param>
+/// <param name="ParkedReceiptNo">The parked sale this was recalled from, when it was.</param>
 /// <param name="OverrideReason">Why a protection is being pushed past.</param>
 public sealed record PostReceiptRequest(
     IReadOnlyList<PosLinePayload> Lines,
     IReadOnlyList<PosTenderPayload> Tenders,
     string? CustomerNo = null,
     string? ReturnsReceiptNo = null,
+    string? ParkedReceiptNo = null,
     string? OverrideReason = null);
+
+/// <summary>What a client sends to set a sale aside.</summary>
+/// <param name="Lines">What has been scanned so far.</param>
+/// <param name="ParkedAs">What to call it when recalling, such as the customer's name.</param>
+/// <param name="CustomerNo">Who it is for, or null for the till's walk-in customer.</param>
+public sealed record ParkSaleRequest(
+    IReadOnlyList<PosLinePayload> Lines,
+    string? ParkedAs = null,
+    string? CustomerNo = null);
+
+/// <summary>A parked sale as it is reported back.</summary>
+/// <param name="No">Its handle, which is not a receipt number because it is not a receipt yet.</param>
+/// <param name="ParkedAs">What it was called when it was set aside.</param>
+/// <param name="TakenAtUtc">When it was set aside.</param>
+/// <param name="LineCount">How many things are in it.</param>
+/// <param name="NetAmount">What it comes to, before tax.</param>
+/// <param name="Lines">What is in it.</param>
+public sealed record ParkedSaleView(
+    string No,
+    string? ParkedAs,
+    DateTime TakenAtUtc,
+    int LineCount,
+    decimal NetAmount,
+    IReadOnlyList<PosLinePayload> Lines);
 
 /// <summary>A till, as it is reported back.</summary>
 /// <param name="Code">Its code.</param>
@@ -118,6 +144,22 @@ public static class PosEndpoints
         group.MapPost("/sessions/{sessionNo}/receipts", PostReceiptAsync)
              .WithName("PostPosReceipt")
              .WithSummary("Rings up a sale, takes the money and posts everything.");
+
+        group.MapGet("/sessions/{sessionNo}/parked", ParkedAsync)
+             .WithName("PosParkedSales")
+             .WithSummary("Lists what has been set aside and not paid for at this till.");
+
+        group.MapPost("/sessions/{sessionNo}/parked", ParkAsync)
+             .WithName("ParkPosSale")
+             .WithSummary("Sets a sale aside so the till can serve somebody else.");
+
+        group.MapGet("/parked/{receiptNo}", RecallAsync)
+             .WithName("RecallPosSale")
+             .WithSummary("Reads a parked sale back so the till can carry on with it.");
+
+        group.MapDelete("/parked/{receiptNo}", VoidAsync)
+             .WithName("VoidPosSale")
+             .WithSummary("Throws a parked sale away. Voided rather than deleted.");
 
         return app;
     }
@@ -335,17 +377,11 @@ public static class PosEndpoints
         var result = await receipts
             .PostAsync(
                 sessionNo,
-                [.. request.Lines.Select(l => new PosLineRequest(
-                    l.Type,
-                    l.No,
-                    l.Quantity,
-                    l.UnitPrice,
-                    l.DiscountPercent,
-                    l.Description,
-                    l.TaxCode))],
+                [.. request.Lines.Select(Line)],
                 [.. request.Tenders.Select(t => new PosTenderRequest(t.Kind, t.Amount, t.Reference))],
                 request.CustomerNo,
                 request.ReturnsReceiptNo,
+                request.ParkedReceiptNo,
                 Overrides(user),
                 request.OverrideReason,
                 cancellationToken)
@@ -367,6 +403,112 @@ public static class PosEndpoints
                 messages = MessagePayload.FromAll(result.Messages),
             });
     }
+
+    private static async Task<IResult> ParkedAsync(
+        string sessionNo,
+        PosReceiptService receipts,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, ReceiptReadPermission))
+        {
+            return Forbidden(ReceiptReadPermission, "view parked sales", http);
+        }
+
+        var parked = await receipts.ParkedAsync(sessionNo, cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(parked.Select(View));
+    }
+
+    private static async Task<IResult> ParkAsync(
+        string sessionNo,
+        ParkSaleRequest request,
+        PosReceiptService receipts,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, ReceiptPostPermission))
+        {
+            return Forbidden(ReceiptPostPermission, "park a sale", http);
+        }
+
+        var result = await receipts
+            .ParkAsync(
+                sessionNo,
+                [.. request.Lines.Select(Line)],
+                request.ParkedAs,
+                request.CustomerNo,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.Ok(View(result.Value));
+    }
+
+    private static async Task<IResult> RecallAsync(
+        string receiptNo,
+        PosReceiptService receipts,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, ReceiptReadPermission))
+        {
+            return Forbidden(ReceiptReadPermission, "recall a parked sale", http);
+        }
+
+        var result = await receipts.RecallAsync(receiptNo, cancellationToken).ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.Ok(View(result.Value));
+    }
+
+    private static async Task<IResult> VoidAsync(
+        string receiptNo,
+        PosReceiptService receipts,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, ReceiptPostPermission))
+        {
+            return Forbidden(ReceiptPostPermission, "throw a parked sale away", http);
+        }
+
+        var result = await receipts.VoidAsync(receiptNo, cancellationToken).ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.Ok(View(result.Value));
+    }
+
+    private static PosLineRequest Line(PosLinePayload payload)
+        => new(
+            payload.Type,
+            payload.No,
+            payload.Quantity,
+            payload.UnitPrice,
+            payload.DiscountPercent,
+            payload.Description,
+            payload.TaxCode);
+
+    private static ParkedSaleView View(PosReceipt receipt)
+        => new(
+            receipt.No,
+            receipt.ParkedAs,
+            receipt.TakenAtUtc,
+            receipt.Lines.Count,
+            receipt.Lines.Sum(static l => l.LineAmount),
+            [.. receipt.Lines
+                .OrderBy(static l => l.LineNo)
+                .Select(static l => new PosLinePayload(
+                    l.Type,
+                    l.ItemNo ?? l.AccountNo ?? string.Empty,
+                    l.Quantity,
+                    l.UnitPrice,
+                    l.DiscountPercent,
+                    l.Description,
+                    l.TaxCode))]);
 
     private static object View(PosSession session)
         => new

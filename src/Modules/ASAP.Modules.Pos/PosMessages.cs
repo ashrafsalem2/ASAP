@@ -46,6 +46,9 @@ public static class PosMessages
     /// <summary>Less was handed over than the receipt comes to.</summary>
     public static readonly MessageCode Underpaid = new("POS.TENDER.UNDERPAID");
 
+    /// <summary>What was handed back on a refund does not match what is owed.</summary>
+    public static readonly MessageCode RefundMismatch = new("POS.TENDER.REFUND_MISMATCH");
+
     /// <summary>Change was owed on something that cannot give change.</summary>
     public static readonly MessageCode NoChangeFromTender = new("POS.TENDER.NO_CHANGE");
 
@@ -63,6 +66,15 @@ public static class PosMessages
 
     /// <summary>A cash sale was charged to an account instead of being paid for.</summary>
     public static readonly MessageCode OnAccountNeedsCustomer = new("POS.TENDER.NEEDS_CUSTOMER");
+
+    /// <summary>Something tried to recall or void a receipt that is not parked.</summary>
+    public static readonly MessageCode ReceiptNotParked = new("POS.RECEIPT.NOT_PARKED");
+
+    /// <summary>A return asked for more than was bought on the receipt it names.</summary>
+    public static readonly MessageCode ReturnExceedsSale = new("POS.RETURN.EXCEEDS_SALE");
+
+    /// <summary>A return names a receipt that was itself a return.</summary>
+    public static readonly MessageCode ReturnAgainstReturn = new("POS.RETURN.AGAINST_RETURN");
 
     /// <summary>No account is set up for a tender that needs one.</summary>
     public static readonly MessageCode NoTenderAccount = new("POS.SETUP.NO_TENDER_ACCOUNT");
@@ -234,6 +246,24 @@ public static class PosMessages
         },
         new()
         {
+            Code = RefundMismatch,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText(
+                "The refund does not add up",
+                "المبلغ المُعاد لا يطابق"),
+            Detail = new LocalizedText(
+                "{TotalAmount:N2} is owed back and {TenderedAmount:N2} was handed over, a "
+                + "difference of {DifferenceAmount:N2}. A refund is paid out exactly; there is no "
+                + "change to give on money going the other way.",
+                "المستحق إعادته {TotalAmount:N2} والمُسلَّم {TenderedAmount:N2}، بفارق "
+                + "{DifferenceAmount:N2}. والمرتجع يُدفع بالضبط، فلا باقي على مبلغ يخرج من الصندوق."),
+            Resolution = new LocalizedText(
+                "Hand back exactly {TotalAmount:N2}, or change what is being returned.",
+                "أعد {TotalAmount:N2} بالضبط، أو عدّل ما يجري إرجاعه."),
+            HelpTopic = "pos/receipts",
+        },
+        new()
+        {
             Code = NoChangeFromTender,
             Severity = MessageSeverity.Error,
             Title = new LocalizedText("This cannot give change", "لا يمكن إعادة الباقي من هذه الوسيلة"),
@@ -324,6 +354,52 @@ public static class PosMessages
             Resolution = new LocalizedText(
                 "Look the customer up and put the receipt on their account, or take payment now.",
                 "ابحث عن العميل وسجّل الإيصال على حسابه، أو استوفِ المبلغ الآن."),
+            HelpTopic = "pos/receipts",
+        },
+        new()
+        {
+            Code = ReceiptNotParked,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("That sale is not waiting", "هذه العملية ليست معلّقة"),
+            Detail = new LocalizedText(
+                "Receipt {ReceiptNo} is {Status}, and only a parked sale can be recalled or "
+                + "thrown away.",
+                "حالة الإيصال {ReceiptNo} هي {Status}، ولا يمكن استرجاع أو إلغاء إلا عملية معلّقة."),
+            Resolution = new LocalizedText(
+                "Check the list of parked sales at this till.",
+                "راجع قائمة العمليات المعلّقة على هذه النقطة."),
+            HelpTopic = "pos/receipts",
+        },
+        new()
+        {
+            Code = ReturnExceedsSale,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("More than was bought", "أكثر مما تم شراؤه"),
+            Detail = new LocalizedText(
+                "{ReturnQuantity:0.#####} of {ItemNo} is being returned against {ReceiptNo}, which "
+                + "sold {SoldQuantity:0.#####} and has already had {ReturnedQuantity:0.#####} back.",
+                "يجري إرجاع {ReturnQuantity:0.#####} من الصنف {ItemNo} على الإيصال {ReceiptNo}، "
+                + "الذي باع {SoldQuantity:0.#####} وأُرجع منه {ReturnedQuantity:0.#####}."),
+            Resolution = new LocalizedText(
+                "Take back at most {RemainingQuantity:0.#####}, or ring the return up without "
+                + "naming a receipt if the customer bought it another day.",
+                "استلم {RemainingQuantity:0.#####} كحد أقصى، أو سجّل المرتجع دون الإشارة إلى إيصال "
+                + "إن كان الشراء في يوم آخر."),
+            OverridePermission = "Pos.Receipt.Override",
+            HelpTopic = "pos/receipts",
+        },
+        new()
+        {
+            Code = ReturnAgainstReturn,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("That was itself a return", "هذا الإيصال مرتجع أصلاً"),
+            Detail = new LocalizedText(
+                "Receipt {ReceiptNo} took goods back rather than selling them, so there is "
+                + "nothing on it to return.",
+                "الإيصال {ReceiptNo} استلم بضاعة ولم يبعها، فلا يوجد فيه ما يُرجَع."),
+            Resolution = new LocalizedText(
+                "Name the receipt the goods were originally sold on.",
+                "أشر إلى الإيصال الذي بيعت فيه البضاعة أصلاً."),
             HelpTopic = "pos/receipts",
         },
         new()

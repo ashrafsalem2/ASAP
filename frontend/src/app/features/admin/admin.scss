@@ -1,0 +1,88 @@
+.admin__wide {
+  flex: 1 1 16rem;
+}
+
+.admin__row {
+  cursor: pointer;
+}
+
+.admin__row--selected td {
+  background: color-mix(in srgb, var(--accent) 10%, transparent);
+}
+
+.admin__note {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  max-width: 70ch;
+}
+
+.admin__warn {
+  color: var(--caution);
+  font-weight: 600;
+  font-size: 0.8rem;
+  margin-inline-start: 0.4rem;
+}
+
+.admin__super {
+  background: color-mix(in srgb, var(--caution) 20%, transparent);
+}
+
+.admin__sets {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.admin__set {
+  display: flex;
+  align-items: baseline;
+  gap: 0.5rem;
+}
+
+.admin__set-name {
+  flex: 1 1 auto;
+}
+
+.admin__set-count {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+/* Two columns of permissions, each with the sentence its module wrote. Wide enough for the
+   sentence to be readable, because reading it is the point. */
+.admin__permissions {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(26rem, 1fr));
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+}
+
+.admin__permission {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.15rem 0.5rem;
+  align-items: baseline;
+  padding: 0.4rem 0.5rem;
+  border-radius: 0.25rem;
+}
+
+.admin__permission input {
+  grid-row: 1 / span 3;
+}
+
+.admin__permission-name {
+  font-weight: 500;
+}
+
+.admin__permission-key,
+.admin__permission-desc {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+/* Coloured, not hidden. Somebody assembling a set needs to see which lines are the ones worth
+   arguing about; hiding them would only mean granting them blind. */
+.admin__permission--sensitive {
+  background: color-mix(in srgb, var(--caution) 7%, transparent);
+}

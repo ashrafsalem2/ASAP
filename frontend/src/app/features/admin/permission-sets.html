@@ -1,0 +1,155 @@
+<div class="page">
+  <h1>{{ t('admin.sets.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('admin.sets.intro') }}</p>
+
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('admin.sets.code') }}</th>
+              <th>{{ t('admin.sets.name') }}</th>
+              <th>{{ t('admin.sets.description') }}</th>
+              <th class="numeric">{{ t('admin.sets.permissions') }}</th>
+              <th class="numeric">{{ t('admin.sets.heldBy') }}</th>
+              <th>{{ t('admin.sets.maintainedBy') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (set of sets(); track set.code) {
+              <tr
+                class="admin__row"
+                [class.admin__row--selected]="selected()?.code === set.code"
+                (click)="select(set)"
+              >
+                <td class="code">{{ set.code }}</td>
+                <td>{{ set.name }}</td>
+                <td>{{ set.description }}</td>
+                <td class="numeric">{{ set.permissions.length }}</td>
+                <td class="numeric">{{ set.assignedTo }}</td>
+                <td>
+                  <span class="tag">
+                    {{ set.isSystemDefined ? t('admin.sets.asap') : t('admin.sets.yours') }}
+                  </span>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (canWrite()) {
+        <div class="panel__body draft__actions">
+          <button type="button" class="button" (click)="startNew()">
+            {{ t('admin.sets.new') }}
+          </button>
+
+          @if (selected(); as set) {
+            @if (!set.isSystemDefined) {
+              <button
+                type="button"
+                class="button"
+                [disabled]="busy() !== null"
+                (click)="remove(set)"
+              >
+                {{ t('admin.sets.remove') }}
+              </button>
+            }
+          }
+        </div>
+      }
+    }
+  </section>
+
+  @if (selected() || creating) {
+    <section class="panel">
+      <div class="panel__header">
+        <h2>{{ creating ? t('admin.sets.new') : code }}</h2>
+      </div>
+
+      @if (!editable()) {
+        <!-- Said before somebody spends five minutes on it, not after. -->
+        <p class="panel__body admin__note">{{ t('admin.sets.asapWhy') }}</p>
+      }
+
+      <div class="panel__body draft">
+        <div class="field">
+          <label class="field__label" for="code">{{ t('admin.sets.code') }}</label>
+          <input id="code" class="input code" [disabled]="!creating" [(ngModel)]="code" />
+        </div>
+
+        <div class="field admin__wide">
+          <label class="field__label" for="name">{{ t('admin.sets.name') }}</label>
+          <input id="name" class="input" [disabled]="!editable()" [(ngModel)]="name" />
+        </div>
+
+        <div class="field admin__wide">
+          <label class="field__label" for="nameArabic">{{ t('admin.sets.nameArabic') }}</label>
+          <input
+            id="nameArabic"
+            class="input"
+            dir="rtl"
+            [disabled]="!editable()"
+            [(ngModel)]="nameArabic"
+          />
+        </div>
+
+        <div class="field admin__wide">
+          <label class="field__label" for="description">{{ t('admin.sets.description') }}</label>
+          <input id="description" class="input" [disabled]="!editable()" [(ngModel)]="description" />
+        </div>
+      </div>
+
+      @for (group of groups(); track group.module) {
+        <div class="panel__body">
+          <span class="field__label">{{ group.module }}</span>
+
+          <div class="admin__permissions">
+            @for (permission of group.permissions; track permission.key) {
+              <label class="admin__permission" [class.admin__permission--sensitive]="permission.isSensitive">
+                <input
+                  type="checkbox"
+                  [disabled]="!editable()"
+                  [checked]="grants(permission.key)"
+                  (change)="toggle(permission.key, $any($event.target).checked)"
+                />
+
+                <span class="admin__permission-name">
+                  {{ permission.displayName }}
+                  @if (permission.isSensitive) {
+                    <span class="admin__warn">{{ t('admin.sets.sensitive') }}</span>
+                  }
+                </span>
+
+                <span class="code admin__permission-key">{{ permission.key }}</span>
+
+                <!-- The module's own sentence about what it does. A list of keys is how somebody
+                     grants an override because it sounded administrative. -->
+                @if (permission.description) {
+                  <span class="admin__permission-desc">{{ permission.description }}</span>
+                }
+              </label>
+            }
+          </div>
+        </div>
+      }
+
+      @if (editable()) {
+        <div class="panel__body draft__actions">
+          <button
+            type="button"
+            class="button button--primary"
+            [disabled]="!code.trim() || !name.trim() || busy() !== null"
+            (click)="save()"
+          >
+            {{ t('admin.sets.save', { count: granting().length }) }}
+          </button>
+        </div>
+      }
+    </section>
+  }
+</div>

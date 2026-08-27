@@ -58,6 +58,39 @@ public static class PlatformMessages
     /// <summary>A setting cannot be changed now that entries have been posted against it.</summary>
     public static readonly MessageCode SetupLocked = new("PLAT.SETUP.LOCKED_AFTER_POSTING");
 
+    /// <summary>The user named does not exist.</summary>
+    public static readonly MessageCode UserNotFound = new("PLAT.USER.NOT_FOUND");
+
+    /// <summary>Somebody already signs in with that name.</summary>
+    public static readonly MessageCode UserNameTaken = new("PLAT.USER.NAME_TAKEN");
+
+    /// <summary>An administrator tried to turn off their own account.</summary>
+    public static readonly MessageCode CannotDisableSelf = new("PLAT.USER.CANNOT_DISABLE_SELF");
+
+    /// <summary>A change would leave nobody able to administer the installation.</summary>
+    public static readonly MessageCode LastAdministrator = new("PLAT.USER.LAST_ADMINISTRATOR");
+
+    /// <summary>A password too short to be worth having.</summary>
+    public static readonly MessageCode PasswordTooShort = new("PLAT.PASSWORD.TOO_SHORT");
+
+    /// <summary>The current password given does not match.</summary>
+    public static readonly MessageCode PasswordWrong = new("PLAT.PASSWORD.WRONG");
+
+    /// <summary>The permission set named does not exist.</summary>
+    public static readonly MessageCode PermissionSetNotFound = new("PLAT.PERMISSIONSET.NOT_FOUND");
+
+    /// <summary>A permission set already has that code.</summary>
+    public static readonly MessageCode PermissionSetCodeTaken = new("PLAT.PERMISSIONSET.CODE_TAKEN");
+
+    /// <summary>Something tried to change a set ASAP maintains.</summary>
+    public static readonly MessageCode PermissionSetIsSystem = new("PLAT.PERMISSIONSET.SYSTEM_DEFINED");
+
+    /// <summary>Something tried to remove a set somebody is still assigned.</summary>
+    public static readonly MessageCode PermissionSetInUse = new("PLAT.PERMISSIONSET.IN_USE");
+
+    /// <summary>A set names a permission no module declares.</summary>
+    public static readonly MessageCode PermissionUnknown = new("PLAT.PERMISSION.UNKNOWN");
+
     /// <summary>A setting nobody declares.</summary>
     public static readonly MessageCode SetupUnknownKey = new("PLAT.SETUP.UNKNOWN_KEY");
 
@@ -256,6 +289,177 @@ public static class PlatformMessages
             Resolution = new LocalizedText(
                 "Enter a value matching {Expected}.",
                 "أدخل قيمة تتوافق مع {Expected}."),
+        },
+        new()
+        {
+            Code = UserNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such user", "لا يوجد مستخدم بهذا الاسم"),
+            Detail = new LocalizedText(
+                "No user account here is called {UserName}.",
+                "لا يوجد هنا حساب مستخدم باسم {UserName}."),
+            Resolution = new LocalizedText(
+                "Check the name against the user list.",
+                "تحقق من الاسم في قائمة المستخدمين."),
+            HelpTopic = "platform/users",
+        },
+        new()
+        {
+            Code = UserNameTaken,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("That name is taken", "الاسم مستخدم بالفعل"),
+            Detail = new LocalizedText(
+                "{UserName} already belongs to {ExistingName}. Two accounts signing in under one "
+                + "name would make the audit log unable to say which of them did anything.",
+                "الاسم {UserName} يخص بالفعل {ExistingName}. ووجود حسابين بنفس اسم الدخول يجعل "
+                + "سجل التدقيق عاجزًا عن تحديد أيهما قام بالإجراء."),
+            Resolution = new LocalizedText(
+                "Choose another. A name is not freed by turning an account off; it is freed by "
+                + "renaming the account that holds it.",
+                "اختر اسمًا آخر. فتعطيل الحساب لا يحرّر اسمه، وإنما يتحرر بإعادة تسمية الحساب "
+                + "الذي يحمله."),
+            HelpTopic = "platform/users",
+        },
+        new()
+        {
+            Code = CannotDisableSelf,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("You cannot turn off your own account", "لا يمكنك تعطيل حسابك"),
+            Detail = new LocalizedText(
+                "{UserName} is the account you are signed in with.",
+                "الحساب {UserName} هو الحساب الذي سجّلت الدخول به."),
+            Resolution = new LocalizedText(
+                "Ask another administrator to do it. The rule exists so that nobody removes their "
+                + "own way back in and then discovers it.",
+                "اطلب من مسؤول آخر القيام بذلك. فالقاعدة موجودة كي لا يقطع أحد طريق عودته ثم "
+                + "يكتشف ذلك."),
+            HelpTopic = "platform/users",
+        },
+        new()
+        {
+            Code = LastAdministrator,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText(
+                "Somebody has to be able to administer this",
+                "لا بد أن يبقى من يدير النظام"),
+            Detail = new LocalizedText(
+                "{UserName} is the last account able to administer users and permissions. Making "
+                + "this change would leave the installation with nobody who can grant anybody "
+                + "anything, including the right to undo it.",
+                "الحساب {UserName} هو آخر حساب يستطيع إدارة المستخدمين والصلاحيات. وإجراء هذا "
+                + "التغيير يترك النظام بلا من يملك منح أي صلاحية لأحد، بما في ذلك صلاحية التراجع "
+                + "عن هذا التغيير."),
+
+            // No override. There is no version of this that anybody recovers from without a
+            // database, which is not a support call worth designing in.
+            Resolution = new LocalizedText(
+                "Give somebody else the administrator set first, then come back to this.",
+                "امنح مستخدمًا آخر مجموعة صلاحيات المسؤول أولاً، ثم عد إلى هذا الإجراء."),
+            HelpTopic = "platform/users",
+        },
+        new()
+        {
+            Code = PasswordTooShort,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("That password is too short", "كلمة المرور قصيرة جدًا"),
+            Detail = new LocalizedText(
+                "A password must be at least {Minimum} characters, and this one is {Length}.",
+                "يجب ألا تقل كلمة المرور عن {Minimum} حرفًا، وهذه {Length}."),
+            Resolution = new LocalizedText(
+                "Length is what makes a password hard to guess; a longer ordinary phrase beats a "
+                + "short one with symbols in it.",
+                "الطول هو ما يصعّب تخمين كلمة المرور، وعبارة عادية طويلة أفضل من كلمة قصيرة "
+                + "مليئة بالرموز."),
+            HelpTopic = "platform/users",
+        },
+        new()
+        {
+            Code = PasswordWrong,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("That is not your current password", "كلمة المرور الحالية غير صحيحة"),
+            Detail = new LocalizedText(
+                "The current password given does not match the one on the account.",
+                "كلمة المرور الحالية المُدخلة لا تطابق المسجّلة على الحساب."),
+            Resolution = new LocalizedText(
+                "Try again, or ask an administrator to reset it. Somebody who could change a "
+                + "password without knowing the old one could take an account left signed in.",
+                "حاول مرة أخرى أو اطلب من المسؤول إعادة التعيين. فمن يستطيع تغيير كلمة المرور "
+                + "دون معرفة القديمة يستطيع الاستيلاء على حساب تُرك مفتوحًا."),
+            HelpTopic = "platform/users",
+        },
+        new()
+        {
+            Code = PermissionSetNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such permission set", "لا توجد مجموعة صلاحيات بهذا الرمز"),
+            Detail = new LocalizedText(
+                "No permission set here is coded {Code}.",
+                "لا توجد هنا مجموعة صلاحيات بالرمز {Code}."),
+            Resolution = new LocalizedText(
+                "Check the code against the permission set list.",
+                "تحقق من الرمز في قائمة مجموعات الصلاحيات."),
+            HelpTopic = "platform/permissions",
+        },
+        new()
+        {
+            Code = PermissionSetCodeTaken,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("That code is taken", "الرمز مستخدم بالفعل"),
+            Detail = new LocalizedText(
+                "{Code} already belongs to {ExistingName}.",
+                "الرمز {Code} يخص بالفعل {ExistingName}."),
+            Resolution = new LocalizedText(
+                "Choose another code, or edit the set that has it.",
+                "اختر رمزًا آخر، أو عدّل المجموعة التي تحمله."),
+            HelpTopic = "platform/permissions",
+        },
+        new()
+        {
+            Code = PermissionSetIsSystem,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("ASAP maintains that set", "هذه المجموعة يحافظ عليها النظام"),
+            Detail = new LocalizedText(
+                "{Code} is kept in step with what the installed modules declare, so an edit to it "
+                + "would be undone the next time ASAP starts.",
+                "تُحدَّث المجموعة {Code} تلقائيًا لتواكب ما تعلنه الوحدات المثبتة، فأي تعديل عليها "
+                + "سيُلغى عند التشغيل التالي."),
+            Resolution = new LocalizedText(
+                "Copy it to a set of your own and change that. A set you made is yours; this one "
+                + "belongs to the software.",
+                "انسخها إلى مجموعة خاصة بك وعدّل تلك. فالمجموعة التي تنشئها ملكك، وهذه تخص "
+                + "البرنامج."),
+            HelpTopic = "platform/permissions",
+        },
+        new()
+        {
+            Code = PermissionSetInUse,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Somebody is still using that set", "المجموعة ما زالت مسندة"),
+            Detail = new LocalizedText(
+                "{Code} is assigned to {Count} people. Removing it would take away whatever it "
+                + "granted them, without saying which of them lost what.",
+                "المجموعة {Code} مسندة إلى {Count} من المستخدمين. وحذفها يسحب منهم ما تمنحه دون "
+                + "بيان ما فقده كل منهم."),
+            Resolution = new LocalizedText(
+                "Take it off those accounts first, so each change is visible on the account it "
+                + "affects.",
+                "أزلها من تلك الحسابات أولاً، ليظهر كل تغيير على الحساب الذي يخصه."),
+            HelpTopic = "platform/permissions",
+        },
+        new()
+        {
+            Code = PermissionUnknown,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such permission", "لا توجد صلاحية بهذا الاسم"),
+            Detail = new LocalizedText(
+                "No module loaded here declares {Permission}.",
+                "لا توجد بين الوحدات المحمّلة هنا صلاحية باسم {Permission}."),
+            Resolution = new LocalizedText(
+                "Choose from the permission list. A permission belonging to a module that is not "
+                + "installed grants nothing, and a set holding one would look like it did.",
+                "اختر من قائمة الصلاحيات. فالصلاحية التابعة لوحدة غير مثبّتة لا تمنح شيئًا، "
+                + "ومجموعة تحتويها ستبدو وكأنها تمنح."),
+            HelpTopic = "platform/permissions",
         },
         new()
         {

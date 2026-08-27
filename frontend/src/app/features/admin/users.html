@@ -1,0 +1,189 @@
+<div class="page">
+  <h1>{{ t('admin.users.title') }}</h1>
+
+  @if (canCreate()) {
+    <section class="panel">
+      <div class="panel__header">
+        <h2>{{ t('admin.users.create') }}</h2>
+      </div>
+
+      <p class="panel__body page__intro">{{ t('admin.users.intro') }}</p>
+
+      <div class="panel__body draft">
+        <div class="field">
+          <label class="field__label" for="newUserName">{{ t('admin.users.userName') }}</label>
+          <input id="newUserName" class="input code" [(ngModel)]="newUserName" />
+        </div>
+
+        <div class="field admin__wide">
+          <label class="field__label" for="newDisplayName">{{ t('admin.users.displayName') }}</label>
+          <input id="newDisplayName" class="input" [(ngModel)]="newDisplayName" />
+        </div>
+
+        <div class="field admin__wide">
+          <label class="field__label" for="newEmail">{{ t('admin.users.email') }}</label>
+          <input id="newEmail" class="input" type="email" [(ngModel)]="newEmail" />
+        </div>
+
+        <div class="field admin__wide">
+          <label class="field__label" for="newPassword">{{ t('admin.users.temporary') }}</label>
+          <input id="newPassword" class="input" [(ngModel)]="newPassword" />
+        </div>
+
+        <button
+          type="button"
+          class="button button--primary"
+          [disabled]="!newUserName.trim() || !newDisplayName.trim() || !newPassword || busy() !== null"
+          (click)="create()"
+        >
+          {{ t('admin.users.create') }}
+        </button>
+      </div>
+
+      <p class="panel__body admin__note">{{ t('admin.users.temporaryWhy') }}</p>
+    </section>
+  }
+
+  <section class="panel">
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('admin.users.userName') }}</th>
+              <th>{{ t('admin.users.displayName') }}</th>
+              <th>{{ t('admin.users.email') }}</th>
+              <th>{{ t('admin.users.sets') }}</th>
+              <th>{{ t('admin.users.status') }}</th>
+              <th>{{ t('admin.users.lastLogin') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (user of users(); track user.userName) {
+              <tr
+                class="admin__row"
+                [class.admin__row--selected]="selected()?.userName === user.userName"
+                (click)="select(user)"
+              >
+                <td class="code">{{ user.userName }}</td>
+                <td>{{ user.displayName }}</td>
+                <td>{{ user.email }}</td>
+                <td>
+                  @if (user.isSuperUser) {
+                    <span class="tag admin__super">{{ t('admin.users.superUser') }}</span>
+                  }
+                  @for (code of user.permissionSets; track code) {
+                    <span class="tag">{{ code }}</span>
+                  }
+                </td>
+                <td>
+                  <span class="tag">
+                    {{ user.isActive ? t('admin.users.active') : t('admin.users.off') }}
+                  </span>
+                  @if (user.mustChangePassword) {
+                    <span class="tag admin__warn">{{ t('admin.users.mustChange') }}</span>
+                  }
+                </td>
+                <td class="code">{{ user.lastLoginAtUtc?.slice(0, 16)?.replace('T', ' ') }}</td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="6" class="empty">{{ t('common.nothingHere') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+
+  @if (selected(); as user) {
+    <section class="panel">
+      <div class="panel__header">
+        <h2>{{ user.userName }} — {{ user.displayName }}</h2>
+      </div>
+
+      @if (canWrite()) {
+        <div class="panel__body">
+          <span class="field__label">{{ t('admin.users.sets') }}</span>
+
+          <div class="admin__sets">
+            @for (set of sets(); track set.code) {
+              <label class="admin__set">
+                <input
+                  type="checkbox"
+                  [checked]="holds(set.code)"
+                  (change)="toggleSet(set.code, $any($event.target).checked)"
+                />
+                <span class="code">{{ set.code }}</span>
+                <span class="admin__set-name">{{ set.name }}</span>
+                <span class="admin__set-count">
+                  {{ t('admin.users.grants', { count: set.permissions.length }) }}
+                </span>
+              </label>
+            }
+          </div>
+        </div>
+
+        <div class="panel__body draft__actions">
+          <button
+            type="button"
+            class="button button--primary"
+            [disabled]="busy() !== null"
+            (click)="saveSets()"
+          >
+            {{ t('admin.users.saveSets') }}
+          </button>
+
+          @if (user.isActive) {
+            <button
+              type="button"
+              class="button"
+              [disabled]="busy() !== null"
+              (click)="setActive(user, false)"
+            >
+              {{ t('admin.users.disable') }}
+            </button>
+          } @else {
+            <button
+              type="button"
+              class="button"
+              [disabled]="busy() !== null"
+              (click)="setActive(user, true)"
+            >
+              {{ t('admin.users.enable') }}
+            </button>
+          }
+        </div>
+
+        <div class="panel__body draft">
+          <div class="field admin__wide">
+            <label class="field__label" for="resetPassword">
+              {{ t('admin.users.resetTo') }}
+            </label>
+            <input id="resetPassword" class="input" [(ngModel)]="resetPassword" />
+          </div>
+
+          <button
+            type="button"
+            class="button"
+            [disabled]="!resetPassword || busy() !== null"
+            (click)="reset()"
+          >
+            {{ t('admin.users.resetAction') }}
+          </button>
+        </div>
+
+        @if (user.isSuperUser) {
+          <!-- Said where it will be read. A superuser passes every permission check, so the
+               boxes above describe nothing about what this account can actually do. -->
+          <p class="panel__body admin__note">{{ t('admin.users.superUserWhy') }}</p>
+        }
+      }
+    </section>
+  } @else if (!loading()) {
+    <p class="empty">{{ t('admin.users.select') }}</p>
+  }
+</div>

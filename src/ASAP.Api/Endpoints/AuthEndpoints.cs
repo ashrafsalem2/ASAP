@@ -2,11 +2,18 @@ using ASAP.Api.Infrastructure;
 using ASAP.Api.Security;
 using ASAP.Platform.Core.Messaging;
 using ASAP.Platform.Kernel.Messaging;
+using ASAP.Platform.Core.Security;
 using ASAP.Platform.Kernel.Security;
+using ASAP.Platform.Persistence;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace ASAP.Api.Endpoints;
+
+/// <summary>What a client sends to change its own password.</summary>
+/// <param name="CurrentPassword">The password on the account now.</param>
+/// <param name="NewPassword">What to change it to.</param>
+public sealed record ChangePasswordRequest(string CurrentPassword, string NewPassword);
 
 /// <summary>What a client sends to sign in.</summary>
 /// <param name="UserName">The login name.</param>
@@ -63,12 +70,81 @@ public static class AuthEndpoints
              .WithName("Me")
              .WithSummary("Reports who the caller is and what they may do in the active company.");
 
+        group.MapPost("/change-password", ChangePasswordAsync)
+             .RequireAuthorization()
+             .WithName("ChangePassword")
+             .WithSummary("Changes the caller's own password, given the current one.");
+
         group.MapGet("/companies", CompaniesAsync)
              .RequireAuthorization()
              .WithName("MyCompanies")
              .WithSummary("Lists the companies the caller may work in.");
 
         return app;
+    }
+
+    /// <summary>
+    /// Changes the caller's own password.
+    /// </summary>
+    /// <remarks>
+    /// The current password is required even though the caller is already signed in. Somebody who
+    /// could change it without knowing the old one could take an account left open on an
+    /// unattended till, and the person it belonged to would have no way back in.
+    /// </remarks>
+    private static async Task<IResult> ChangePasswordAsync(
+        ChangePasswordRequest request,
+        AsapDbContext context,
+        IUserContext user,
+        IMessageCatalog messages,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        var account = await context.Set<User>()
+            .FirstOrDefaultAsync(u => u.Id == user.UserId, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (account is null)
+        {
+            return Results.Unauthorized();
+        }
+
+        if (!BCrypt.Net.BCrypt.Verify(request.CurrentPassword, account.PasswordHash))
+        {
+            return Refused(messages.Render(PlatformMessages.PasswordWrong, null), http);
+        }
+
+        if ((request.NewPassword?.Length ?? 0) < 12)
+        {
+            return Refused(
+                messages.Render(
+                    PlatformMessages.PasswordTooShort,
+                    new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["Minimum"] = 12,
+                        ["Length"] = request.NewPassword?.Length ?? 0,
+                    }),
+                http);
+        }
+
+        account.PasswordHash = BCrypt.Net.BCrypt.HashPassword(request.NewPassword, workFactor: 12);
+
+        // It is theirs now. Nobody else has ever seen it.
+        account.MustChangePassword = false;
+
+        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        return Results.NoContent();
+    }
+
+    private static IResult Refused(AsapMessage message, HttpContext http)
+    {
+        var result = ASAP.Platform.Kernel.Results.Result.Failure(message);
+
+        return Results.Json(
+            AsapProblem.From(result, AsapProblem.StatusFor(result.Messages), http.Request.Path),
+            statusCode: AsapProblem.StatusFor(result.Messages));
     }
 
     private static async Task<IResult> SignInAsync(
@@ -223,6 +299,10 @@ public static class AuthEndpoints
             displayName = result.User.DisplayName,
             culture = result.User.Culture,
             isSuperUser = result.User.IsSuperUser,
+
+            // Told at sign-in, because that is when the client has to act on it. A flag the
+            // client never sees is a password that stays shared for as long as the account does.
+            mustChangePassword = result.User.MustChangePassword,
             defaultCompanyId = result.User.DefaultCompanyId,
             defaultBranchId = result.User.DefaultBranchId,
         },

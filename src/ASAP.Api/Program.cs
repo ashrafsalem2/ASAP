@@ -163,6 +163,7 @@ app.MapPosEndpoints();
 app.MapSyncEndpoints();
 app.MapOrganisationEndpoints();
 app.MapSetupEndpoints();
+app.MapAdminEndpoints();
 app.MapNavigationEndpoints();
 
 await StartupTasks.RunAsync(app, moduleCatalog).ConfigureAwait(false);

@@ -244,6 +244,20 @@ public sealed class PlatformModule : IAsapModule
         },
         new()
         {
+            Id = "Platform.ChangePassword",
+            Module = Id,
+            ParentId = "Platform.Administration",
+            DisplayName = new LocalizedText("Your password", "كلمة المرور"),
+            Route = "/account/password",
+            Icon = "key",
+
+            // No permission. Changing your own password is the one thing every account must be
+            // able to do, and an account created by an administrator holds a password somebody
+            // else chose until it is used.
+            Order = 75,
+        },
+        new()
+        {
             Id = "Platform.AuditLog",
             Module = Id,
             ParentId = "Platform.Administration",

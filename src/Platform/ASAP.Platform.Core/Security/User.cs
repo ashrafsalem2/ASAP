@@ -42,6 +42,16 @@ public sealed class User : AuditableEntity, ITenantScoped, ISoftDeletable, IConc
     /// </summary>
     public bool IsSuperUser { get; set; }
 
+    /// <summary>
+    /// Whether the password on the account is one somebody else chose and still knows.
+    /// </summary>
+    /// <remarks>
+    /// True after an administrator creates the account or resets it. A password handed over in
+    /// person is a shared secret until it has been changed, and an account that never prompts is
+    /// one where it stays shared for years.
+    /// </remarks>
+    public bool MustChangePassword { get; set; }
+
     /// <summary>Whether the account may sign in.</summary>
     public bool IsActive { get; set; } = true;
 

@@ -38,6 +38,14 @@ The part every module stands on. No business logic lives here.
 | Setup service | Reading and writing declared settings, narrowest-scope-wins | **done** |
 | Angular shell | Layout, auth, company switcher, generated menu, bilingual AR/EN with RTL | **done** |
 
+- **done** The permission cycle end to end: the permission catalogue with each module's own
+  sentence about what a permission does, permission sets you can assemble and edit, user accounts,
+  and a password somebody must change the first time they use it. Two guards worth naming: nobody
+  can turn off the account they are signed in with, and nothing may leave the installation without
+  an account able to administer it. Proven with a purpose-built till operator whose menu is five
+  entries where the administrator's is thirty-eight
+- **done** The setup screen, generated from what the modules declare rather than written by hand
+
 ## Phase 1 — Finance
 
 Everything else posts here, so it goes first.

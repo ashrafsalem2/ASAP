@@ -190,6 +190,21 @@ export const routes: Routes = [
         loadComponent: () => import('./features/hr/entitlements').then((m) => m.Entitlements),
       },
       {
+        path: 'admin/users',
+        canActivate: [requirePermission('Platform.User.Read')],
+        loadComponent: () => import('./features/admin/users').then((m) => m.Users),
+      },
+      {
+        path: 'admin/permission-sets',
+        canActivate: [requirePermission('Platform.PermissionSet.Read')],
+        loadComponent: () =>
+          import('./features/admin/permission-sets').then((m) => m.PermissionSets),
+      },
+      {
+        path: 'account/password',
+        loadComponent: () => import('./features/admin/change-password').then((m) => m.ChangePassword),
+      },
+      {
         path: 'admin/setup',
         canActivate: [requirePermission('Platform.Setup.Read')],
         loadComponent: () => import('./features/setup/setup').then((m) => m.Setup),

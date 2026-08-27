@@ -1219,3 +1219,46 @@ export interface SettingSaved {
   isSet: boolean;
   messages: AsapMessage[];
 }
+
+/** One permission a module declares, and what it means. */
+export interface PermissionInfo {
+  key: string;
+  module: string;
+  resource: string;
+  action: string;
+  displayName: string;
+  description: string | null;
+
+  /** Flagged rather than hidden: hiding it would only mean granting it blind. */
+  isSensitive: boolean;
+  implies: string[];
+}
+
+/** A user account. */
+export interface UserAccount {
+  userName: string;
+  displayName: string;
+  email: string | null;
+  isActive: boolean;
+  isSuperUser: boolean;
+
+  /** True while the password is one somebody else chose and still knows. */
+  mustChangePassword: boolean;
+  culture: string | null;
+  lastLoginAtUtc: string | null;
+  lockedUntilUtc: string | null;
+  permissionSets: string[];
+}
+
+/** A permission set and everything it grants. */
+export interface PermissionSetInfo {
+  code: string;
+  name: string;
+  nameArabic: string | null;
+  description: string | null;
+
+  /** ASAP keeps this one in step with the modules, so it cannot be edited. */
+  isSystemDefined: boolean;
+  assignedTo: number;
+  permissions: string[];
+}

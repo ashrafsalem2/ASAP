@@ -57,6 +57,27 @@ export class I18nService {
     );
   }
 
+  /**
+   * Translates a value the server sent, such as a status or a movement type.
+   *
+   * These arrive as bare enum names — `PartiallyReceived`, `TransferOut` — and were being rendered
+   * straight into the page, which left English words sitting in an otherwise Arabic screen. The
+   * conformance suite cannot catch it: every declared string was translated, and these are not
+   * declared strings.
+   *
+   * Falls back to the value itself, so a status added on the server appears in English rather than
+   * as a missing-key marker, and adding the translation later needs no code change.
+   */
+  label(value: string | null | undefined): string {
+    if (!value) {
+      return '';
+    }
+
+    const key = `enum.${value}` as TranslationKey;
+
+    return TRANSLATIONS[this.current()][key] ?? TRANSLATIONS.en[key] ?? value;
+  }
+
   /** Switches between the two languages. */
   toggle(): void {
     this.current.update((language) => (language === 'en' ? 'ar' : 'en'));

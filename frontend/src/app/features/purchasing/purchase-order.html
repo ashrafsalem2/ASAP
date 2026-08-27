@@ -24,7 +24,7 @@
     <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
   } @else if (order(); as po) {
     <p class="page__intro">
-      <span class="tag">{{ po.status }}</span>
+      <span class="tag">{{ i18n.label(po.status) }}</span>
       {{ po.vendorName }}
       @if (po.locationCode) {
         · {{ t('purchasing.orders.location') }} <span class="code">{{ po.locationCode }}</span>

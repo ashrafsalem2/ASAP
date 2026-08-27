@@ -70,9 +70,9 @@
               <span class="menu-item__label">{{ item.displayName }}</span>
 
               @if (item.kind === 'Report') {
-                <span class="tag tag--muted">{{ item.kind }}</span>
+                <span class="tag tag--muted">{{ i18n.label(item.kind) }}</span>
               } @else if (item.kind === 'Setup') {
-                <span class="tag tag--muted">{{ item.kind }}</span>
+                <span class="tag tag--muted">{{ i18n.label(item.kind) }}</span>
               }
             </a>
           }

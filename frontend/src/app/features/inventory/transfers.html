@@ -126,7 +126,7 @@
                 <td class="code">{{ transfer.no }}</td>
                 <td class="code">{{ transfer.fromLocationCode }}</td>
                 <td class="code">{{ transfer.toLocationCode }}</td>
-                <td><span class="tag">{{ transfer.status }}</span></td>
+                <td><span class="tag">{{ i18n.label(transfer.status) }}</span></td>
                 <td class="code">{{ transfer.shipmentDate }}</td>
                 <td class="numeric transfer__transit">
                   @if (inTransitTotal(transfer) > 0) {

@@ -2,6 +2,7 @@ using ASAP.Api.Infrastructure;
 using ASAP.Modules.Hr;
 using ASAP.Modules.Hr.Entitlements;
 using ASAP.Modules.Hr.People;
+using ASAP.Modules.Hr.Reporting;
 using ASAP.Platform.Kernel.Security;
 using Microsoft.AspNetCore.Mvc;
 
@@ -110,6 +111,23 @@ public sealed record RecordLeaveRequest(DateOnly FromDate, DateOnly ToDate, stri
 /// <param name="Note">What it was for, when recorded.</param>
 public sealed record LeaveRecordView(DateOnly FromDate, DateOnly ToDate, decimal Days, string? Note);
 
+/// <summary>How many people are at one branch, as it is reported back.</summary>
+public sealed record HeadcountView(Guid? BranchId, string? BranchCode, string? BranchName, int Count);
+
+/// <summary>What one branch's staff cost, as it is reported back.</summary>
+public sealed record BranchCostView(
+    Guid? BranchId, string? BranchCode, string? BranchName, int Count, decimal MonthlyWageCost);
+
+/// <summary>How many people came and went over a period, as it is reported back.</summary>
+public sealed record TurnoverView(
+    DateOnly FromDate,
+    DateOnly ToDate,
+    int OpeningHeadcount,
+    int Hired,
+    int Left,
+    int ClosingHeadcount,
+    decimal TurnoverRate);
+
 /// <summary>Employees, where they have worked, what they have earned, and what the company owes them.</summary>
 public static class HrEndpoints
 {
@@ -170,6 +188,18 @@ public static class HrEndpoints
              .WithSummary(
                  "Moves however much end-of-service and unused leave have changed since the last "
                  + "run into the general ledger.");
+
+        group.MapGet("/reports/headcount", HeadcountAsync)
+             .WithName("HrHeadcount")
+             .WithSummary("How many people are at each branch, on a day.");
+
+        group.MapGet("/reports/cost-by-branch", CostByBranchAsync)
+             .WithName("HrCostByBranch")
+             .WithSummary("What each branch's staff cost, on a day.");
+
+        group.MapGet("/reports/turnover", TurnoverAsync)
+             .WithName("HrTurnover")
+             .WithSummary("How many people came and went over a period, and the rate it comes to.");
 
         return app;
     }
@@ -362,6 +392,69 @@ public static class HrEndpoints
                     result.Value.FromDate, result.Value.ToDate, result.Value.Days, result.Value.Note),
                 messages = MessagePayload.FromAll(result.Messages),
             });
+    }
+
+    private static async Task<IResult> HeadcountAsync(
+        HrReportingService reporting,
+        IUserContext user,
+        HttpContext http,
+        [FromQuery] DateOnly? on,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, ReportPermission))
+        {
+            return Forbidden(ReportPermission, "run staff reports", http);
+        }
+
+        var rows = await reporting.HeadcountByBranchAsync(on, cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(rows.Select(static r => new HeadcountView(
+            r.BranchId, r.BranchCode, r.BranchName, r.Count)));
+    }
+
+    private static async Task<IResult> CostByBranchAsync(
+        HrReportingService reporting,
+        IUserContext user,
+        HttpContext http,
+        [FromQuery] DateOnly? on,
+        CancellationToken cancellationToken)
+    {
+        // Aggregated by branch rather than by person, but it is still a statement of what people
+        // are paid, so it sits behind the same permission the individual figures do.
+        if (!Can(user, ReportPermission) || !Can(user, WagePermission))
+        {
+            return Forbidden(WagePermission, "see what branches cost in wages", http);
+        }
+
+        var rows = await reporting.CostByBranchAsync(on, cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(rows.Select(static r => new BranchCostView(
+            r.BranchId, r.BranchCode, r.BranchName, r.Count, r.MonthlyWageCost)));
+    }
+
+    private static async Task<IResult> TurnoverAsync(
+        HrReportingService reporting,
+        IUserContext user,
+        HttpContext http,
+        [FromQuery] DateOnly fromDate,
+        [FromQuery] DateOnly toDate,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, ReportPermission))
+        {
+            return Forbidden(ReportPermission, "run staff reports", http);
+        }
+
+        var summary = await reporting.TurnoverAsync(fromDate, toDate, cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(new TurnoverView(
+            summary.FromDate,
+            summary.ToDate,
+            summary.OpeningHeadcount,
+            summary.Hired,
+            summary.Left,
+            summary.ClosingHeadcount,
+            summary.TurnoverRate));
     }
 
     private static async Task<IResult> EntitlementsAsync(

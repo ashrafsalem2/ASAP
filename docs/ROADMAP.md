@@ -179,7 +179,11 @@ Everything else posts here, so it goes first.
 - **done** Employee, hiring, transfer, leaving and entitlement endpoints — HR had no API surface
   at all until now
 - Employee self-service
-- Reports: headcount, turnover, cost per branch, leave liability
+- **done** Reports: headcount and staff cost by where somebody is currently assigned, and
+  turnover — opening and closing headcount, who joined and left in between, and the rate against
+  the average of the two rather than against either end alone. Leave liability was already
+  answered by the entitlements report; cost by branch sits behind the wage permission, since an
+  aggregate is still a statement of what people are paid
 
 ## Phase 8 — Hardware stations
 

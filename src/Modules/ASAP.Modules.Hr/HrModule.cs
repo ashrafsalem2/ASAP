@@ -69,6 +69,7 @@ public sealed class HrModule : IAsapModule, ISyncContributor
         services.AddScoped<People.EmployeeService>();
         services.AddScoped<Entitlements.ProvisionPostingService>();
         services.AddScoped<Entitlements.LeaveRegisterService>();
+        services.AddScoped<Reporting.HrReportingService>();
     }
 
     /// <inheritdoc />
@@ -275,6 +276,39 @@ public sealed class HrModule : IAsapModule, ISyncContributor
             Route = "/hr/entitlements",
             RequiresPermission = $"{Id}.Report.Read",
             Order = 20,
+        },
+        new()
+        {
+            Id = "Hr.Reports.Headcount",
+            Module = Id,
+            ParentId = "Hr.Root",
+            DisplayName = new LocalizedText("Headcount by branch", "عدد الموظفين حسب الفرع"),
+            Kind = NavigationKind.Report,
+            Route = "/hr/reports/headcount",
+            RequiresPermission = $"{Id}.Report.Read",
+            Order = 30,
+        },
+        new()
+        {
+            Id = "Hr.Reports.CostByBranch",
+            Module = Id,
+            ParentId = "Hr.Root",
+            DisplayName = new LocalizedText("Staff cost by branch", "تكلفة الموظفين حسب الفرع"),
+            Kind = NavigationKind.Report,
+            Route = "/hr/reports/cost-by-branch",
+            RequiresPermission = $"{Id}.Wage.Read",
+            Order = 40,
+        },
+        new()
+        {
+            Id = "Hr.Reports.Turnover",
+            Module = Id,
+            ParentId = "Hr.Root",
+            DisplayName = new LocalizedText("Turnover", "دوران الموظفين"),
+            Kind = NavigationKind.Report,
+            Route = "/hr/reports/turnover",
+            RequiresPermission = $"{Id}.Report.Read",
+            Order = 50,
         },
     ];
 }

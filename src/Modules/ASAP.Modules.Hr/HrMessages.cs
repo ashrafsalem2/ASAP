@@ -39,8 +39,11 @@ public static class HrMessages
     /// <summary>A wage below nothing.</summary>
     public static readonly MessageCode WageNegative = new("HR.EMPLOYEE.WAGE_NEGATIVE");
 
-    /// <summary>No account is set up for what the end-of-service provision is carried in.</summary>
+    /// <summary>No account is set up for what a provision is carried in.</summary>
     public static readonly MessageCode NoProvisionAccount = new("HR.SETUP.NO_PROVISION_ACCOUNT");
+
+    /// <summary>A provision run found nothing had moved since the last one.</summary>
+    public static readonly MessageCode NothingToProvision = new("HR.PROVISION.NOTHING_TO_POST");
 
     /// <summary>Every message the module can raise.</summary>
     public static IReadOnlyCollection<MessageDefinition> All { get; } =
@@ -182,15 +185,29 @@ public static class HrMessages
                 "Nowhere to carry the provision",
                 "لا يوجد حساب لمخصص نهاية الخدمة"),
             Detail = new LocalizedText(
-                "No end-of-service account is set up, so a provision of {Amount:N2} has nowhere "
+                "No account is set up for {SettingKey}, so a provision of {Amount:N2} has nowhere "
                 + "to go.",
-                "لا يوجد حساب لنهاية الخدمة، فمخصص بقيمة {Amount:N2} بلا وجهة."),
+                "لا يوجد حساب معرَّف للإعداد {SettingKey}، فمخصص بقيمة {Amount:N2} بلا وجهة."),
             Resolution = new LocalizedText(
-                "Set Hr.Posting.EndOfServiceAccount in setup. What the company will owe its staff "
-                + "when they leave is a liability it carries now, not a cost that appears on the "
-                + "day somebody resigns.",
-                "حدّد الإعداد Hr.Posting.EndOfServiceAccount. فما تدين به الشركة لموظفيها عند "
-                + "تركهم العمل التزام قائم الآن، لا تكلفة تظهر يوم الاستقالة."),
+                "Set {SettingKey} in setup. What the company will owe its staff is a liability it "
+                + "carries now, not a cost that appears on the day somebody leaves.",
+                "حدّد الإعداد {SettingKey}. فما تدين به الشركة لموظفيها التزام قائم الآن، لا "
+                + "تكلفة تظهر يوم ترك العمل."),
+            HelpTopic = "hr/setup",
+        },
+        new()
+        {
+            Code = NothingToProvision,
+            Severity = MessageSeverity.Information,
+            Title = new LocalizedText("Nothing has changed", "لا تغيير"),
+            Detail = new LocalizedText(
+                "What the company owes has not moved since the last run: still {Amount:N2}.",
+                "لم يتغيّر ما تدين به الشركة منذ آخر تشغيل: لا يزال {Amount:N2}."),
+            Resolution = new LocalizedText(
+                "Nothing to do. This is not a failure — the figure this run computed is the "
+                + "figure already carried in the ledger.",
+                "لا حاجة لأي إجراء. فهذا ليس خطأً، بل إن الرقم الذي احتسبه هذا التشغيل هو ذاته "
+                + "المرحّل بالفعل في دفتر الأستاذ."),
             HelpTopic = "hr/setup",
         },
     ];

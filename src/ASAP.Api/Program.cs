@@ -159,6 +159,7 @@ app.MapPurchasingEndpoints();
 app.MapSalesEndpoints();
 app.MapPromotionsEndpoints();
 app.MapPosEndpoints();
+app.MapHrEndpoints();
 app.MapSyncEndpoints();
 app.MapNavigationEndpoints();
 

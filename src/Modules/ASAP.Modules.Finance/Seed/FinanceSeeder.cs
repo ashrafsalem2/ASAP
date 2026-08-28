@@ -235,6 +235,14 @@ public sealed class FinanceSeeder(AsapDbContext context, ILogger<FinanceSeeder> 
         // Expenses
         Add("6000", "EXPENSES", "المصروفات", GlAccountCategory.Expense, GlAccountType.Heading, 0);
         Add("6100", "Salaries and wages", "الرواتب والأجور", GlAccountCategory.Expense);
+
+        // The expense side of what HR carries as a provision -- see Hr.Posting.*ExpenseAccount.
+        // Kept apart from ordinary salaries because these two move on a provision run, not on a
+        // payslip, and a manager reading "salaries and wages" should not have to guess which
+        // movements were actually paid to somebody this month.
+        Add("6110", "End-of-service provision", "مخصص نهاية الخدمة (المصروف)", GlAccountCategory.Expense);
+        Add("6120", "Unused leave provision", "مخصص الإجازات غير المستخدمة (المصروف)", GlAccountCategory.Expense);
+
         Add("6200", "Rent", "الإيجار", GlAccountCategory.Expense);
         Add("6300", "Utilities", "المرافق", GlAccountCategory.Expense);
         Add("6400", "Office expenses", "مصروفات مكتبية", GlAccountCategory.Expense);

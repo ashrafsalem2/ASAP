@@ -67,6 +67,7 @@ public sealed class HrModule : IAsapModule, ISyncContributor
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddScoped<People.EmployeeService>();
+        services.AddScoped<Entitlements.ProvisionPostingService>();
     }
 
     /// <inheritdoc />
@@ -113,6 +114,19 @@ public sealed class HrModule : IAsapModule, ISyncContributor
                 + "and end-of-service.",
                 "أعداد الموظفين ودورانهم وتكلفتهم لكل فرع، وما تدين به الشركة من إجازات غير "
                 + "مستخدمة ومكافآت نهاية خدمة.")),
+
+        PermissionDescriptor.Define(
+            Id, "Provision", PermissionAction.Post,
+            new LocalizedText("Post entitlement provisions", "ترحيل مخصصات الاستحقاقات"),
+            new LocalizedText(
+                "Move what the company owes in end-of-service and unused leave into the general "
+                + "ledger. A financial posting, held apart from seeing the figure or changing "
+                + "wages.",
+                "ترحيل ما تدين به الشركة من نهاية الخدمة والإجازات غير المستخدمة إلى دفتر "
+                + "الأستاذ العام. عملية ترحيل مالية، منفصلة عن الاطلاع على الرقم أو تعديل "
+                + "الرواتب."),
+            implies: [$"{Id}.Report.Read"],
+            isSensitive: true),
     ];
 
     /// <inheritdoc />
@@ -152,6 +166,40 @@ public sealed class HrModule : IAsapModule, ISyncContributor
             ValueType = SetupValueType.Text,
             Scope = SetupScope.Company,
             DefaultValue = "2400",
+            RequiresPermission = $"{Id}.Wage.Update",
+            HelpTopic = "hr/setup",
+        },
+        new()
+        {
+            Key = $"{Id}.Posting.EndOfServiceExpenseAccount",
+            Module = Id,
+            Group = new LocalizedText("Posting", "الترحيل"),
+            DisplayName = new LocalizedText(
+                "End of service expense", "مصروف مخصص نهاية الخدمة"),
+            Description = new LocalizedText(
+                "The other side of the end-of-service provision. Every riyal added to what the "
+                + "company will owe is a cost of the year it was earned in, not of the year "
+                + "somebody happens to leave.",
+                "الطرف الآخر لمخصص نهاية الخدمة. فكل ريال يُضاف إلى ما ستدين به الشركة هو تكلفة "
+                + "السنة التي استُحق فيها، لا سنة ترك الموظف العمل."),
+            ValueType = SetupValueType.Text,
+            Scope = SetupScope.Company,
+            DefaultValue = "6110",
+            RequiresPermission = $"{Id}.Wage.Update",
+            HelpTopic = "hr/setup",
+        },
+        new()
+        {
+            Key = $"{Id}.Posting.LeaveExpenseAccount",
+            Module = Id,
+            Group = new LocalizedText("Posting", "الترحيل"),
+            DisplayName = new LocalizedText("Leave expense", "مصروف مخصص الإجازات"),
+            Description = new LocalizedText(
+                "The other side of the unused leave provision.",
+                "الطرف الآخر لمخصص الإجازات غير المستخدمة."),
+            ValueType = SetupValueType.Text,
+            Scope = SetupScope.Company,
+            DefaultValue = "6120",
             RequiresPermission = $"{Id}.Wage.Update",
             HelpTopic = "hr/setup",
         },

@@ -164,7 +164,15 @@ Everything else posts here, so it goes first.
 - *in progress* **End of service done** — half a month a year for the first five and a full month
   thereafter, cumulative like tax bands rather than revalued at the final rate, and reduced by
   tenure on resignation. The bands are data, so another jurisdiction is a policy and not a fork.
-  Earnings, deductions and posting into finance still to come
+  Earnings and deductions — an actual payroll run — still to come
+- **done** Posting the two provisions into Finance: a run computes what the company owes today in
+  end-of-service and unused leave and posts however much that has moved since the last run, not
+  the whole figure over again. Goes through the same kernel event every other module's posting
+  does, so HR still knows nothing about Finance's tables — see
+  [docs/architecture/module-dependencies.md](architecture/module-dependencies.md). A settlement
+  posted at the moment somebody actually leaves is a different thing and still to come
+- **done** Employee, hiring, transfer, leaving and entitlement endpoints — HR had no API surface
+  at all until now
 - Employee self-service
 - Reports: headcount, turnover, cost per branch, leave liability
 

@@ -1,3 +1,4 @@
+using ASAP.Modules.Hr.Entitlements;
 using ASAP.Modules.Hr.People;
 using ASAP.Platform.Persistence;
 using ASAP.Platform.Persistence.Conventions;
@@ -83,6 +84,19 @@ public sealed class HrSchema : IModuleSchema
             // employee and the date together are what it seeks on.
             builder.HasIndex(a => new { a.EmployeeId, a.FromDate });
             builder.HasIndex(a => new { a.CompanyId, a.BranchId, a.FromDate });
+        });
+
+        modelBuilder.Entity<EntitlementProvision>(builder =>
+        {
+            builder.ToTable("EntitlementProvisions", SchemaName);
+
+            builder.Property(p => p.PostedAmount).HasColumnType(DecimalPrecisionConventions.Money);
+
+            // One running row per company per provision. Never two, or the next run would not
+            // know which figure it was measured against.
+            builder.HasIndex(p => new { p.CompanyId, p.Type })
+                   .IsUnique()
+                   .HasFilter("[IsDeleted] = 0");
         });
     }
 }

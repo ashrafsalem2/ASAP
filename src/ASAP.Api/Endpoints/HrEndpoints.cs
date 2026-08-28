@@ -97,6 +97,19 @@ public sealed record ProvisionPostingView(
     decimal LeaveMovement,
     long? TransactionNo);
 
+/// <summary>What a client sends to record that somebody was away.</summary>
+/// <param name="FromDate">Their first day away.</param>
+/// <param name="ToDate">Their last day away.</param>
+/// <param name="Note">What it was for, when that is worth recording.</param>
+public sealed record RecordLeaveRequest(DateOnly FromDate, DateOnly ToDate, string? Note = null);
+
+/// <summary>One period of leave as it is reported back.</summary>
+/// <param name="FromDate">The first day away.</param>
+/// <param name="ToDate">The last day away.</param>
+/// <param name="Days">How many days it covers.</param>
+/// <param name="Note">What it was for, when recorded.</param>
+public sealed record LeaveRecordView(DateOnly FromDate, DateOnly ToDate, decimal Days, string? Note);
+
 /// <summary>Employees, where they have worked, what they have earned, and what the company owes them.</summary>
 public static class HrEndpoints
 {
@@ -106,6 +119,8 @@ public static class HrEndpoints
     private const string WagePermission = "Hr.Wage.Read";
     private const string ReportPermission = "Hr.Report.Read";
     private const string ProvisionPermission = "Hr.Provision.Post";
+    private const string LeaveReadPermission = "Hr.Leave.Read";
+    private const string LeaveCreatePermission = "Hr.Leave.Create";
 
     /// <summary>Maps the HR endpoints.</summary>
     /// <param name="app">The route builder.</param>
@@ -135,6 +150,16 @@ public static class HrEndpoints
         group.MapPost("/employees/{employeeNo}/leave", RecordLeavingAsync)
              .WithName("RecordEmployeeLeaving")
              .WithSummary("Records that somebody has left, and what they are owed.");
+
+        // Not "/leave" -- that path already means somebody leaving the company for good, and the
+        // two are not the same question.
+        group.MapGet("/employees/{employeeNo}/leave-records", ListLeaveAsync)
+             .WithName("HrLeaveRecords")
+             .WithSummary("Lists leave somebody has taken, most recent first.");
+
+        group.MapPost("/employees/{employeeNo}/leave-records", RecordLeaveAsync)
+             .WithName("RecordLeaveTaken")
+             .WithSummary("Records that somebody was away, so their balance reflects it.");
 
         group.MapGet("/entitlements", EntitlementsAsync)
              .WithName("HrEntitlements")
@@ -286,6 +311,55 @@ public static class HrEndpoints
                 retainedFraction = result.Value.RetainedFraction,
                 award = result.Value.Award,
                 forfeitedByResigning = result.Value.ForfeitedByResigning,
+                messages = MessagePayload.FromAll(result.Messages),
+            });
+    }
+
+    private static async Task<IResult> ListLeaveAsync(
+        string employeeNo,
+        LeaveRegisterService leave,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, LeaveReadPermission))
+        {
+            return Forbidden(LeaveReadPermission, "view leave records", http);
+        }
+
+        var result = await leave.ListAsync(employeeNo, cancellationToken).ConfigureAwait(false);
+
+        return result.Failed
+            ? Refused(result, http)
+            : Results.Ok(result.Value.Select(static r => new LeaveRecordView(
+                r.FromDate, r.ToDate, r.Days, r.Note)));
+    }
+
+    private static async Task<IResult> RecordLeaveAsync(
+        string employeeNo,
+        RecordLeaveRequest request,
+        LeaveRegisterService leave,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, LeaveCreatePermission))
+        {
+            return Forbidden(LeaveCreatePermission, "record leave taken", http);
+        }
+
+        var result = await leave
+            .RecordAsync(employeeNo, request.FromDate, request.ToDate, request.Note, cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed
+            ? Refused(result, http)
+            : Results.Ok(new
+            {
+                record = new LeaveRecordView(
+                    result.Value.FromDate, result.Value.ToDate, result.Value.Days, result.Value.Note),
                 messages = MessagePayload.FromAll(result.Messages),
             });
     }

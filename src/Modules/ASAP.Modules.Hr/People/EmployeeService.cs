@@ -395,15 +395,33 @@ public sealed class EmployeeService(
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+        // Read once for everybody rather than once per employee inside the loop below, the same
+        // reason the branch history is loaded eagerly: a report over the whole staff list is
+        // exactly the query an N+1 read hides in until the list is long enough to notice.
+        //
+        // Grouped and summed after the fact rather than in the query: Days is a computed property
+        // over two DateOnly columns, and EF Core cannot always turn that into SQL. Reading the raw
+        // rows and folding them in memory is what every other day-count report here does -- see
+        // AgedAnalysisQuery.
+        var takenByEmployee = (await context.Set<Entitlements.LeaveRecord>()
+                .AsNoTracking()
+                .Where(r => r.FromDate <= day)
+                .Select(static r => new { r.EmployeeId, r.FromDate, r.ToDate })
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false))
+            .GroupBy(static r => r.EmployeeId)
+            .ToDictionary(
+                static g => g.Key,
+                static g => g.Sum(static r => (decimal)(r.ToDate.DayNumber - r.FromDate.DayNumber + 1)));
+
         var rows = new List<EmployeeEntitlement>();
 
         foreach (var employee in employees)
         {
             var earned = LeaveAccrual.EarnedBetween(employee, employee.HiredOn, day);
+            var taken = takenByEmployee.GetValueOrDefault(employee.Id);
 
-            // Nothing records leave taken yet, so this is everything earned. Said plainly rather
-            // than dressed up: the figure is an upper bound until a leave register exists.
-            var balance = LeaveAccrual.Balance(earned, takenDays: 0m);
+            var balance = LeaveAccrual.Balance(earned, taken);
             var leaveWorth = LeaveAccrual.Liability(employee, balance.BalanceDays);
             var award = EndOfServiceCalculator.For(employee, day);
 

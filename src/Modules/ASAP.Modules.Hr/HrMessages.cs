@@ -45,6 +45,18 @@ public static class HrMessages
     /// <summary>A provision run found nothing had moved since the last one.</summary>
     public static readonly MessageCode NothingToProvision = new("HR.PROVISION.NOTHING_TO_POST");
 
+    /// <summary>A leave record's last day comes before its first.</summary>
+    public static readonly MessageCode LeaveDatesBackwards = new("HR.LEAVE.DATES_BACKWARDS");
+
+    /// <summary>A leave record falls outside when somebody actually worked here.</summary>
+    public static readonly MessageCode LeaveOutsideEmployment = new("HR.LEAVE.OUTSIDE_EMPLOYMENT");
+
+    /// <summary>A leave record covers a day another one already does.</summary>
+    public static readonly MessageCode LeaveOverlaps = new("HR.LEAVE.OVERLAPS");
+
+    /// <summary>Recording this leave would take the balance below nothing.</summary>
+    public static readonly MessageCode LeaveExceedsBalance = new("HR.LEAVE.EXCEEDS_BALANCE");
+
     /// <summary>Every message the module can raise.</summary>
     public static IReadOnlyCollection<MessageDefinition> All { get; } =
     [
@@ -209,6 +221,70 @@ public static class HrMessages
                 "لا حاجة لأي إجراء. فهذا ليس خطأً، بل إن الرقم الذي احتسبه هذا التشغيل هو ذاته "
                 + "المرحّل بالفعل في دفتر الأستاذ."),
             HelpTopic = "hr/setup",
+        },
+        new()
+        {
+            Code = LeaveDatesBackwards,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("The last day comes before the first", "اليوم الأخير قبل الأول"),
+            Detail = new LocalizedText(
+                "This record runs from {FromDate:d} to {ToDate:d}.",
+                "يمتد هذا السجل من {FromDate:d} إلى {ToDate:d}."),
+            Resolution = new LocalizedText(
+                "Swap the dates, or correct whichever one is wrong.",
+                "بدّل التاريخين، أو صحّح الخاطئ منهما."),
+            HelpTopic = "hr/leave",
+        },
+        new()
+        {
+            Code = LeaveOutsideEmployment,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Outside when they worked here", "خارج فترة العمل"),
+            Detail = new LocalizedText(
+                "{EmployeeNo} was hired on {HiredOn:d}, and this record runs from {FromDate:d} "
+                + "to {ToDate:d}.",
+                "عُيّن الموظف {EmployeeNo} في {HiredOn:d}، ويمتد هذا السجل من {FromDate:d} إلى "
+                + "{ToDate:d}."),
+            Resolution = new LocalizedText(
+                "Keep the record inside their employment. Nobody accrues or takes leave before "
+                + "they start or after they have gone.",
+                "اجعل السجل داخل فترة عمله. فلا أحد يستحق إجازة أو يأخذها قبل بدء عمله أو بعد "
+                + "تركه."),
+            HelpTopic = "hr/leave",
+        },
+        new()
+        {
+            Code = LeaveOverlaps,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Already recorded", "مسجّلة بالفعل"),
+            Detail = new LocalizedText(
+                "{EmployeeNo} already has leave recorded from {ExistingFrom:d} to {ExistingTo:d}, "
+                + "which this record overlaps.",
+                "للموظف {EmployeeNo} إجازة مسجّلة بالفعل من {ExistingFrom:d} إلى {ExistingTo:d}، "
+                + "ويتداخل معها هذا السجل."),
+            Resolution = new LocalizedText(
+                "Adjust the dates so the two do not share a day, or correct the existing record "
+                + "instead of adding another.",
+                "عدّل التواريخ بحيث لا يشترك السجلان في يوم، أو صحّح السجل الحالي بدلاً من إضافة "
+                + "آخر."),
+            HelpTopic = "hr/leave",
+        },
+        new()
+        {
+            Code = LeaveExceedsBalance,
+            Severity = MessageSeverity.Warning,
+            Title = new LocalizedText("More than they have earned", "أكثر مما استحقه"),
+            Detail = new LocalizedText(
+                "{EmployeeNo} has earned {Earned:N2} day(s) and taken {Taken:N2} including this "
+                + "record, {Shortfall:N2} more than they have earned.",
+                "استحق الموظف {EmployeeNo} {Earned:N2} يومًا وأخذ {Taken:N2} بما في ذلك هذا "
+                + "السجل، أي أكثر مما استحقه بمقدار {Shortfall:N2}."),
+            Resolution = new LocalizedText(
+                "Recorded as asked. Confirm this was agreed as leave taken in advance of what is "
+                + "earned, since the balance is now negative.",
+                "سُجّلت كما طُلب. تأكد من أن هذا اتُّفق عليه كإجازة مأخوذة قبل استحقاقها، فالرصيد "
+                + "أصبح سالبًا."),
+            HelpTopic = "hr/leave",
         },
     ];
 }

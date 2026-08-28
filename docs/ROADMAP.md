@@ -160,7 +160,12 @@ Everything else posts here, so it goes first.
   whole month wherever they happened to be on payday, and the branch they left would look cheaper
   than it was every time anybody moved
 - Head-office hiring, onboarding and offboarding
-- *in progress* **Leave accrual done** — twenty-one days a year rising to thirty after five, accrued by the day rather than granted in a lump, with the rate changing partway through the year it changes in. Attendance, shifts and a leave register still to come
+- *in progress* **Leave accrual and the leave register done** — twenty-one days a year rising to
+  thirty after five, accrued by the day rather than granted in a lump, with the rate changing
+  partway through the year it changes in. A record is refused if it runs backwards, falls outside
+  when somebody actually worked here, or shares a day with one already on the books; taking more
+  than the balance warns rather than blocks, since a company sometimes agrees exactly that.
+  Attendance and shifts still to come
 - *in progress* **End of service done** — half a month a year for the first five and a full month
   thereafter, cumulative like tax bands rather than revalued at the final rate, and reduced by
   tenure on resignation. The bands are data, so another jurisdiction is a policy and not a fork.

@@ -68,6 +68,7 @@ public sealed class HrModule : IAsapModule, ISyncContributor
 
         services.AddScoped<People.EmployeeService>();
         services.AddScoped<Entitlements.ProvisionPostingService>();
+        services.AddScoped<Entitlements.LeaveRegisterService>();
     }
 
     /// <inheritdoc />
@@ -127,6 +128,24 @@ public sealed class HrModule : IAsapModule, ISyncContributor
                 + "الرواتب."),
             implies: [$"{Id}.Report.Read"],
             isSensitive: true),
+
+        PermissionDescriptor.Define(
+            Id, "Leave", PermissionAction.Read,
+            new LocalizedText("View leave records", "الاطلاع على سجلات الإجازات"),
+            new LocalizedText(
+                "See what leave somebody has taken.",
+                "الاطلاع على الإجازات التي أخذها الموظف."),
+            implies: [$"{Id}.Employee.Read"]),
+
+        PermissionDescriptor.Define(
+            Id, "Leave", PermissionAction.Create,
+            new LocalizedText("Record leave taken", "تسجيل إجازة مأخوذة"),
+            new LocalizedText(
+                "Add to the leave register. Not a request for time off -- a record of time "
+                + "already agreed and taken.",
+                "الإضافة إلى سجل الإجازات. وهي ليست طلب إجازة، بل تسجيل لإجازة اتُّفق عليها "
+                + "وأُخذت بالفعل."),
+            implies: [$"{Id}.Leave.Read"]),
     ];
 
     /// <inheritdoc />

@@ -98,5 +98,22 @@ public sealed class HrSchema : IModuleSchema
                    .IsUnique()
                    .HasFilter("[IsDeleted] = 0");
         });
+
+        modelBuilder.Entity<LeaveRecord>(builder =>
+        {
+            builder.ToTable("LeaveRecords", SchemaName);
+
+            builder.Property(r => r.Note).HasMaxLength(250);
+
+            builder.HasOne(r => r.Employee)
+                   .WithMany()
+                   .HasForeignKey(r => r.EmployeeId)
+                   .OnDelete(DeleteBehavior.Restrict);
+
+            // What a balance is asked about: who, and how far back.
+            builder.HasIndex(r => new { r.EmployeeId, r.FromDate });
+
+            builder.Ignore(r => r.Days);
+        });
     }
 }

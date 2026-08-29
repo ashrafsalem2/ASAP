@@ -1220,7 +1220,12 @@ public sealed class PosReceiptService(
                     BranchId: await branches
                         .BranchOfAsync(receipt.StationCode, cancellationToken)
                         .ConfigureAwait(false),
-                    OverrideReason: overrideReason),
+                    OverrideReason: overrideReason,
+
+                    // The trading day, not the calendar one. A late shop still selling at one in
+                    // the morning is having Saturday night, and a receipt that posts to Sunday
+                    // puts takings in a day the shop will not recognise when it reconciles them.
+                    PostingDate: receipt.BusinessDate),
                 cancellationToken)
             .ConfigureAwait(false);
     }

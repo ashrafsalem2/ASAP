@@ -388,7 +388,13 @@ public sealed class PosSessionService(
                     // small differences stay small differences for years.
                     BranchId: await branches
                         .BranchOfAsync(session.StationCode, cancellationToken)
-                        .ConfigureAwait(false)),
+                        .ConfigureAwait(false),
+                    OverrideReason: null,
+
+                    // The trading day, not the calendar one. A late shop still selling at one in
+                    // the morning is having Saturday night, and a difference that posts to Sunday
+                    // puts it in a day the shop will not recognise when it reconciles them.
+                    PostingDate: session.BusinessDate),
                 cancellationToken)
             .ConfigureAwait(false);
 

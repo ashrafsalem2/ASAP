@@ -419,7 +419,13 @@ public sealed class PayrollService(
                     IsManualEntry: false,
                     DocumentType: GlDocumentType.Payroll,
                     DocumentNo: run.No,
-                    Description: run.Description ?? $"Payroll {run.FromDate:yyyy-MM}"),
+                    Description: run.Description ?? $"Payroll {run.FromDate:yyyy-MM}",
+
+                    // The run's own date, not today. Payroll is routinely posted after the month
+                    // it pays for has ended, and a November posting of October's wages puts the
+                    // cost in the wrong month for every report that reads a period -- branch
+                    // performance and the profit and loss included.
+                    PostingDate: run.PostingDate),
                 cancellationToken)
             .ConfigureAwait(false);
 

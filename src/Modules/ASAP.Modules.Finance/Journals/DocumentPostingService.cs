@@ -41,6 +41,21 @@ namespace ASAP.Modules.Finance.Journals;
 /// Where the document happened, for every line that does not name a branch itself. A sale
 /// belongs to the shop that made it rather than to whoever was signed in when it posted.
 /// </param>
+/// <param name="PostingDate">
+/// <para>
+/// When the document happened, for every line that does not name a date itself. Null means
+/// today, which is right for a document raised now -- an invoice is dated the day it is
+/// raised, not the day the order was placed -- and wrong for one that carries a date of its
+/// own. A payroll run for October posted in November belongs to October: that is the month
+/// the work was done and the month whose result would otherwise be wrong twice over, once
+/// for missing the cost and once for gaining it.
+/// </para>
+/// <para>
+/// It is a fallback rather than an override, so a document whose lines genuinely fall on
+/// different days -- a year-end close, which dates its transfer to the year's last day --
+/// keeps saying so line by line.
+/// </para>
+/// </param>
 /// <param name="OverrideReason">
 /// Why the caller is pushing past a block. Recorded in the audit log alongside the code overridden.
 /// </param>
@@ -54,7 +69,8 @@ public sealed record DocumentPosting(
     string? DocumentNo = null,
     string? Description = null,
     Guid? BranchId = null,
-    string? OverrideReason = null);
+    string? OverrideReason = null,
+    DateOnly? PostingDate = null);
 
 /// <summary>
 /// Turns what a document names into what the posting engine needs, then posts it.
@@ -151,7 +167,7 @@ public sealed class DocumentPostingService(
 
                 return new PostingLineView(
                     LineNo: index + 1,
-                    PostingDate: line.PostingDate ?? today,
+                    PostingDate: line.PostingDate ?? request.PostingDate ?? today,
                     Amount: line.Amount,
                     Account: Resolve(
                         line.AccountType is JournalAccountType.GlAccount
@@ -165,7 +181,11 @@ public sealed class DocumentPostingService(
                     Description: line.Description,
                     Party: party,
                     ExternalDocumentNo: line.ExternalDocumentNo,
-                    Tax: TaxFor(line, party?.Kind ?? documentKind, taxCodes, line.PostingDate ?? today),
+                    Tax: TaxFor(
+                        line,
+                        party?.Kind ?? documentKind,
+                        taxCodes,
+                        line.PostingDate ?? request.PostingDate ?? today),
                     BranchId: line.BranchId);
             })
             .ToList();

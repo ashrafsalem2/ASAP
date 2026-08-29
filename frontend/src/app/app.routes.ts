@@ -33,6 +33,12 @@ export const routes: Routes = [
           import('./features/finance/chart-of-accounts').then((m) => m.ChartOfAccounts),
       },
       {
+        path: 'finance/bank-reconciliation',
+        canActivate: [requirePermission('Finance.Bank.Read')],
+        loadComponent: () =>
+          import('./features/finance/bank-reconciliation').then((m) => m.BankReconciliation),
+      },
+      {
         path: 'finance/currencies',
         canActivate: [requirePermission('Finance.Currency.Read')],
         loadComponent: () => import('./features/finance/currencies').then((m) => m.Currencies),

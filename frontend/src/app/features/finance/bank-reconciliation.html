@@ -1,0 +1,205 @@
+<div class="page">
+  <h1>{{ t('finance.bank.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('finance.bank.intro') }}</p>
+
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else if (accounts().length === 0) {
+      <p class="empty">{{ t('finance.bank.noAccounts') }}</p>
+    } @else {
+      <div class="panel__body draft">
+        <label>
+          {{ t('finance.bank.account') }}
+          <select [(ngModel)]="selectedAccount" name="account" (ngModelChange)="loadStatements()">
+            @for (account of accounts(); track account.code) {
+              <option [value]="account.code">{{ account.code }} — {{ account.name }}</option>
+            }
+          </select>
+        </label>
+
+        <label>
+          {{ t('finance.bank.statement') }}
+          <select
+            [ngModel]="detail()?.statement?.id"
+            name="statement"
+            (ngModelChange)="open(statements()[0])"
+          >
+            @for (statement of statements(); track statement.id) {
+              <option [value]="statement.id">
+                {{ statement.no }} — {{ statement.statementDate }} ({{ statement.status }})
+              </option>
+            }
+          </select>
+        </label>
+      </div>
+    }
+  </section>
+
+  @if (detail(); as d) {
+    <!-- The reconciliation, written out the way an accountant would. The difference is the only
+         number that says whether any of it is true, so it is the one given its own line. -->
+    <section class="panel">
+      <div class="panel__header">
+        <h2>{{ d.statement.no }} — {{ d.statement.statementDate }}</h2>
+      </div>
+
+      <div class="table-scroll">
+        <table class="table">
+          <tbody>
+            <tr>
+              <td>{{ t('finance.bank.ledgerBalance') }}</td>
+              <td class="numeric">{{ d.position.ledgerBalance }}</td>
+            </tr>
+            <tr>
+              <td>{{ t('finance.bank.bankBalance') }}</td>
+              <td class="numeric">{{ d.position.closingBalance }}</td>
+            </tr>
+            <tr>
+              <td>{{ t('finance.bank.outstanding') }}</td>
+              <td class="numeric">{{ d.position.outstandingTotal }}</td>
+            </tr>
+            <tr [class.admin__override]="d.position.difference !== 0">
+              <td><strong>{{ t('finance.bank.difference') }}</strong></td>
+              <td class="numeric"><strong>{{ d.position.difference }}</strong></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="panel__body admin__note">{{ t('finance.bank.outstandingNote') }}</p>
+
+      <p class="panel__body admin__note">
+        @if (d.statement.status === 'Reconciled') {
+          {{ t('finance.bank.reconciledOn', { date: d.statement.reconciledOn ?? '' }) }}
+        } @else if (d.position.balances) {
+          {{ t('finance.bank.readyToAgree') }}
+        } @else {
+          {{ t('finance.bank.notYet', { unmatched: d.position.unmatchedLines }) }}
+        }
+      </p>
+
+      @if (editable()) {
+        <div class="panel__body draft">
+          @if (canMatch()) {
+            <button type="button" class="button" [disabled]="busy()" (click)="acceptSuggestions()">
+              {{ t('finance.bank.acceptSuggestions') }}
+            </button>
+          }
+
+          @if (canReconcile()) {
+            <button
+              type="button"
+              class="button button--primary"
+              [disabled]="busy() || !d.position.balances"
+              (click)="reconcile()"
+            >
+              {{ t('finance.bank.agree') }}
+            </button>
+          }
+        </div>
+      }
+    </section>
+
+    <section class="panel">
+      <div class="panel__header">
+        <h2>{{ t('finance.bank.lines') }}</h2>
+      </div>
+
+      <p class="panel__body admin__note">{{ t('finance.bank.linesNote') }}</p>
+
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('finance.bank.date') }}</th>
+              <th>{{ t('finance.bank.description') }}</th>
+              <th class="numeric">{{ t('finance.bank.amount') }}</th>
+              <th>{{ t('finance.bank.matched') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (line of d.lines; track line.id) {
+              <tr
+                class="admin__row"
+                [class.admin__row--selected]="selectedLine()?.id === line.id"
+                (click)="select(line)"
+              >
+                <td>{{ line.transactionDate }}</td>
+                <td>{{ line.description }}</td>
+                <td class="numeric">{{ line.amount }}</td>
+                <td>
+                  @if (line.matchedEntryId) {
+                    <span class="tag">{{ t('finance.bank.yes') }}</span>
+                    @if (editable() && canMatch()) {
+                      <button
+                        type="button"
+                        class="button"
+                        [disabled]="busy()"
+                        (click)="unmatch(line); $event.stopPropagation()"
+                      >
+                        {{ t('finance.bank.unmatch') }}
+                      </button>
+                    }
+                  } @else {
+                    <span class="tag tag--warning">{{ t('finance.bank.no') }}</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel__header">
+        <h2>{{ t('finance.bank.outstandingTitle') }}</h2>
+      </div>
+
+      <p class="panel__body admin__note">
+        @if (selectedLine(); as line) {
+          {{ t('finance.bank.choosingFor', { description: line.description, amount: line.amount }) }}
+        } @else {
+          {{ t('finance.bank.outstandingNote') }}
+        }
+      </p>
+
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('finance.bank.date') }}</th>
+              <th>{{ t('finance.bank.document') }}</th>
+              <th>{{ t('finance.bank.description') }}</th>
+              <th class="numeric">{{ t('finance.bank.amount') }}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (item of d.position.outstanding; track item.entryId) {
+              <tr>
+                <td>{{ item.postingDate }}</td>
+                <td class="code">{{ item.documentNo }}</td>
+                <td>{{ item.description }}</td>
+                <td class="numeric">{{ item.amount }}</td>
+                <td>
+                  @if (selectedLine() && editable() && canMatch()) {
+                    <button type="button" class="button" [disabled]="busy()" (click)="matchTo(item)">
+                      {{ t('finance.bank.matchToThis') }}
+                    </button>
+                  }
+                </td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="5" class="empty">{{ t('finance.bank.nothingOutstanding') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+</div>

@@ -445,6 +445,17 @@ public sealed class FinanceModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISync
             "/finance/entries", $"{Id}.Entry.Read", 30),
         new()
         {
+            Id = "Finance.BankReconciliation",
+            Module = Id,
+            ParentId = "Finance.Root",
+            DisplayName = new LocalizedText("Bank reconciliation", "مطابقة الحساب البنكي"),
+            Kind = NavigationKind.Task,
+            Route = "/finance/bank-reconciliation",
+            RequiresPermission = $"{Id}.Bank.Read",
+            Order = 34,
+        },
+        new()
+        {
             Id = "Finance.Currencies",
             Module = Id,
             ParentId = "Finance.Root",

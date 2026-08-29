@@ -1543,3 +1543,71 @@ export interface ExchangeRateInfo {
   baseAmount: number;
   multiplier: number;
 }
+
+/** A bank account the company holds. */
+export interface BankAccountInfo {
+  id: string;
+  code: string;
+  name: string;
+  nameArabic: string | null;
+  bankName: string | null;
+  iban: string | null;
+  glAccountNo: string;
+  currencyCode: string | null;
+  isActive: boolean;
+}
+
+/** A statement, without its lines. */
+export interface BankStatementInfo {
+  id: string;
+  no: string;
+  statementDate: string;
+  openingBalance: number;
+  closingBalance: number;
+  status: string;
+  reconciledOn: string | null;
+  lineCount: number;
+  unmatchedLines: number;
+}
+
+/** One line of a statement, and what in the ledger it turned out to be. */
+export interface BankStatementLineInfo {
+  id: string;
+  transactionDate: string;
+  description: string;
+  reference: string | null;
+  amount: number;
+  matchedEntryId: string | null;
+  note: string | null;
+}
+
+/** One ledger entry the bank has not seen yet. */
+export interface OutstandingItemInfo {
+  entryId: string;
+  postingDate: string;
+  documentNo: string | null;
+  description: string;
+  amount: number;
+}
+
+/** Where a reconciliation stands, in the form an accountant would write it out. */
+export interface ReconciliationPositionInfo {
+  statementNo: string;
+  statementDate: string;
+  closingBalance: number;
+  ledgerBalance: number;
+  outstandingTotal: number;
+
+  /** What is left unexplained. Nought is the only value that proves anything. */
+  difference: number;
+  unmatchedLines: number;
+  balances: boolean;
+  outstanding: OutstandingItemInfo[];
+}
+
+/** A statement with everything needed to work on it. */
+export interface BankStatementDetail {
+  statement: BankStatementInfo;
+  lines: BankStatementLineInfo[];
+  position: ReconciliationPositionInfo;
+}

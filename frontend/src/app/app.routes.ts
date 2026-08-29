@@ -33,6 +33,11 @@ export const routes: Routes = [
           import('./features/finance/chart-of-accounts').then((m) => m.ChartOfAccounts),
       },
       {
+        path: 'finance/currencies',
+        canActivate: [requirePermission('Finance.Currency.Read')],
+        loadComponent: () => import('./features/finance/currencies').then((m) => m.Currencies),
+      },
+      {
         path: 'finance/journals',
         canActivate: [requirePermission('Finance.Journal.Read')],
         loadComponent: () => import('./features/finance/journal').then((m) => m.Journal),

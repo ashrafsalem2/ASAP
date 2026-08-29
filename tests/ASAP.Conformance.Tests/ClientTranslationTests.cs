@@ -19,7 +19,9 @@ namespace ASAP.Conformance.Tests;
 /// <para>
 /// Parsed as text rather than executed. Standing up a TypeScript runtime inside a .NET test to
 /// read a flat list of string literals would be a great deal of machinery for a job a regular
-/// expression does exactly.
+/// expression does exactly. Both quote styles are read, which is not fussiness: a value holding
+/// an apostrophe is written with double quotes, and a parser that skipped those would report
+/// every one of them as a key the English half does not have.
 /// </para>
 /// </remarks>
 public sealed partial class ClientTranslationTests
@@ -144,7 +146,7 @@ public sealed partial class ClientTranslationTests
             // all the pieces matters: a placeholder often sits in the second half.
             var value = string.Concat(
                 FragmentPattern().Matches(match.Groups["value"].Value)
-                    .Select(static f => f.Groups[1].Value));
+                    .Select(static f => f.Groups[1].Success ? f.Groups[1].Value : f.Groups[2].Value));
 
             entries[key] = value;
         }
@@ -168,10 +170,15 @@ public sealed partial class ClientTranslationTests
         return File.Exists(path) ? File.ReadAllText(path) : string.Empty;
     }
 
-    [GeneratedRegex(@"'(?<key>[a-zA-Z0-9._]+)':\s*(?<value>'[^']*'(?:\s*\+\s*\r?\n?\s*'[^']*')*)")]
+    // Both quote styles. A value containing an apostrophe is written with double quotes, which
+    // is ordinary TypeScript and was for a while invisible here: the entry simply did not match,
+    // so the key looked absent from English and its Arabic twin looked orphaned. A checker that
+    // silently skips what it cannot parse is worse than no checker, because it reports success.
+    [GeneratedRegex(
+        @"'(?<key>[a-zA-Z0-9._]+)':\s*(?<value>(?:'[^']*'|""[^""]*"")(?:\s*\+\s*\r?\n?\s*(?:'[^']*'|""[^""]*""))*)")]
     private static partial Regex EntryPattern();
 
-    [GeneratedRegex(@"'([^']*)'")]
+    [GeneratedRegex(@"'([^']*)'|""([^""]*)""")]
     private static partial Regex FragmentPattern();
 
     [GeneratedRegex(@"\{(\w+)\}")]

@@ -420,6 +420,17 @@ public sealed class FinanceModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISync
             "/finance/entries", $"{Id}.Entry.Read", 30),
         new()
         {
+            Id = "Finance.Currencies",
+            Module = Id,
+            ParentId = "Finance.Root",
+            DisplayName = new LocalizedText("Currencies and rates", "العملات وأسعار الصرف"),
+            Kind = NavigationKind.Setup,
+            Route = "/finance/currencies",
+            RequiresPermission = $"{Id}.Currency.Read",
+            Order = 35,
+        },
+        new()
+        {
             Id = "Finance.Periods",
             Module = Id,
             ParentId = "Finance.Root",

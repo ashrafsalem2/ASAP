@@ -1,0 +1,124 @@
+<div class="page">
+  <h1>{{ t('finance.currencies.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('finance.currencies.intro') }}</p>
+
+    <div class="panel__body draft">
+      <button type="button" class="button" (click)="toggleInactive()">
+        {{ includeInactive() ? t('finance.currencies.hideInactive') : t('finance.currencies.showInactive') }}
+      </button>
+    </div>
+
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else if (currencies().length === 0) {
+      <p class="empty">{{ t('finance.currencies.none') }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('finance.currencies.code') }}</th>
+              <th>{{ t('finance.currencies.name') }}</th>
+              <th class="numeric">{{ t('finance.currencies.places') }}</th>
+              <th class="numeric">{{ t('finance.currencies.today') }}</th>
+              <th>{{ t('finance.currencies.since') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (currency of currencies(); track currency.code) {
+              <tr
+                class="admin__row"
+                [class.admin__row--selected]="selected()?.code === currency.code"
+                (click)="select(currency)"
+              >
+                <td class="code">
+                  {{ currency.code }}
+                  @if (!currency.isActive) {
+                    <span class="tag">{{ t('finance.currencies.withdrawn') }}</span>
+                  }
+                </td>
+                <td>{{ name(currency) }} <span class="code">{{ currency.symbol }}</span></td>
+                <td class="numeric">{{ currency.decimalPlaces }}</td>
+
+                <!-- The one number worth seeing at a glance. A currency with no rate for today is
+                     one that will refuse the next posting made in it. -->
+                <td class="numeric">
+                  @if (currency.rate !== null) {
+                    {{ currency.rate }}
+                  } @else {
+                    <span class="tag tag--warning">{{ t('finance.currencies.noRate') }}</span>
+                  }
+                </td>
+                <td>{{ currency.rateStartingOn }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+
+  @if (selected(); as currency) {
+    <section class="panel">
+      <div class="panel__header">
+        <h2>{{ currency.code }} — {{ name(currency) }}</h2>
+      </div>
+
+      <p class="panel__body admin__note">{{ t('finance.currencies.ratesNote') }}</p>
+
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('finance.currencies.from') }}</th>
+              <th class="numeric">{{ t('finance.currencies.units') }}</th>
+              <th class="numeric">{{ t('finance.currencies.worth') }}</th>
+              <th class="numeric">{{ t('finance.currencies.perUnit') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (rate of rates(); track rate.startingDate) {
+              <tr>
+                <td>{{ rate.startingDate }}</td>
+                <td class="numeric">{{ rate.currencyAmount }}</td>
+                <td class="numeric">{{ rate.baseAmount }}</td>
+                <td class="numeric">{{ rate.multiplier }}</td>
+              </tr>
+            } @empty {
+              <tr>
+                <td colspan="4" class="empty">{{ t('finance.currencies.noRates') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (canWrite()) {
+        <div class="panel__body draft">
+          <label>
+            {{ t('finance.currencies.from') }}
+            <input type="date" [(ngModel)]="newStartingDate" name="startingDate" />
+          </label>
+
+          <label>
+            {{ t('finance.currencies.units') }}
+            <input type="number" min="1" step="1" [(ngModel)]="newCurrencyAmount" name="currencyAmount" />
+          </label>
+
+          <label>
+            {{ t('finance.currencies.worth') }}
+            <input type="number" min="0" step="0.000001" [(ngModel)]="newBaseAmount" name="baseAmount" />
+          </label>
+
+          <button type="button" class="button button--primary" [disabled]="busy()" (click)="addRate()">
+            {{ t('finance.currencies.addRate') }}
+          </button>
+        </div>
+
+        <p class="panel__body admin__note">{{ t('finance.currencies.addNote') }}</p>
+      }
+    </section>
+  }
+</div>

@@ -1516,3 +1516,30 @@ export interface ReferenceEvent {
   isVetoable: boolean;
   properties: { name: string; type: string }[];
 }
+
+/** A currency the company transacts in, and what it is worth today. */
+export interface CurrencyInfo {
+  code: string;
+  name: string;
+  nameArabic: string | null;
+  symbol: string | null;
+  decimalPlaces: number;
+  isActive: boolean;
+
+  /**
+   * What one unit is worth today, or null when today has no rate. For reading only — a posting
+   * resolves the rate from its own document date, never from this.
+   */
+  rate: number | null;
+  rateStartingOn: string | null;
+}
+
+/** One dated exchange rate. */
+export interface ExchangeRateInfo {
+  startingDate: string;
+
+  /** How many units the pair is quoted for, usually one. */
+  currencyAmount: number;
+  baseAmount: number;
+  multiplier: number;
+}

@@ -186,6 +186,14 @@ public static class FinanceEndpoints
              .WithName("TaxReturn")
              .WithSummary("Reports tax charged and tax paid for a period, and the net owed.");
 
+        group.MapGet("/schedules", SchedulesAsync)
+             .WithName("AccountSchedules")
+             .WithSummary("Lists the statement layouts this company can run.");
+
+        group.MapGet("/schedules/{code}", RunScheduleAsync)
+             .WithName("RunAccountSchedule")
+             .WithSummary("Runs one statement layout over a period.");
+
         group.MapGet("/currencies", CurrenciesAsync)
              .WithName("Currencies")
              .WithSummary("Lists the currencies the company transacts in, and what each is worth today.");
@@ -478,6 +486,48 @@ public static class FinanceEndpoints
             includeFiled ?? false);
 
         return Results.Ok(await dispatcher.SendAsync(query, cancellationToken).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> SchedulesAsync(
+        AsapDbContext context,
+        CancellationToken cancellationToken)
+    {
+        var schedules = await context.Set<AccountSchedule>()
+            .AsNoTracking()
+            .Where(s => s.IsActive)
+            .OrderBy(s => s.Code)
+            .Select(s => new
+            {
+                code = s.Code,
+                name = s.Name,
+                nameArabic = s.NameArabic,
+                description = s.Description,
+                rows = s.Lines.Count,
+            })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return Results.Ok(schedules);
+    }
+
+    private static async Task<IResult> RunScheduleAsync(
+        string code,
+        IDispatcher dispatcher,
+        HttpContext http,
+        [FromQuery] DateOnly? from,
+        [FromQuery] DateOnly? to,
+        [FromQuery] Guid? branchId,
+        CancellationToken cancellationToken)
+    {
+        var result = await dispatcher
+            .SendAsync(new AccountScheduleQuery(code, from, to, branchId), cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed
+            ? Results.Json(
+                AsapProblem.From(result, AsapProblem.StatusFor(result.Messages), http.Request.Path),
+                statusCode: AsapProblem.StatusFor(result.Messages))
+            : Results.Ok(result.Value);
     }
 
     private static async Task<IResult> CurrenciesAsync(

@@ -77,7 +77,13 @@ public sealed class FinanceModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISync
         services.AddScoped<Parties.IExchangeDifferencePoster, Journals.ExchangeDifferencePoster>();
         services.AddScoped<Parties.PartyApplicationService>();
         services.AddScoped<Tax.TaxPostingService>();
+        services.AddScoped<Seed.ScheduleSeeder>();
         services.AddScoped<Seed.FinanceSeeder>();
+        services.AddScoped<
+            ASAP.Platform.Kernel.Cqrs.IRequestHandler<
+                Reporting.AccountScheduleQuery,
+                ASAP.Platform.Kernel.Results.Result<Reporting.AccountScheduleReport>>,
+            Reporting.AccountScheduleQueryHandler>();
         services.AddScoped<
             ASAP.Platform.Kernel.Cqrs.IRequestHandler<
                 Journals.PostJournalCommand,

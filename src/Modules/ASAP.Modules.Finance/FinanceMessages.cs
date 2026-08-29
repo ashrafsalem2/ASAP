@@ -26,6 +26,12 @@ public static class FinanceMessages
     /// <summary>A person is posting by hand to an account only a module should touch.</summary>
     public static readonly MessageCode DirectPostingNotAllowed = new("FIN.ACCOUNT.DIRECT_POSTING_BLOCKED");
 
+    /// <summary>No account schedule by that code.</summary>
+    public static readonly MessageCode ScheduleNotFound = new("FIN.SCHEDULE.NOT_FOUND");
+
+    /// <summary>Schedule rows refer to each other in a circle.</summary>
+    public static readonly MessageCode ScheduleFormulaCircular = new("FIN.SCHEDULE.CIRCULAR");
+
     /// <summary>No bank statement by that identifier.</summary>
     public static readonly MessageCode BankStatementNotFound = new("FIN.BANK.STATEMENT_NOT_FOUND");
 
@@ -206,6 +212,39 @@ public static class FinanceMessages
             Resolution = new LocalizedText(
                 "Choose a different account, or unblock {AccountNo} in the chart of accounts.",
                 "اختر حسابًا آخر، أو ألغِ حظر {AccountNo} في شجرة الحسابات."),
+        },
+        new()
+        {
+            Code = ScheduleNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such statement layout", "لا يوجد تخطيط تقرير بهذا الرمز"),
+            Detail = new LocalizedText(
+                "Nothing in this company is set up as {Schedule}.",
+                "لا يوجد في هذه الشركة ما هو مُعرَّف بالرمز {Schedule}."),
+            Resolution = new LocalizedText(
+                "Choose one from the list of statement layouts. Layouts belong to a company, so "
+                + "one built in another company will not be here.",
+                "اختر واحدًا من قائمة تخطيطات التقارير. فالتخطيطات تخص شركة بعينها، وما بُني منها "
+                + "في شركة أخرى لن يظهر هنا."),
+            HelpTopic = "finance/account-schedules",
+        },
+        new()
+        {
+            Code = ScheduleFormulaCircular,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("These rows depend on each other", "هذه الصفوف يعتمد بعضها على بعض"),
+            Detail = new LocalizedText(
+                "In {Schedule}, rows {Rows} cannot be worked out because each is waiting for "
+                + "another of them. A row that adds up a row that adds up the first has no "
+                + "starting point.",
+                "في {Schedule}، تعذّر احتساب الصفوف {Rows} لأن كل واحد منها ينتظر الآخر. فالصف "
+                + "الذي يجمع صفًا يجمع الصف الأول لا نقطة بداية له."),
+            Resolution = new LocalizedText(
+                "Follow the formulas on those rows until you reach one that names itself, "
+                + "directly or by way of the others, and point it at accounts instead.",
+                "تتبّع معادلات تلك الصفوف حتى تصل إلى صف يشير إلى نفسه، مباشرةً أو عبر البقية، "
+                + "ثم اجعله يشير إلى حسابات بدلًا من ذلك."),
+            HelpTopic = "finance/account-schedules",
         },
         new()
         {

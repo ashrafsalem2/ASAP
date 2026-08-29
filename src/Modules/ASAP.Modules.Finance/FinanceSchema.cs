@@ -5,6 +5,7 @@ using ASAP.Modules.Finance.Journals;
 using ASAP.Modules.Finance.Ledger;
 using ASAP.Modules.Finance.Parties;
 using ASAP.Modules.Finance.Periods;
+using ASAP.Modules.Finance.Reporting;
 using ASAP.Modules.Finance.Tax;
 using ASAP.Platform.Persistence;
 using ASAP.Platform.Persistence.Conventions;
@@ -39,6 +40,40 @@ public sealed class FinanceSchema : IModuleSchema
 
     private void ConfigureTax(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<AccountSchedule>(builder =>
+        {
+            builder.ToTable("AccountSchedules", SchemaName);
+
+            builder.Property(s => s.Code).HasMaxLength(20).IsRequired();
+            builder.Property(s => s.Name).HasMaxLength(200).IsRequired();
+            builder.Property(s => s.NameArabic).HasMaxLength(200);
+            builder.Property(s => s.Description).HasMaxLength(500);
+            builder.Property(s => s.RowVersion).IsRowVersion();
+
+            builder.HasIndex(s => new { s.CompanyId, s.Code })
+                   .IsUnique()
+                   .HasFilter("[IsDeleted] = 0");
+
+            builder.HasMany(s => s.Lines)
+                   .WithOne(l => l.AccountSchedule!)
+                   .HasForeignKey(l => l.AccountScheduleId)
+                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<AccountScheduleLine>(builder =>
+        {
+            builder.ToTable("AccountScheduleLines", SchemaName);
+
+            builder.Property(l => l.RowNo).HasMaxLength(20).IsRequired();
+            builder.Property(l => l.Description).HasMaxLength(200).IsRequired();
+            builder.Property(l => l.DescriptionArabic).HasMaxLength(200);
+            builder.Property(l => l.Expression).HasMaxLength(500);
+            builder.Property(l => l.RowVersion).IsRowVersion();
+
+            // A formula names a row, so two rows on one name is a formula with two answers.
+            builder.HasIndex(l => new { l.AccountScheduleId, l.RowNo }).IsUnique();
+        });
+
         modelBuilder.Entity<BankAccount>(builder =>
         {
             builder.ToTable("BankAccounts", SchemaName);

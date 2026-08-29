@@ -27,8 +27,12 @@ namespace ASAP.Modules.Finance.Seed;
 /// </para>
 /// </remarks>
 /// <param name="context">The unit of work.</param>
+/// <param name="schedules">Adds the shipped statement layouts.</param>
 /// <param name="logger">Reports what was created.</param>
-public sealed class FinanceSeeder(AsapDbContext context, ILogger<FinanceSeeder> logger)
+public sealed class FinanceSeeder(
+    AsapDbContext context,
+    ScheduleSeeder schedules,
+    ILogger<FinanceSeeder> logger)
 {
     /// <summary>
     /// Seeds Finance for one company, if it has nothing yet.
@@ -71,6 +75,7 @@ public sealed class FinanceSeeder(AsapDbContext context, ILogger<FinanceSeeder> 
         }
 
         await SeedCurrenciesAsync(tenantId, companyId, cancellationToken).ConfigureAwait(false);
+        await schedules.SeedAsync(tenantId, companyId, cancellationToken).ConfigureAwait(false);
 
         if (hasAccounts && hasParties && hasTaxCodes)
         {

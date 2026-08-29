@@ -84,10 +84,23 @@ Everything else posts here, so it goes first.
   so the control account and the subsidiary ledger commit together
 - **done** VAT/tax setup with dated rates, tax posting on journal lines, and a return-ready
   tax entry table the return is built from rather than from the tax account balance
-- *in progress* Financial reports: **trial balance, income statement, balance sheet and aged
-  analysis done**; cash flow to come. The balance sheet carries the result for the year as its own
-  computed line, so it balances before the year-end transfer exists
-- Account schedules — the report builder that lets a user define statements without code
+- **done** Financial reports: trial balance, income statement, balance sheet, aged analysis and
+  cash flow. The balance sheet carries the result for the year as its own computed line, so it
+  balances before the year-end transfer exists. Cash flow ships as an account schedule rather
+  than as code — every company's has a line the last one did not, and a version compiled into the
+  product answers only the general case. Its ranges cover the whole chart, so its check row is
+  nought by construction and a figure other than nought has found a real gap
+- **done** Account schedules — the report builder that lets a user define statements without
+  code. Rows name account ranges in the syntax the chart already uses, or add other rows up in a
+  small formula language with brackets and the four operators. Rows are addressed by name rather
+  than by position, so inserting one does not silently change every formula below it, and they
+  are resolved by dependency rather than in order, so a statement may show its total at the top.
+  A circle is refused and its rows named. The sign flip is applied before formulas run, which is
+  the whole usability of the thing: somebody reads revenue and cost off the page and writes
+  `R10 - R20`, and it means that. A figure with no answer — a margin on a month with no revenue —
+  prints blank rather than nought and that blankness spreads to anything built on it, while a
+  misspelt row name counts as nothing so one typo cannot blank a page. Column layouts comparing
+  periods or a budget still to come
 - **done** Year-end close: the result transferred to retained earnings on the year's last day,
   every income statement account cleared per branch so no shop keeps a balance the company total
   says is zero, and the year locked behind it. Refuses to run twice, refuses while an earlier year

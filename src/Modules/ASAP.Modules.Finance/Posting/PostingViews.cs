@@ -174,11 +174,27 @@ public sealed record PostingTaxView(
 /// </para>
 /// </param>
 /// <remarks>
+/// <para>
 /// A line naming a party still produces an ordinary general ledger entry -- on the party's control
 /// account -- and a subsidiary ledger entry beside it, in the same transaction. That is what makes
 /// the control account and the customer ledger incapable of disagreeing, and it is why the control
 /// accounts ship with direct posting switched off: this is the only road to them.
+/// </para>
+/// <para>
+/// <see cref="Amount"/> is always in the company's own currency, converted before it ever reaches
+/// here. Every rule that follows -- the balance check above all -- is arithmetic on one currency,
+/// and a validator that had to convert would be a validator that could refuse a document for
+/// want of a rate, which is not its job and not where anybody would look for the reason.
+/// <see cref="CurrencyCode"/> and the two beside it are what the document was written in, carried
+/// through to be recorded rather than to be calculated with.
+/// </para>
 /// </remarks>
+/// <param name="CurrencyCode">What the document was written in, or null for the company's own.</param>
+/// <param name="AmountInCurrency">The amount as written, before conversion.</param>
+/// <param name="ExchangeRate">
+/// What one unit of the currency was worth, recorded so the entry can be explained later without
+/// anybody having to trust that the rate table has not been edited since.
+/// </param>
 public sealed record PostingLineView(
     int LineNo,
     DateOnly PostingDate,
@@ -191,7 +207,10 @@ public sealed record PostingLineView(
     PostingPartyView? Party = null,
     string? ExternalDocumentNo = null,
     PostingTaxView? Tax = null,
-    Guid? BranchId = null);
+    Guid? BranchId = null,
+    string? CurrencyCode = null,
+    decimal? AmountInCurrency = null,
+    decimal? ExchangeRate = null);
 
 /// <summary>Whether a date may be posted to, and why not when it may not.</summary>
 public enum PeriodAvailability

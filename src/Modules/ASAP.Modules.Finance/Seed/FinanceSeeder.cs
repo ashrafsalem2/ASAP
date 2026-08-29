@@ -2,6 +2,7 @@ using System.Globalization;
 using ASAP.Modules.Finance.Accounts;
 using ASAP.Modules.Finance.Journals;
 using ASAP.Modules.Finance.Periods;
+using ASAP.Modules.Finance.Currencies;
 using ASAP.Modules.Finance.Tax;
 using ASAP.Platform.Persistence;
 using Microsoft.EntityFrameworkCore;
@@ -68,6 +69,8 @@ public sealed class FinanceSeeder(AsapDbContext context, ILogger<FinanceSeeder> 
             // whole method is a correction of, made one level up.
             await TopUpChartAsync(tenantId, companyId, cancellationToken).ConfigureAwait(false);
         }
+
+        await SeedCurrenciesAsync(tenantId, companyId, cancellationToken).ConfigureAwait(false);
 
         if (hasAccounts && hasParties && hasTaxCodes)
         {
@@ -231,6 +234,11 @@ public sealed class FinanceSeeder(AsapDbContext context, ILogger<FinanceSeeder> 
         Add("4350", "Promotions given", "قيمة العروض الممنوحة", GlAccountCategory.Income, directPosting: false);
         Add("4900", "Other income", "إيرادات أخرى", GlAccountCategory.Income);
 
+        // Two sides of the same thing, kept apart from income and cost alike. The money was
+        // neither earned nor spent: it is what one foreign amount was worth on two different
+        // days, and burying it in revenue makes a good month out of a weak riyal.
+        Add("4920", "Exchange gain", "أرباح فروق العملة", GlAccountCategory.Income);
+
         // Cost of sales
         Add("5000", "COST OF SALES", "تكلفة المبيعات", GlAccountCategory.CostOfGoodsSold, GlAccountType.Heading, 0);
         Add("5100", "Cost of goods sold", "تكلفة البضاعة المباعة", GlAccountCategory.CostOfGoodsSold, directPosting: false);
@@ -253,6 +261,7 @@ public sealed class FinanceSeeder(AsapDbContext context, ILogger<FinanceSeeder> 
         Add("6400", "Office expenses", "مصروفات مكتبية", GlAccountCategory.Expense);
         Add("6500", "Marketing", "التسويق", GlAccountCategory.Expense);
         Add("6600", "Depreciation", "الإهلاك", GlAccountCategory.Expense);
+        Add("6920", "Exchange loss", "خسائر فروق العملة", GlAccountCategory.Expense);
         Add("6900", "Other expenses", "مصروفات أخرى", GlAccountCategory.Expense);
 
         // Where a drawer that counts to something other than it should is reconciled. Kept apart
@@ -391,6 +400,72 @@ public sealed class FinanceSeeder(AsapDbContext context, ILogger<FinanceSeeder> 
     /// are not the same thing and belong in different boxes on the return.
     /// </para>
     /// </remarks>
+    /// <summary>
+    /// Adds the currencies a Gulf company most often deals in, if it has none.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Currencies only, without rates. A rate is a fact about a day, and shipping one would put a
+    /// number into the books that was invented by a seeder — which is the one thing the whole
+    /// arrangement refuses to do. The first posting in a foreign currency stops and asks for the
+    /// rate, which is the correct conversation to have.
+    /// </para>
+    /// <para>
+    /// The company's own currency is deliberately not among them. It is on the company record,
+    /// and a row for it here would invite somebody to give it a rate against itself.
+    /// </para>
+    /// </remarks>
+    private async Task SeedCurrenciesAsync(
+        Guid tenantId,
+        Guid companyId,
+        CancellationToken cancellationToken)
+    {
+        if (await context.Set<Currency>().AnyAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        var baseCurrency = await context.Companies
+            .AsNoTracking()
+            .Where(c => c.Id == companyId)
+            .Select(static c => c.BaseCurrencyCode)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        Add("USD", "US dollar", "دولار أمريكي", "$", 2);
+        Add("EUR", "Euro", "يورو", "€", 2);
+        Add("GBP", "Pound sterling", "جنيه إسترليني", "£", 2);
+        Add("AED", "UAE dirham", "درهم إماراتي", "د.إ", 2);
+        Add("SAR", "Saudi riyal", "ريال سعودي", "ر.س", 2);
+
+        // Three places, not two. Rounding a Kuwaiti dinar to two loses a fils on every line.
+        Add("KWD", "Kuwaiti dinar", "دينار كويتي", "د.ك", 3);
+
+        // None at all. A fraction of a yen is not something anybody can pay.
+        Add("JPY", "Japanese yen", "ين ياباني", "¥", 0);
+
+        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        void Add(string code, string name, string arabic, string symbol, int places)
+        {
+            if (string.Equals(code, baseCurrency, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            context.Set<Currency>().Add(new Currency
+            {
+                TenantId = tenantId,
+                CompanyId = companyId,
+                Code = code,
+                Name = name,
+                NameArabic = arabic,
+                Symbol = symbol,
+                DecimalPlaces = places,
+            });
+        }
+    }
+
     private void SeedTaxCodes(Guid tenantId, Guid companyId)
     {
         TaxCode Add(

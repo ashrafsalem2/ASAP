@@ -101,7 +101,9 @@ public sealed class PartyLedgerWriter(AsapDbContext context, ITenantContext tena
         string Description,
         decimal Amount,
         string ControlAccountNo,
-        string SourceCode);
+        string SourceCode,
+        string? CurrencyCode,
+        decimal? AmountInCurrency);
 
     private static EntryDraft Draft(
         PostingLineView line,
@@ -128,7 +130,9 @@ public sealed class PartyLedgerWriter(AsapDbContext context, ITenantContext tena
             line.Description ?? request.Description ?? party.Name,
             Math.Round(line.Amount, decimals, MidpointRounding.AwayFromZero),
             party.ControlAccountNo,
-            request.SourceCode);
+            request.SourceCode,
+            line.CurrencyCode,
+            line.AmountInCurrency);
     }
 
     private TEntry Apply<TEntry>(TEntry entry, EntryDraft draft)
@@ -148,6 +152,9 @@ public sealed class PartyLedgerWriter(AsapDbContext context, ITenantContext tena
         // Nothing is settled at the moment of posting. Applications come afterwards, even when a
         // payment is keyed against an invoice in the same breath.
         entry.RemainingAmount = draft.Amount;
+        entry.CurrencyCode = draft.CurrencyCode;
+        entry.AmountInCurrency = draft.AmountInCurrency;
+        entry.RemainingAmountInCurrency = draft.AmountInCurrency;
         entry.IsOpen = true;
         entry.BranchId = tenantContext.BranchId;
 

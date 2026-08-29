@@ -42,6 +42,38 @@ public abstract class PartyApplication : LedgerEntity
     public Guid? AppliedBy { get; set; }
 
     /// <summary>
+    /// How much was applied in the entries' own currency, or null when both were in the
+    /// company's.
+    /// </summary>
+    public decimal? AmountInCurrency { get; set; }
+
+    /// <summary>
+    /// How much came off the paying entry, in company currency.
+    /// </summary>
+    /// <remarks>
+    /// The same as <see cref="Amount"/> unless the two entries were raised at different rates,
+    /// in which case one figure in the transaction currency is two in the company's and both
+    /// have to be recorded. Recomputing either from the entries would be a guess as soon as a
+    /// second application touched them.
+    /// </remarks>
+    public decimal FromBaseAmount { get; set; }
+
+    /// <summary>How much came off the entry being settled, in company currency.</summary>
+    public decimal ToBaseAmount { get; set; }
+
+    /// <summary>
+    /// What the rate movement left behind: positive a loss, negative a gain.
+    /// </summary>
+    /// <remarks>
+    /// Zero for everything in one currency, which is nearly everything. When it is not zero it
+    /// has been posted, and <see cref="ExchangeTransactionNo"/> says under what.
+    /// </remarks>
+    public decimal ExchangeDifference { get; set; }
+
+    /// <summary>The transaction the exchange difference was posted under, when there was one.</summary>
+    public long? ExchangeTransactionNo { get; set; }
+
+    /// <summary>
     /// True once the application has been undone. The row stays, so a statement can still explain
     /// what happened and when it was reversed.
     /// </summary>

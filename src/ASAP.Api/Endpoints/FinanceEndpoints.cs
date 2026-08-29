@@ -5,6 +5,9 @@ using ASAP.Modules.Finance.Ledger;
 using ASAP.Modules.Finance.Periods;
 using ASAP.Modules.Finance.Posting;
 using ASAP.Modules.Finance.Reporting;
+using ASAP.Modules.Finance.Currencies;
+using ASAP.Platform.Kernel.Security;
+using ASAP.Platform.Kernel.Tenancy;
 using ASAP.Modules.Finance.Tax;
 using ASAP.Platform.Kernel.Time;
 using ASAP.Platform.Kernel.Cqrs;
@@ -63,6 +66,71 @@ public sealed record GlEntrySummary(
     string? DocumentNo,
     string SourceCode);
 
+/// <summary>A currency and what it is worth today, as it is reported back.</summary>
+/// <param name="Code">The ISO code.</param>
+/// <param name="Name">What it is called.</param>
+/// <param name="NameArabic">What it is called in Arabic.</param>
+/// <param name="Symbol">The symbol shown beside an amount.</param>
+/// <param name="DecimalPlaces">How many places amounts in it are rounded to.</param>
+/// <param name="IsActive">Whether it may still be used on a new document.</param>
+/// <param name="Rate">
+/// What one unit is worth today, or null when today has no rate. For showing on a screen only —
+/// a posting resolves the rate from its own document date, never from this.
+/// </param>
+/// <param name="RateStartingOn">The day today's rate came into force.</param>
+public sealed record CurrencyView(
+    string Code,
+    string Name,
+    string? NameArabic,
+    string? Symbol,
+    int DecimalPlaces,
+    bool IsActive,
+    decimal? Rate,
+    DateOnly? RateStartingOn);
+
+/// <summary>One dated rate, as it is reported back.</summary>
+/// <param name="StartingDate">The first day it applies to.</param>
+/// <param name="CurrencyAmount">How many units the pair is quoted for.</param>
+/// <param name="BaseAmount">What those units are worth in company currency.</param>
+/// <param name="Multiplier">The two divided, for reading.</param>
+public sealed record ExchangeRateView(
+    DateOnly StartingDate,
+    decimal CurrencyAmount,
+    decimal BaseAmount,
+    decimal Multiplier);
+
+/// <summary>What a client sends to add or change a currency.</summary>
+/// <remarks>
+/// The whole record, not a patch. Leaving a field out sets it to its default, which is the same
+/// bargain every other upsert in ASAP makes — read the currency, change what you mean, send it
+/// back.
+/// </remarks>
+/// <param name="Code">The ISO code, which identifies it.</param>
+/// <param name="Name">What it is called.</param>
+/// <param name="NameArabic">What it is called in Arabic.</param>
+/// <param name="Symbol">The symbol shown beside an amount.</param>
+/// <param name="DecimalPlaces">How many places amounts in it are rounded to.</param>
+/// <param name="IsActive">Whether it may still be used on a new document.</param>
+public sealed record SaveCurrencyRequest(
+    string Code,
+    string Name,
+    string? NameArabic = null,
+    string? Symbol = null,
+    int DecimalPlaces = 2,
+    bool IsActive = true);
+
+/// <summary>What a client sends to enter a rate.</summary>
+/// <param name="StartingDate">The first day it applies to.</param>
+/// <param name="BaseAmount">What the quoted units are worth in company currency.</param>
+/// <param name="CurrencyAmount">
+/// How many units the pair is quoted for, usually one. Use a hundred for a currency worth a small
+/// fraction of the company's own, so the rate is stated exactly rather than rounded.
+/// </param>
+public sealed record SaveExchangeRateRequest(
+    DateOnly StartingDate,
+    decimal BaseAmount,
+    decimal CurrencyAmount = 1m);
+
 /// <summary>Chart of accounts, journals and the general ledger.</summary>
 public static class FinanceEndpoints
 {
@@ -117,6 +185,22 @@ public static class FinanceEndpoints
         group.MapGet("/reports/tax-return", TaxReturnAsync)
              .WithName("TaxReturn")
              .WithSummary("Reports tax charged and tax paid for a period, and the net owed.");
+
+        group.MapGet("/currencies", CurrenciesAsync)
+             .WithName("Currencies")
+             .WithSummary("Lists the currencies the company transacts in, and what each is worth today.");
+
+        group.MapPut("/currencies/{code}", SaveCurrencyAsync)
+             .WithName("SaveCurrency")
+             .WithSummary("Adds a currency or replaces one, whole.");
+
+        group.MapGet("/currencies/{code}/rates", RatesAsync)
+             .WithName("ExchangeRates")
+             .WithSummary("Lists a currency's rates, most recent first.");
+
+        group.MapPut("/currencies/{code}/rates", SaveRateAsync)
+             .WithName("SaveExchangeRate")
+             .WithSummary("Enters the rate from a date, replacing any rate already starting on it.");
 
         group.MapGet("/tax-codes", TaxCodesAsync)
              .WithName("TaxCodes")
@@ -396,6 +480,191 @@ public static class FinanceEndpoints
         return Results.Ok(await dispatcher.SendAsync(query, cancellationToken).ConfigureAwait(false));
     }
 
+    private static async Task<IResult> CurrenciesAsync(
+        AsapDbContext context,
+        IUserContext user,
+        HttpContext http,
+        IClock clock,
+        [FromQuery] bool? includeInactive,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, CurrencyReadPermission))
+        {
+            return Forbidden(CurrencyReadPermission, "see currencies and rates", http);
+        }
+
+        var query = context.Set<Currency>().AsNoTracking().Include(c => c.Rates);
+
+        var currencies = await (includeInactive == true ? query : query.Where(c => c.IsActive))
+            .OrderBy(c => c.Code)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var today = clock.Today;
+
+        return Results.Ok(currencies.Select(c =>
+        {
+            var rate = c.RateOn(today);
+
+            return new CurrencyView(
+                c.Code,
+                c.Name,
+                c.NameArabic,
+                c.Symbol,
+                c.DecimalPlaces,
+                c.IsActive,
+                rate?.Multiplier,
+                rate?.StartingDate);
+        }));
+    }
+
+    private static async Task<IResult> SaveCurrencyAsync(
+        string code,
+        SaveCurrencyRequest request,
+        AsapDbContext context,
+        IUserContext user,
+        ITenantContext tenantContext,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, CurrencyUpdatePermission))
+        {
+            return Forbidden(CurrencyUpdatePermission, "maintain currencies", http);
+        }
+
+        var normalised = code.Trim().ToUpperInvariant();
+
+        var currency = await context.Set<Currency>()
+            .FirstOrDefaultAsync(c => c.Code == normalised, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (currency is null)
+        {
+            currency = new Currency
+            {
+                TenantId = tenantContext.TenantId ?? Guid.Empty,
+                CompanyId = tenantContext.RequireCompanyId(),
+                Code = normalised,
+                Name = request.Name,
+            };
+
+            context.Set<Currency>().Add(currency);
+        }
+
+        currency.Name = request.Name;
+        currency.NameArabic = request.NameArabic;
+        currency.Symbol = request.Symbol;
+        currency.DecimalPlaces = request.DecimalPlaces;
+        currency.IsActive = request.IsActive;
+
+        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(new CurrencyView(
+            currency.Code,
+            currency.Name,
+            currency.NameArabic,
+            currency.Symbol,
+            currency.DecimalPlaces,
+            currency.IsActive,
+            null,
+            null));
+    }
+
+    private static async Task<IResult> RatesAsync(
+        string code,
+        AsapDbContext context,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, CurrencyReadPermission))
+        {
+            return Forbidden(CurrencyReadPermission, "see currencies and rates", http);
+        }
+
+        var normalised = code.Trim().ToUpperInvariant();
+
+        var currency = await context.Set<Currency>()
+            .AsNoTracking()
+            .Include(c => c.Rates)
+            .FirstOrDefaultAsync(c => c.Code == normalised, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (currency is null)
+        {
+            return Results.NotFound();
+        }
+
+        return Results.Ok(currency.Rates
+            .OrderByDescending(static r => r.StartingDate)
+            .Select(static r => new ExchangeRateView(
+                r.StartingDate, r.CurrencyAmount, r.BaseAmount, r.Multiplier)));
+    }
+
+    private static async Task<IResult> SaveRateAsync(
+        string code,
+        SaveExchangeRateRequest request,
+        AsapDbContext context,
+        IUserContext user,
+        ITenantContext tenantContext,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, CurrencyUpdatePermission))
+        {
+            return Forbidden(CurrencyUpdatePermission, "enter exchange rates", http);
+        }
+
+        var normalised = code.Trim().ToUpperInvariant();
+
+        var currency = await context.Set<Currency>()
+            .Include(c => c.Rates)
+            .FirstOrDefaultAsync(c => c.Code == normalised, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (currency is null)
+        {
+            return Results.NotFound();
+        }
+
+        var existing = currency.Rates.FirstOrDefault(r => r.StartingDate == request.StartingDate);
+
+        if (existing is null)
+        {
+            // Added through the set rather than only through the collection. Every key is handed
+            // out by the constructor, and EF reads a key that is already set on a row hung off a
+            // loaded parent as "this exists" -- then issues an update that matches nothing.
+            context.Set<ExchangeRate>().Add(new ExchangeRate
+            {
+                TenantId = currency.TenantId,
+                CompanyId = currency.CompanyId,
+                CurrencyId = currency.Id,
+                StartingDate = request.StartingDate,
+                CurrencyAmount = request.CurrencyAmount,
+                BaseAmount = request.BaseAmount,
+            });
+        }
+        else
+        {
+            // Replaced rather than refused. Two rates starting on one day is not a state anybody
+            // can resolve, and correcting a rate keyed wrong this morning is ordinary work.
+            existing.CurrencyAmount = request.CurrencyAmount;
+            existing.BaseAmount = request.BaseAmount;
+        }
+
+        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(new ExchangeRateView(
+            request.StartingDate,
+            request.CurrencyAmount,
+            request.BaseAmount,
+            request.BaseAmount / request.CurrencyAmount));
+    }
+
     private static async Task<IResult> TaxCodesAsync(
         AsapDbContext context,
         IClock clock,
@@ -435,4 +704,23 @@ public static class FinanceEndpoints
 
         return Results.Ok(await dispatcher.SendAsync(query, cancellationToken).ConfigureAwait(false));
     }
+
+    private const string CurrencyReadPermission = "Finance.Currency.Read";
+    private const string CurrencyUpdatePermission = "Finance.Currency.Update";
+
+    /// <summary>
+    /// Whether the caller holds a permission.
+    /// </summary>
+    /// <remarks>
+    /// Checked here rather than by the dispatcher, because these two write straight to the table
+    /// instead of going through a command. Everything in this file that does go through a command
+    /// is guarded by the attribute on the command itself.
+    /// </remarks>
+    private static bool Can(IUserContext user, string permission)
+        => user.IsSuperUser || user.Has(permission);
+
+    private static IResult Forbidden(string permission, string doing, HttpContext http)
+        => Results.Json(
+            AsapProblem.Forbidden(permission, doing, http.Request.Path),
+            statusCode: StatusCodes.Status403Forbidden);
 }

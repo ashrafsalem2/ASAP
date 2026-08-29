@@ -48,6 +48,13 @@ public sealed record PartyView(
 /// <param name="RemainingAmount">What is still unsettled.</param>
 /// <param name="IsOpen">Whether anything is still outstanding.</param>
 /// <param name="DaysOverdue">How late it is today, or zero when not yet due.</param>
+/// <param name="CurrencyCode">What it was written in, or null for the company's own currency.</param>
+/// <param name="AmountInCurrency">The amount as written, before conversion.</param>
+/// <param name="RemainingAmountInCurrency">
+/// What is still outstanding in that currency, which for a foreign entry is what actually decides
+/// whether anybody still owes anything. The company-currency figure beside it moves with the rate
+/// and says nothing about the debt.
+/// </param>
 public sealed record PartyLedgerEntryView(
     Guid Id,
     DateOnly PostingDate,
@@ -60,7 +67,10 @@ public sealed record PartyLedgerEntryView(
     decimal Amount,
     decimal RemainingAmount,
     bool IsOpen,
-    int DaysOverdue);
+    int DaysOverdue,
+    string? CurrencyCode = null,
+    decimal? AmountInCurrency = null,
+    decimal? RemainingAmountInCurrency = null);
 
 /// <summary>What a client sends to settle one entry against another.</summary>
 /// <param name="FromEntryId">The entry the money comes from, normally a payment.</param>
@@ -215,7 +225,10 @@ public static class PartyEndpoints
 
             // Only meaningful while something is still owed. A settled invoice that was paid late
             // is history, and colouring it red on a statement helps nobody.
-            e.IsOpen ? e.DaysOverdue(today) : 0)));
+            e.IsOpen ? e.DaysOverdue(today) : 0,
+            e.CurrencyCode,
+            e.AmountInCurrency,
+            e.RemainingAmountInCurrency)));
     }
 
     private static async Task<IResult> ApplyAsync(

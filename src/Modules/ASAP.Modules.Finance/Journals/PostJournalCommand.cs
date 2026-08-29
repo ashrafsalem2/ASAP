@@ -39,6 +39,12 @@ namespace ASAP.Modules.Finance.Journals;
 /// per line because one document can belong to several -- a payroll run splits a month's wage
 /// between the branches somebody actually worked at.
 /// </param>
+/// <param name="CurrencyCode">
+/// What the amount is written in, or null for the company's own currency. When it is set,
+/// <paramref name="Amount"/> is read as being in that currency and is converted at the rate in
+/// force on the line's posting date -- so a line saying 1,000 USD says 1,000, not what 1,000
+/// happened to be worth this morning.
+/// </param>
 public sealed record PostJournalLine(
     string AccountNo,
     decimal Amount,
@@ -49,7 +55,8 @@ public sealed record PostJournalLine(
     string? ExternalDocumentNo = null,
     string? TaxCode = null,
     bool TaxIncludedInAmount = false,
-    Guid? BranchId = null);
+    Guid? BranchId = null,
+    string? CurrencyCode = null);
 
 /// <summary>
 /// Posts a set of journal lines to the general ledger.

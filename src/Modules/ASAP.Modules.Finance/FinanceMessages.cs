@@ -26,6 +26,26 @@ public static class FinanceMessages
     /// <summary>A person is posting by hand to an account only a module should touch.</summary>
     public static readonly MessageCode DirectPostingNotAllowed = new("FIN.ACCOUNT.DIRECT_POSTING_BLOCKED");
 
+    /// <summary>A line names a currency the company does not have.</summary>
+    public static readonly MessageCode CurrencyNotFound = new("FIN.CURRENCY.NOT_FOUND");
+
+    /// <summary>A line names a currency that has been withdrawn from use.</summary>
+    public static readonly MessageCode CurrencyBlocked = new("FIN.CURRENCY.BLOCKED");
+
+    /// <summary>No rate has been entered for a currency on the day being posted.</summary>
+    public static readonly MessageCode NoExchangeRate = new("FIN.CURRENCY.NO_RATE");
+
+    /// <summary>An entry in the company's own currency was given a currency code.</summary>
+    public static readonly MessageCode CurrencyIsBase = new("FIN.CURRENCY.IS_BASE");
+
+    /// <summary>Two entries being settled are in different currencies.</summary>
+    public static readonly MessageCode ApplicationDifferentCurrencies =
+        new("FIN.APPLICATION.DIFFERENT_CURRENCIES");
+
+    /// <summary>No account is set up for the difference a rate movement leaves behind.</summary>
+    public static readonly MessageCode NoExchangeDifferenceAccount =
+        new("FIN.SETUP.NO_EXCHANGE_DIFFERENCE_ACCOUNT");
+
     /// <summary>A line carries no amount.</summary>
     public static readonly MessageCode AmountZero = new("FIN.JOURNAL.AMOUNT_ZERO");
 
@@ -159,6 +179,117 @@ public static class FinanceMessages
             Resolution = new LocalizedText(
                 "Choose a different account, or unblock {AccountNo} in the chart of accounts.",
                 "اختر حسابًا آخر، أو ألغِ حظر {AccountNo} في شجرة الحسابات."),
+        },
+        new()
+        {
+            Code = CurrencyNotFound,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("No such currency", "لا توجد عملة بهذا الرمز"),
+            Detail = new LocalizedText(
+                "Nothing in this company is set up as {Currency}, so there is no way to say what "
+                + "an amount in it is worth on {Date:d}.",
+                "لا يوجد في هذه الشركة ما هو مُعرَّف بالرمز {Currency}، فلا سبيل لمعرفة قيمة "
+                + "مبلغ به في {Date:d}."),
+            Resolution = new LocalizedText(
+                "Add {Currency} under currencies, then give it a rate. If the amount is in the "
+                + "company's own currency, leave the currency blank instead.",
+                "أضف {Currency} في العملات ثم حدّد له سعر صرف. وإذا كان المبلغ بعملة الشركة "
+                + "نفسها، فاترك حقل العملة فارغًا."),
+            HelpTopic = "finance/currencies",
+        },
+        new()
+        {
+            Code = CurrencyBlocked,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("This currency is no longer in use", "هذه العملة لم تعد مستخدمة"),
+            Detail = new LocalizedText(
+                "{Currency} has been withdrawn, so nothing new may be posted in it. Documents "
+                + "already raised in it are untouched and still settle normally.",
+                "سُحبت العملة {Currency} من الاستخدام، فلا يمكن ترحيل جديد بها. أما المستندات "
+                + "الصادرة بها فلم تتغير ولا تزال تُسوّى كالمعتاد."),
+            Resolution = new LocalizedText(
+                "Use a currency still in use, or reactivate {Currency} under currencies if it "
+                + "was withdrawn by mistake.",
+                "استخدم عملة لا تزال مفعّلة، أو أعد تفعيل {Currency} في العملات إن كان سحبها "
+                + "قد تم بالخطأ."),
+            HelpTopic = "finance/currencies",
+        },
+        new()
+        {
+            Code = NoExchangeRate,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("No rate for that day", "لا يوجد سعر صرف لذلك اليوم"),
+            Detail = new LocalizedText(
+                "{Currency} has no rate starting on or before {Date:d}, and this posting is dated "
+                + "{Date:d}. A missing rate is not nought and it is not yesterday's — it is a "
+                + "figure nobody has entered.",
+                "لا يوجد للعملة {Currency} سعر صرف يبدأ في {Date:d} أو قبله، وهذا الترحيل مؤرخ "
+                + "في {Date:d}. والسعر المفقود ليس صفرًا ولا سعر الأمس، بل رقم لم يدخله أحد."),
+            Resolution = new LocalizedText(
+                "Add a rate for {Currency} starting on or before {Date:d}. Rates may be entered "
+                + "ahead of time, so a desk that publishes tomorrow's today is doing the right "
+                + "thing.",
+                "أضف سعر صرف للعملة {Currency} يبدأ في {Date:d} أو قبله. ويمكن إدخال الأسعار "
+                + "مقدمًا، فمن ينشر سعر الغد اليوم إنما يفعل الصواب."),
+            HelpTopic = "finance/currencies",
+        },
+        new()
+        {
+            Code = CurrencyIsBase,
+            Severity = MessageSeverity.Warning,
+            Title = new LocalizedText(
+                "That is the company's own currency", "هذه هي عملة الشركة نفسها"),
+            Detail = new LocalizedText(
+                "Line {LineNo} is marked {Currency}, which is what this company keeps its books "
+                + "in. It has been posted as an ordinary amount, with no conversion.",
+                "السطر {LineNo} محدد بالعملة {Currency}، وهي العملة التي تمسك بها الشركة دفاترها. "
+                + "وقد رُحِّل كمبلغ عادي دون أي تحويل."),
+            Resolution = new LocalizedText(
+                "Nothing to do. Leave the currency blank on lines in the company's own currency, "
+                + "so a rate is never looked for and never wrongly applied.",
+                "لا حاجة لأي إجراء. اترك حقل العملة فارغًا في السطور بعملة الشركة، حتى لا يُبحث "
+                + "عن سعر صرف ولا يُطبَّق خطأً."),
+            HelpTopic = "finance/currencies",
+        },
+        new()
+        {
+            Code = ApplicationDifferentCurrencies,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("Different currencies", "عملتان مختلفتان"),
+            Detail = new LocalizedText(
+                "{FromDocumentNo} is in {FromCurrency} and {ToDocumentNo} is in {ToCurrency}. "
+                + "Settling one against the other would have to pick a rate to compare them at, "
+                + "and any rate it picked would decide a gain or a loss nobody agreed to.",
+                "المستند {FromDocumentNo} بعملة {FromCurrency} والمستند {ToDocumentNo} بعملة "
+                + "{ToCurrency}. وتسوية أحدهما بالآخر تستلزم اختيار سعر للمقارنة، وأي سعر "
+                + "يُختار سيقرر ربحًا أو خسارة لم يوافق عليها أحد."),
+            Resolution = new LocalizedText(
+                "Settle each against a document in its own currency. A payment made in one "
+                + "currency for an invoice in another is two transactions and a conversion "
+                + "between them, and is entered that way.",
+                "سوِّ كل مستند بمستند بعملته نفسها. فالدفعة بعملة عن فاتورة بعملة أخرى هي "
+                + "عمليتان وتحويل بينهما، وتُدخَل على هذا النحو."),
+            HelpTopic = "finance/currencies",
+        },
+        new()
+        {
+            Code = NoExchangeDifferenceAccount,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText(
+                "Nowhere to put the exchange difference", "لا مكان لفرق سعر الصرف"),
+            Detail = new LocalizedText(
+                "Settling these leaves {Amount:N2} that exists only because the rate moved "
+                + "between the two dates, and the setting {SettingKey} says nowhere to put it.",
+                "تسوية هذين تترك مبلغ {Amount:N2} نشأ فقط لأن سعر الصرف تحرك بين التاريخين، "
+                + "والإعداد {SettingKey} لا يحدد أين يُقيَّد."),
+            Resolution = new LocalizedText(
+                "Set {SettingKey} in setup. The money was never earned or spent — it is what the "
+                + "same foreign amount was worth on two different days — so it belongs on an "
+                + "account of its own rather than inside revenue or a cost.",
+                "حدّد الإعداد {SettingKey} في الإعدادات. فهذا المبلغ لم يُكتسب ولم يُنفق، وإنما "
+                + "هو قيمة المبلغ الأجنبي نفسه في يومين مختلفين، فمكانه حساب مستقل لا داخل "
+                + "الإيرادات أو التكاليف."),
+            HelpTopic = "finance/currencies",
         },
         new()
         {

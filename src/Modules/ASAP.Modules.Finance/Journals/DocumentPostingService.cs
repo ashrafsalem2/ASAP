@@ -1,4 +1,5 @@
 using ASAP.Modules.Finance.Accounts;
+using ASAP.Modules.Finance.Currencies;
 using ASAP.Modules.Finance.Ledger;
 using ASAP.Modules.Finance.Parties;
 using ASAP.Modules.Finance.Periods;
@@ -92,6 +93,7 @@ public sealed class DocumentPostingService(
     JournalPostingService posting,
     ISetupService setup,
     IMessageCatalog messages,
+    ExchangeRateService rates,
     IUserContext userContext,
     IClock clock)
 {
@@ -109,6 +111,24 @@ public sealed class DocumentPostingService(
 
         var parties = await ResolvePartiesAsync(request.Lines, cancellationToken).ConfigureAwait(false);
         var taxCodes = await ResolveTaxCodesAsync(request.Lines, cancellationToken).ConfigureAwait(false);
+        var baseCurrency = await BaseCurrencyAsync(cancellationToken).ConfigureAwait(false);
+
+        // Resolved before anything else is built, and refused as a group. A document in three
+        // currencies with no rates for any of them should say so once.
+        var (resolvedRates, missingRates) = await rates
+            .ResolveAsync(
+                request.Lines
+                    .Where(l => IsForeign(l.CurrencyCode, baseCurrency))
+                    .Select(l => (
+                        l.CurrencyCode!.Trim().ToUpperInvariant(),
+                        l.PostingDate ?? request.PostingDate ?? today)),
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        if (missingRates.Count > 0)
+        {
+            return Result<PostingReceipt>.Failure(missingRates);
+        }
 
         // A party line posts to its control account, so that account has to be loaded alongside
         // the ones the document names directly.
@@ -164,11 +184,21 @@ public sealed class DocumentPostingService(
             .Select((line, index) =>
             {
                 var party = PartyFor(line, parties);
+                var postingDate = line.PostingDate ?? request.PostingDate ?? today;
+
+                // Everything below this point is in the company's own currency. A line written in
+                // another is converted here, once, and both figures are carried forward: the base
+                // one for every rule the engine applies, the original one to be recorded.
+                var foreign = IsForeign(line.CurrencyCode, baseCurrency)
+                    && resolvedRates.TryGetValue(
+                        (line.CurrencyCode!.Trim().ToUpperInvariant(), postingDate), out var rate)
+                    ? rate
+                    : (ResolvedRate?)null;
 
                 return new PostingLineView(
                     LineNo: index + 1,
-                    PostingDate: line.PostingDate ?? request.PostingDate ?? today,
-                    Amount: line.Amount,
+                    PostingDate: postingDate,
+                    Amount: foreign is { } at ? at.ToBase(line.Amount) : line.Amount,
                     Account: Resolve(
                         line.AccountType is JournalAccountType.GlAccount
                             ? line.AccountNo
@@ -185,8 +215,11 @@ public sealed class DocumentPostingService(
                         line,
                         party?.Kind ?? documentKind,
                         taxCodes,
-                        line.PostingDate ?? request.PostingDate ?? today),
-                    BranchId: line.BranchId);
+                        postingDate),
+                    BranchId: line.BranchId,
+                    CurrencyCode: foreign?.Code,
+                    AmountInCurrency: foreign is null ? null : line.Amount,
+                    ExchangeRate: foreign?.Multiplier);
             })
             .ToList();
 
@@ -201,7 +234,7 @@ public sealed class DocumentPostingService(
 
         var environment = new PostingEnvironment(
             BatchCode: request.BatchCode,
-            CurrencyCode: await BaseCurrencyAsync(cancellationToken).ConfigureAwait(false),
+            CurrencyCode: baseCurrency,
             ResolvePeriod: calendar.Resolve,
             CurrencyDecimals: 2,
             PostingWindowFrom: await setup
@@ -510,6 +543,19 @@ public sealed class DocumentPostingService(
 
         return candidates.Where(userContext.Has).ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
+
+    /// <summary>
+    /// Whether a line's currency code means anything has to be converted.
+    /// </summary>
+    /// <remarks>
+    /// A line marked with the company's own currency is not a foreign line. Saying so is common
+    /// and harmless -- an integration that stamps every line with a code does not know which
+    /// company it is posting into -- and looking up a rate for it would refuse the document for
+    /// want of a rate of the base currency against itself, which nobody will ever enter.
+    /// </remarks>
+    private static bool IsForeign(string? code, string baseCurrency)
+        => !string.IsNullOrWhiteSpace(code)
+           && !string.Equals(code.Trim(), baseCurrency, StringComparison.OrdinalIgnoreCase);
 
     private async Task<string> BaseCurrencyAsync(CancellationToken cancellationToken)
         => await context.Companies

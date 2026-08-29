@@ -1,4 +1,5 @@
 using ASAP.Modules.Finance.Accounts;
+using ASAP.Modules.Finance.Currencies;
 using ASAP.Modules.Finance.Journals;
 using ASAP.Modules.Finance.Ledger;
 using ASAP.Modules.Finance.Parties;
@@ -37,6 +38,43 @@ public sealed class FinanceSchema : IModuleSchema
 
     private void ConfigureTax(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<Currency>(builder =>
+        {
+            builder.ToTable("Currencies", SchemaName);
+
+            builder.Property(c => c.Code).HasMaxLength(3).IsFixedLength().IsRequired();
+            builder.Property(c => c.Name).HasMaxLength(100).IsRequired();
+            builder.Property(c => c.NameArabic).HasMaxLength(100);
+            builder.Property(c => c.Symbol).HasMaxLength(8);
+            builder.Property(c => c.RowVersion).IsRowVersion();
+
+            builder.HasIndex(c => new { c.CompanyId, c.Code })
+                   .IsUnique()
+                   .HasFilter("[IsDeleted] = 0");
+
+            builder.HasMany(c => c.Rates)
+                   .WithOne(r => r.Currency!)
+                   .HasForeignKey(r => r.CurrencyId)
+                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<ExchangeRate>(builder =>
+        {
+            builder.ToTable("ExchangeRates", SchemaName);
+
+            builder.Property(r => r.CurrencyAmount).HasColumnType(DecimalPrecisionConventions.Money);
+            builder.Property(r => r.BaseAmount).HasColumnType(DecimalPrecisionConventions.Money);
+            builder.Property(r => r.RowVersion).IsRowVersion();
+
+            // Every posting in a foreign currency asks which rate was in force on a date, so the
+            // lookup is a seek. Unique for the same reason a tax rate is: two rates starting on
+            // one day is not a conflict anybody can resolve, so it is refused at the table.
+            builder.HasIndex(r => new { r.CurrencyId, r.StartingDate }).IsUnique();
+
+            builder.Ignore(r => r.IsUsable);
+            builder.Ignore(r => r.Multiplier);
+        });
+
         modelBuilder.Entity<TaxCode>(builder =>
         {
             builder.ToTable("TaxCodes", SchemaName);
@@ -164,6 +202,9 @@ public sealed class FinanceSchema : IModuleSchema
 
             builder.Property(e => e.Amount).HasColumnType(DecimalPrecisionConventions.Money);
             builder.Property(e => e.RemainingAmount).HasColumnType(DecimalPrecisionConventions.Money);
+            builder.Property(e => e.AmountInCurrency).HasColumnType(DecimalPrecisionConventions.Money);
+            builder.Property(e => e.RemainingAmountInCurrency)
+                   .HasColumnType(DecimalPrecisionConventions.Money);
 
             // What is still owed, which is what the aged analysis, the statement and the
             // application screen all ask for. Filtered so the index covers only the rows anybody
@@ -191,6 +232,10 @@ public sealed class FinanceSchema : IModuleSchema
             builder.ToTable(table, SchemaName);
 
             builder.Property(a => a.Amount).HasColumnType(DecimalPrecisionConventions.Money);
+            builder.Property(a => a.AmountInCurrency).HasColumnType(DecimalPrecisionConventions.Money);
+            builder.Property(a => a.FromBaseAmount).HasColumnType(DecimalPrecisionConventions.Money);
+            builder.Property(a => a.ToBaseAmount).HasColumnType(DecimalPrecisionConventions.Money);
+            builder.Property(a => a.ExchangeDifference).HasColumnType(DecimalPrecisionConventions.Money);
 
             // Read from both ends: what settled this invoice, and what this payment went towards.
             builder.HasIndex(a => new { a.CompanyId, a.AppliedToEntryId });

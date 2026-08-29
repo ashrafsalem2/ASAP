@@ -94,6 +94,30 @@ public abstract class PartyLedgerEntry : LedgerEntity
     /// <summary>The transaction currency, when it differs from the company base currency.</summary>
     public string? CurrencyCode { get; set; }
 
+    /// <summary>
+    /// The amount in the transaction currency, when that differs from the base.
+    /// </summary>
+    /// <remarks>
+    /// What the customer actually owes. The base figure beside it is what that was worth on the
+    /// day the invoice was raised, and it stops being what they owe the moment the rate moves.
+    /// A statement in the customer's own currency is read from this; the ledger is read from
+    /// the other.
+    /// </remarks>
+    public decimal? AmountInCurrency { get; set; }
+
+    /// <summary>
+    /// How much of <see cref="AmountInCurrency"/> is still unsettled.
+    /// </summary>
+    /// <remarks>
+    /// Settlement is decided here rather than on the base amount, for a foreign entry. An
+    /// invoice of USD 1,000 is cleared by a payment of USD 1,000 whatever the two were worth in
+    /// riyals on their two days; measured in riyals the payment would fall short or overshoot,
+    /// leave the invoice fractionally open, and put a chaser in front of a customer who has paid
+    /// in full. The riyal difference is real and is posted as an exchange difference, which is
+    /// what it is -- not as an unpaid balance, which it is not.
+    /// </remarks>
+    public decimal? RemainingAmountInCurrency { get; set; }
+
     /// <summary>Branch the entry originated at, or null at head office.</summary>
     public Guid? BranchId { get; set; }
 

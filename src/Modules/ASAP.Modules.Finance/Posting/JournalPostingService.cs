@@ -215,11 +215,12 @@ public sealed class JournalPostingService(
         {
             var amount = Math.Round(line.Amount, environment.CurrencyDecimals, MidpointRounding.AwayFromZero);
 
-            entries.Add(NewEntry(line, line.Account!, amount, request, transactionNo));
+            entries.Add(NewEntry(line, line.Account!, amount, line.AmountInCurrency, request, transactionNo));
 
             if (line.BalancingAccount is { } balancing)
             {
-                entries.Add(NewEntry(line, balancing, -amount, request, transactionNo));
+                entries.Add(NewEntry(
+                    line, balancing, -amount, -line.AmountInCurrency, request, transactionNo));
             }
         }
 
@@ -230,6 +231,7 @@ public sealed class JournalPostingService(
         PostingLineView line,
         PostingAccountView account,
         decimal amount,
+        decimal? amountInCurrency,
         PostingRequest request,
         long transactionNo)
     {
@@ -262,6 +264,14 @@ public sealed class JournalPostingService(
             // when neither says, which for a hand-keyed journal is the right answer and for
             // anything else means somebody forgot.
             BranchId = line.BranchId ?? request.BranchId ?? tenantContext.BranchId,
+
+            // What the document was actually written in, and the rate that turned it into the
+            // figure above. Kept on the entry rather than looked up again later: a rate table is
+            // edited, and an entry that cannot be explained without trusting today's table is an
+            // entry nobody can defend in an audit.
+            CurrencyCode = line.CurrencyCode,
+            AmountInCurrency = amountInCurrency,
+            ExchangeRate = line.ExchangeRate,
         };
     }
 

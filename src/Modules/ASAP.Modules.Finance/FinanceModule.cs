@@ -70,8 +70,10 @@ public sealed class FinanceModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISync
 
         services.AddScoped<JournalPostingValidator>();
         services.AddScoped<JournalPostingService>();
+        services.AddScoped<Currencies.ExchangeRateService>();
         services.AddScoped<Journals.DocumentPostingService>();
         services.AddScoped<Parties.PartyLedgerWriter>();
+        services.AddScoped<Parties.IExchangeDifferencePoster, Journals.ExchangeDifferencePoster>();
         services.AddScoped<Parties.PartyApplicationService>();
         services.AddScoped<Tax.TaxPostingService>();
         services.AddScoped<Seed.FinanceSeeder>();
@@ -232,6 +234,23 @@ public sealed class FinanceModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISync
             isSensitive: true),
 
         PermissionDescriptor.Define(
+            Id, "Currency", PermissionAction.Read,
+            new LocalizedText("View currencies and rates", "عرض العملات وأسعار الصرف")),
+
+        PermissionDescriptor.Define(
+            Id, "Currency", PermissionAction.Update,
+            new LocalizedText("Maintain currencies and rates", "إدارة العملات وأسعار الصرف"),
+            new LocalizedText(
+                "Add currencies and enter the rates everything foreign is converted at. A rate "
+                + "decides what every document raised on its day is worth in the books, so this "
+                + "moves figures without touching a single document.",
+                "إضافة العملات وإدخال أسعار الصرف التي يُحوَّل بها كل ما هو أجنبي. وسعر الصرف "
+                + "يقرر قيمة كل مستند صادر في يومه داخل الدفاتر، فهذه الصلاحية تحرك الأرقام "
+                + "دون المساس بأي مستند."),
+            implies: [$"{Id}.Currency.Read"],
+            isSensitive: true),
+
+        PermissionDescriptor.Define(
             Id, "Report", PermissionAction.Read,
             new LocalizedText("Run financial reports", "تشغيل التقارير المالية")),
 
@@ -245,6 +264,42 @@ public sealed class FinanceModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISync
     /// <inheritdoc />
     public IReadOnlyCollection<SetupDescriptor> Setups =>
     [
+        new()
+        {
+            Key = $"{Id}.Currency.GainAccount",
+            Module = Id,
+            Group = new LocalizedText("Currencies", "العملات"),
+            DisplayName = new LocalizedText("Exchange gain", "أرباح فروق العملة"),
+            Description = new LocalizedText(
+                "Where a favourable rate movement lands. When a foreign invoice settles for more "
+                + "than it was worth on the day it was raised, the difference is not revenue -- "
+                + "nobody sold anything more -- so it is kept out of the sales figure.",
+                "الحساب الذي تُقيَّد فيه فروق العملة الموجبة. فحين تُسوّى فاتورة أجنبية بأكثر مما "
+                + "كانت تساويه يوم صدورها، لا يكون الفرق إيرادًا، إذ لم يُبَع شيء إضافي، فيُبعَد "
+                + "عن رقم المبيعات."),
+            ValueType = SetupValueType.Text,
+            Scope = SetupScope.Company,
+            DefaultValue = "4920",
+            RequiresPermission = $"{Id}.Currency.Update",
+            HelpTopic = "finance/currencies",
+        },
+        new()
+        {
+            Key = $"{Id}.Currency.LossAccount",
+            Module = Id,
+            Group = new LocalizedText("Currencies", "العملات"),
+            DisplayName = new LocalizedText("Exchange loss", "خسائر فروق العملة"),
+            Description = new LocalizedText(
+                "Where an unfavourable rate movement lands, for the same reason as the gain: it "
+                + "is not a cost of anything the company bought.",
+                "الحساب الذي تُقيَّد فيه فروق العملة السالبة، للسبب نفسه: فهي ليست تكلفة لشيء "
+                + "اشترته الشركة."),
+            ValueType = SetupValueType.Text,
+            Scope = SetupScope.Company,
+            DefaultValue = "6920",
+            RequiresPermission = $"{Id}.Currency.Update",
+            HelpTopic = "finance/currencies",
+        },
         new()
         {
             Key = $"{Id}.Parties.ReceivablesAccount",

@@ -56,7 +56,17 @@ Everything else posts here, so it goes first.
 - *in progress* General journals: batches and lines done, **reversal done**; recurring journals to come
 - **done** The posting engine: balance validation, period checks, dimension checks, audit trail
 - **done** General ledger entries, transaction grouping, running account balances
-- Currencies and exchange rates, with realised and unrealised gain/loss
+- *in progress* **Currencies and exchange rates, with realised gain and loss done** — rates are
+  dated and only dated, so an invoice raised last March converts at last March's rate forever and
+  entering today's does not restate it. Quoted as a pair rather than a multiplier, so 100 JPY =
+  2.53 SAR is stated exactly instead of rounded into every line. A missing rate refuses the
+  posting and names the currency and the day, because a rate that is guessed produces books that
+  balance and are wrong, which nothing downstream will ever catch. Settlement of a foreign entry
+  is decided in its own currency: a thousand dollars settles a thousand dollars whatever the two
+  were worth in riyals, and the riyal residue is posted to exchange gain or loss rather than left
+  on the control account or, worse, left looking like an unpaid balance. Unrealised revaluation
+  of open foreign balances at a period end still to come, and until it exists a receivables
+  figure is what the open invoices were worth on the days they were raised
 - Bank accounts and reconciliation
 - **done** Customer and vendor ledgers with application and settlement, posted through the journal
   so the control account and the subsidiary ledger commit together

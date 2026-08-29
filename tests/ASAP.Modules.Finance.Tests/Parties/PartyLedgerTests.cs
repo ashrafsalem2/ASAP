@@ -2,6 +2,7 @@ using ASAP.Modules.Finance.Ledger;
 using ASAP.Modules.Finance.Parties;
 using ASAP.Modules.Finance.Reporting;
 using ASAP.Platform.Core.Messaging;
+using ASAP.Platform.Kernel.Results;
 using ASAP.Platform.Kernel.Security;
 using ASAP.Platform.Kernel.Tenancy;
 using ASAP.Platform.Kernel.Time;
@@ -59,7 +60,10 @@ public sealed class PartyLedgerTests : IDisposable
     }
 
     private PartyApplicationService Applications(AsapDbContext context)
-        => new(context, new MessageCatalog(FinanceMessages.All), _tenancy, new StubUser(), _clock);
+        => Applications(context, new FakeExchange());
+
+    private PartyApplicationService Applications(AsapDbContext context, FakeExchange exchange)
+        => new(context, new MessageCatalog(FinanceMessages.All), _tenancy, new StubUser(), _clock, exchange);
 
     private void Seed()
     {
@@ -112,11 +116,195 @@ public sealed class PartyLedgerTests : IDisposable
         return entry.Id;
     }
 
+    /// <summary>
+    /// Adds an entry written in a foreign currency, at a stated rate.
+    /// </summary>
+    /// <remarks>
+    /// The rate is applied here rather than looked up, because these tests are about what
+    /// settlement does with two entries raised at two rates -- not about where the rates came
+    /// from, which is the exchange rate service's own business.
+    /// </remarks>
+    private Guid ForeignEntry(
+        string documentNo,
+        decimal amountInCurrency,
+        decimal rate,
+        GlDocumentType type)
+    {
+        using var context = NewContext();
+
+        var baseAmount = Math.Round(amountInCurrency * rate, 2, MidpointRounding.AwayFromZero);
+
+        var entry = new CustomerLedgerEntry
+        {
+            TenantId = Tenant,
+            CompanyId = Company,
+            PartyId = _customerId,
+            PartyNo = "C-0001",
+            PartyName = "Al Faisaliah Trading",
+            PostingDate = Today,
+            DueDate = Today.AddDays(30),
+            TransactionNo = 1,
+            DocumentType = type,
+            DocumentNo = documentNo,
+            Description = documentNo,
+            Amount = baseAmount,
+            RemainingAmount = baseAmount,
+            AmountInCurrency = amountInCurrency,
+            RemainingAmountInCurrency = amountInCurrency,
+            CurrencyCode = "USD",
+            IsOpen = true,
+            ControlAccountNo = "1300",
+            SourceCode = "TEST",
+        };
+
+        context.Set<CustomerLedgerEntry>().Add(entry);
+        context.SaveChanges();
+
+        return entry.Id;
+    }
+
     private Guid Invoice(string no, decimal amount, DateOnly? postingDate = null)
         => Entry(no, amount, postingDate ?? Today, GlDocumentType.Invoice);
 
     private Guid Payment(string no, decimal amount, DateOnly? postingDate = null)
         => Entry(no, -amount, postingDate ?? Today, GlDocumentType.Payment);
+
+    [Fact]
+    public async Task A_foreign_invoice_paid_in_full_closes_even_though_the_rate_moved()
+    {
+        // USD 1,000 invoiced at 3.75 and paid at 3.80. The customer owes nothing: they were
+        // billed a thousand dollars and they sent a thousand dollars.
+        var invoice = ForeignEntry("INV-USD-1", 1_000m, 3.75m, GlDocumentType.Invoice);
+        var payment = ForeignEntry("PAY-USD-1", -1_000m, 3.80m, GlDocumentType.Payment);
+
+        await using var context = NewContext();
+        var exchange = new FakeExchange();
+
+        var result = await Applications(context, exchange)
+            .ApplyAsync(PartyKind.Customer, payment, invoice);
+
+        result.Succeeded.ShouldBeTrue();
+        result.Value.ClosedEntries.ShouldBe(2, "a thousand dollars settles a thousand dollars");
+
+        var settledInvoice = await ReadAsync(invoice);
+        settledInvoice.IsOpen.ShouldBeFalse();
+        settledInvoice.RemainingAmountInCurrency.ShouldBe(0m);
+
+        // The riyal amounts did not cancel, and that residue is the whole point: it is not an
+        // unpaid balance, and it may not be left sitting on the control account either.
+        settledInvoice.RemainingAmount.ShouldBe(0m);
+
+        var posted = exchange.Posted.ShouldHaveSingleItem();
+        posted.Account.ShouldBe("1300");
+        posted.Currency.ShouldBe("USD");
+
+        // The company received 3,800 riyals for something booked at 3,750, so it is 50 better
+        // off. Negative is the direction that means a gain.
+        posted.Difference.ShouldBe(-50m);
+    }
+
+    [Fact]
+    public async Task A_rate_that_moved_the_other_way_is_a_loss()
+    {
+        var invoice = ForeignEntry("INV-USD-2", 1_000m, 3.80m, GlDocumentType.Invoice);
+        var payment = ForeignEntry("PAY-USD-2", -1_000m, 3.75m, GlDocumentType.Payment);
+
+        await using var context = NewContext();
+        var exchange = new FakeExchange();
+
+        var result = await Applications(context, exchange)
+            .ApplyAsync(PartyKind.Customer, payment, invoice);
+
+        result.Succeeded.ShouldBeTrue();
+        exchange.Posted.ShouldHaveSingleItem().Difference.ShouldBe(50m);
+    }
+
+    [Fact]
+    public async Task Settling_a_foreign_entry_against_a_local_one_is_refused()
+    {
+        var invoice = ForeignEntry("INV-USD-3", 1_000m, 3.75m, GlDocumentType.Invoice);
+        var payment = Payment("PAY-SAR-1", 3_750m);
+
+        await using var context = NewContext();
+        var exchange = new FakeExchange();
+
+        var result = await Applications(context, exchange)
+            .ApplyAsync(PartyKind.Customer, payment, invoice);
+
+        result.Failed.ShouldBeTrue(
+            "the two would have to be compared at some rate, and any rate chosen decides a gain "
+            + "or a loss nobody agreed to");
+
+        result.Messages.ShouldContain(m => m.Code.Value == "FIN.APPLICATION.DIFFERENT_CURRENCIES");
+        exchange.Posted.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task A_part_payment_in_a_foreign_currency_leaves_the_rest_open_in_that_currency()
+    {
+        var invoice = ForeignEntry("INV-USD-4", 1_000m, 3.75m, GlDocumentType.Invoice);
+        var payment = ForeignEntry("PAY-USD-4", -400m, 3.80m, GlDocumentType.Payment);
+
+        await using var context = NewContext();
+        var exchange = new FakeExchange();
+
+        var result = await Applications(context, exchange)
+            .ApplyAsync(PartyKind.Customer, payment, invoice);
+
+        result.Succeeded.ShouldBeTrue();
+
+        var settled = await ReadAsync(invoice);
+        settled.IsOpen.ShouldBeTrue();
+
+        // Six hundred dollars still owed, and the riyal figure that goes with it is what those
+        // six hundred were worth on the day the invoice was raised -- not on the day of the part
+        // payment, which has nothing to say about the part not yet paid.
+        settled.RemainingAmountInCurrency.ShouldBe(600m);
+        settled.RemainingAmount.ShouldBe(2_250m);
+
+        // 400 came off the payment at 3.80 and off the invoice at 3.75.
+        exchange.Posted.ShouldHaveSingleItem().Difference.ShouldBe(-20m);
+    }
+
+    [Fact]
+    public async Task Unapplying_a_foreign_settlement_gives_both_sides_back_what_it_took()
+    {
+        var invoice = ForeignEntry("INV-USD-5", 1_000m, 3.75m, GlDocumentType.Invoice);
+        var payment = ForeignEntry("PAY-USD-5", -1_000m, 3.80m, GlDocumentType.Payment);
+
+        Guid applicationId;
+
+        await using (var context = NewContext())
+        {
+            await Applications(context, new FakeExchange())
+                .ApplyAsync(PartyKind.Customer, payment, invoice);
+        }
+
+        await using (var context = NewContext())
+        {
+            applicationId = context.Set<CustomerApplication>().Single().Id;
+        }
+
+        await using (var context = NewContext())
+        {
+            var undone = await Applications(context, new FakeExchange())
+                .UnapplyAsync(PartyKind.Customer, applicationId);
+
+            undone.Succeeded.ShouldBeTrue();
+        }
+
+        // Each side gets back its own figure, which for a foreign pair are two different numbers.
+        // Giving both sides the same one would leave the ledger fifty riyals out.
+        var restoredInvoice = await ReadAsync(invoice);
+        restoredInvoice.RemainingAmount.ShouldBe(3_750m);
+        restoredInvoice.RemainingAmountInCurrency.ShouldBe(1_000m);
+        restoredInvoice.IsOpen.ShouldBeTrue();
+
+        var restoredPayment = await ReadAsync(payment);
+        restoredPayment.RemainingAmount.ShouldBe(-3_800m);
+        restoredPayment.RemainingAmountInCurrency.ShouldBe(-1_000m);
+        restoredPayment.IsOpen.ShouldBeTrue();
+    }
 
     private async Task<CustomerLedgerEntry> ReadAsync(Guid id)
     {
@@ -420,5 +608,32 @@ public sealed class PartyLedgerTests : IDisposable
         public DateTime UtcNow { get; } = utcNow;
 
         public DateOnly Today => DateOnly.FromDateTime(UtcNow);
+    }
+
+    /// <summary>
+    /// Records what the application service asked to be posted, and posts nothing.
+    /// </summary>
+    /// <remarks>
+    /// The point of the seam. What is worth checking here is the arithmetic — which account, how
+    /// much, and which way round — and none of that needs a chart of accounts, a fiscal calendar
+    /// or a transaction number to answer. Whether a two-line journal posts correctly is the
+    /// posting engine's own test suite's job.
+    /// </remarks>
+    private sealed class FakeExchange : IExchangeDifferencePoster
+    {
+        public List<(string Account, decimal Difference, string? Currency)> Posted { get; } = [];
+
+        public Task<Result<long>> PostAsync(
+            string controlAccountNo,
+            decimal difference,
+            string? currencyCode,
+            string? documentNo,
+            Guid? branchId,
+            CancellationToken cancellationToken = default)
+        {
+            Posted.Add((controlAccountNo, difference, currencyCode));
+
+            return Task.FromResult(Result<long>.Success(Posted.Count));
+        }
     }
 }

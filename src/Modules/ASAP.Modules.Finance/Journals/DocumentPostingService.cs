@@ -60,6 +60,10 @@ namespace ASAP.Modules.Finance.Journals;
 /// <param name="OverrideReason">
 /// Why the caller is pushing past a block. Recorded in the audit log alongside the code overridden.
 /// </param>
+/// <param name="Dimensions">
+/// How the whole document is analysed, for every line that does not say for itself. A payroll run
+/// charged to one department names it once here rather than on two hundred lines.
+/// </param>
 public sealed record DocumentPosting(
     string BatchCode,
     IReadOnlyList<PostJournalLine> Lines,
@@ -71,7 +75,8 @@ public sealed record DocumentPosting(
     string? Description = null,
     Guid? BranchId = null,
     string? OverrideReason = null,
-    DateOnly? PostingDate = null);
+    DateOnly? PostingDate = null,
+    IReadOnlyDictionary<string, string>? Dimensions = null);
 
 /// <summary>
 /// Turns what a document names into what the posting engine needs, then posts it.
@@ -94,6 +99,7 @@ public sealed class DocumentPostingService(
     ISetupService setup,
     IMessageCatalog messages,
     ExchangeRateService rates,
+    DimensionSetResolver dimensions,
     IUserContext userContext,
     IClock clock)
 {
@@ -128,6 +134,50 @@ public sealed class DocumentPostingService(
         if (missingRates.Count > 0)
         {
             return Result<PostingReceipt>.Failure(missingRates);
+        }
+
+        // The document's own analysis, and then each line's on top of it. A payroll run charged to
+        // one department names it once; the one line that belongs elsewhere overrides it, and
+        // overrides it dimension by dimension -- a line naming a project must not lose the
+        // department the document set, which is never what naming a project means.
+        var documentDimensions = await dimensions
+            .ResolveAsync(request.Dimensions, cancellationToken)
+            .ConfigureAwait(false);
+
+        var dimensionProblems = new List<AsapMessage>(documentDimensions.Found);
+        var combinationByLine = new Dictionary<int, DimensionCombination>();
+
+        for (var index = 0; index < request.Lines.Count; index++)
+        {
+            if (request.Lines[index].Dimensions is not { Count: > 0 } named)
+            {
+                continue;
+            }
+
+            var resolved = await dimensions.ResolveAsync(named, cancellationToken).ConfigureAwait(false);
+
+            dimensionProblems.AddRange(resolved.Found);
+
+            if (!resolved.Failed)
+            {
+                combinationByLine[index] = documentDimensions.Combination.OverrideWith(resolved.Combination);
+            }
+        }
+
+        // Every bad code at once. Somebody who mistyped three of them should be told three times,
+        // not told about the first, fix it, and be told about the second.
+        if (dimensionProblems.Exists(static m => m.IsFailure))
+        {
+            return Result<PostingReceipt>.Failure(dimensionProblems);
+        }
+
+        var setByLine = new Dictionary<int, Guid?>();
+
+        foreach (var (index, combination) in combinationByLine)
+        {
+            setByLine[index] = await dimensions
+                .SetForAsync(combination, cancellationToken)
+                .ConfigureAwait(false);
         }
 
         // A party line posts to its control account, so that account has to be loaded alongside
@@ -195,6 +245,10 @@ public sealed class DocumentPostingService(
                     ? rate
                     : (ResolvedRate?)null;
 
+                var combination = combinationByLine.TryGetValue(index, out var own)
+                    ? own
+                    : documentDimensions.Combination;
+
                 return new PostingLineView(
                     LineNo: index + 1,
                     PostingDate: postingDate,
@@ -206,7 +260,7 @@ public sealed class DocumentPostingService(
                         accounts,
                         companyDimensionIds),
                     BalancingAccount: Resolve(line.BalancingAccountNo, accounts, companyDimensionIds),
-                    Dimensions: DimensionCombination.Empty,
+                    Dimensions: combination,
                     DocumentNo: request.DocumentNo,
                     Description: line.Description,
                     Party: party,
@@ -217,6 +271,7 @@ public sealed class DocumentPostingService(
                         taxCodes,
                         postingDate),
                     BranchId: line.BranchId,
+                    DimensionSetId: setByLine.GetValueOrDefault(index),
                     CurrencyCode: foreign?.Code,
                     AmountInCurrency: foreign is null ? null : line.Amount,
                     ExchangeRate: foreign?.Multiplier);
@@ -231,6 +286,17 @@ public sealed class DocumentPostingService(
         {
             return Result<PostingReceipt>.Failure(unknown);
         }
+
+        var documentSetId = await dimensions
+            .SetForAsync(documentDimensions.Combination, cancellationToken)
+            .ConfigureAwait(false);
+
+        // Which dimensions hold the two shortcut positions, so the engine can copy their values
+        // straight onto every entry. Without this the shortcut columns stay empty and the whole
+        // reason for having shortcuts -- a seek rather than a join -- is lost.
+        var (firstShortcut, secondShortcut) = await dimensions
+            .ShortcutsAsync(cancellationToken)
+            .ConfigureAwait(false);
 
         var environment = new PostingEnvironment(
             BatchCode: request.BatchCode,
@@ -263,7 +329,10 @@ public sealed class DocumentPostingService(
             DocumentNo: request.DocumentNo,
             Description: request.Description,
             BranchId: request.BranchId,
-            OverrideReason: request.OverrideReason);
+            OverrideReason: request.OverrideReason,
+            DimensionSetId: documentSetId,
+            ShortcutDimension1DefinitionId: firstShortcut,
+            ShortcutDimension2DefinitionId: secondShortcut);
 
         return await posting
             .PostAsync(lines, environment, postingRequest, cancellationToken)

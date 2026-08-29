@@ -52,7 +52,18 @@ Everything else posts here, so it goes first.
 
 - **done** Chart of accounts with account categories, types and totalling ranges
 - **done** Fiscal years, periods, and the posting window that governs what may still be posted
-- Dimensions applied to accounts and enforced by dimension posting rules
+- **done** Dimensions applied to accounts and enforced at posting. The axes and the validation
+  existed already; what was missing was any way for a document to carry a value, so a company
+  that made one mandatory would have had every posting refused. Documents now name them the way a
+  person does — DEPARTMENT is SALES — and the document's analysis is overridden by a line's per
+  dimension rather than wholesale, because a line naming a project must not lose the department
+  the document set. Each mistake is its own refusal: a dimension that does not exist, one that
+  has been retired, a value that does not exist and a value that is a heading or a total send
+  somebody to four different places, and one message covering all of them sends them to none.
+  Every bad code is reported at once. Sets are shared by fingerprint, and the lookup sees what
+  the unit of work has already added, so a document whose lines share a combination creates one
+  row rather than one per line. Shortcut dimensions are copied onto the entry, which is what
+  makes grouping a million entries by department a seek rather than a join
 - *in progress* General journals: batches and lines done, **reversal done**; recurring journals to come
 - **done** The posting engine: balance validation, period checks, dimension checks, audit trail
 - **done** General ledger entries, transaction grouping, running account balances

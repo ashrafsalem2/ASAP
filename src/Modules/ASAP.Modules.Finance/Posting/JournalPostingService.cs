@@ -254,7 +254,11 @@ public sealed class JournalPostingService(
             Amount = amount,
             DebitAmount = debit,
             CreditAmount = credit,
-            DimensionSetId = request.DimensionSetId,
+            // The line's own analysis when it has one, and the document's otherwise. The
+            // shortcuts below already come from the line, so taking the set from the document
+            // regardless would have left an entry whose shortcut said one department and whose
+            // set said another.
+            DimensionSetId = line.DimensionSetId ?? request.DimensionSetId,
             ShortcutDimension1Id = request.ShortcutDimension1Id ?? FirstShortcut(line.Dimensions, request, 1),
             ShortcutDimension2Id = request.ShortcutDimension2Id ?? FirstShortcut(line.Dimensions, request, 2),
             SourceCode = request.SourceCode,

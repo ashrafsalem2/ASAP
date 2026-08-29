@@ -189,6 +189,10 @@ public sealed record PostingTaxView(
 /// through to be recorded rather than to be calculated with.
 /// </para>
 /// </remarks>
+/// <param name="DimensionSetId">
+/// The stored combination this line's entries point at, or null to take the document's. A line
+/// naming its own department wants its own set; the rest of the document is unaffected.
+/// </param>
 /// <param name="CurrencyCode">What the document was written in, or null for the company's own.</param>
 /// <param name="AmountInCurrency">The amount as written, before conversion.</param>
 /// <param name="ExchangeRate">
@@ -208,6 +212,7 @@ public sealed record PostingLineView(
     string? ExternalDocumentNo = null,
     PostingTaxView? Tax = null,
     Guid? BranchId = null,
+    Guid? DimensionSetId = null,
     string? CurrencyCode = null,
     decimal? AmountInCurrency = null,
     decimal? ExchangeRate = null);

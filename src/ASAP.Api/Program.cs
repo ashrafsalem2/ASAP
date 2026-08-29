@@ -158,6 +158,7 @@ app.MapTransferEndpoints();
 app.MapPurchasingEndpoints();
 app.MapSalesEndpoints();
 app.MapPromotionsEndpoints();
+app.MapDimensionEndpoints();
 app.MapBankingEndpoints();
 app.MapHrEndpoints();
 app.MapPosEndpoints();

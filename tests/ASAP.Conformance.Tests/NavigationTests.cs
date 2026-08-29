@@ -73,6 +73,28 @@ public sealed class NavigationTests
     }
 
     [Fact]
+    public void Every_entry_asks_for_a_permission_that_exists()
+    {
+        var declared = new HashSet<string>(
+            Modules.SelectMany(static m => m.Permissions).Select(static p => p.Key),
+            StringComparer.OrdinalIgnoreCase);
+
+        var unreachable = Menu
+            .Where(static i => i.RequiresPermission is { Length: > 0 })
+            .Where(i => !declared.Contains(i.RequiresPermission!))
+            .Select(static i => $"{i.Id} needs {i.RequiresPermission}, which nothing declares")
+            .ToList();
+
+        // An entry guarded by a permission nobody declares is an entry nobody can be granted, so
+        // it is invisible to every user including the administrator. It looks like a feature that
+        // was never finished, and it is usually a feature that was finished and misspelt.
+        unreachable.ShouldBeEmpty(
+            $"{unreachable.Count} menu entr(ies) ask for a permission that does not exist:"
+            + Environment.NewLine + "  "
+            + string.Join(Environment.NewLine + "  ", unreachable));
+    }
+
+    [Fact]
     public void No_two_entries_lead_to_the_same_screen()
     {
         var duplicates = Menu

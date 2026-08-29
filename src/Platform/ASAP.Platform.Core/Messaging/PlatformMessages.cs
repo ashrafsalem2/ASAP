@@ -52,6 +52,15 @@ public static class PlatformMessages
     /// <summary>A dimension value is blocked or is not postable.</summary>
     public static readonly MessageCode DimensionValueBlocked = new("PLAT.DIMENSION.VALUE_BLOCKED");
 
+    /// <summary>A document names a dimension the company does not have.</summary>
+    public static readonly MessageCode DimensionNotFound = new("PLAT.DIMENSION.NOT_FOUND");
+
+    /// <summary>A document names a dimension that has been retired.</summary>
+    public static readonly MessageCode DimensionBlocked = new("PLAT.DIMENSION.BLOCKED");
+
+    /// <summary>A document names a value the dimension does not have.</summary>
+    public static readonly MessageCode DimensionValueNotFound = new("PLAT.DIMENSION.VALUE_NOT_FOUND");
+
     /// <summary>A setting was given a value that does not fit its declaration.</summary>
     public static readonly MessageCode SetupValueInvalid = new("PLAT.SETUP.VALUE_INVALID");
 
@@ -272,6 +281,56 @@ public static class PlatformMessages
             Resolution = new LocalizedText(
                 "Choose a value for {Dimension}, or make it optional in dimension setup.",
                 "اختر قيمة لـ {Dimension}، أو اجعله اختياريًا في إعداد الأبعاد."),
+            HelpTopic = "setup/dimensions",
+        },
+        new()
+        {
+            Code = DimensionNotFound,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("No such dimension", "لا يوجد بُعد بهذا الرمز"),
+            Detail = new LocalizedText(
+                "This document analyses by {Dimension}, and nothing in this company is set up "
+                + "under that name.",
+                "يحلّل هذا المستند حسب {Dimension}، ولا يوجد في هذه الشركة ما هو مُعرَّف بهذا الاسم."),
+            Resolution = new LocalizedText(
+                "Add {Dimension} under dimensions, or take it off the document. A dimension is a "
+                + "way of cutting up the figures, and it has to exist before anything can be "
+                + "posted against it.",
+                "أضف {Dimension} في الأبعاد، أو أزله من المستند. فالبُعد طريقة لتقسيم الأرقام، "
+                + "ولا بد أن يوجد قبل أن يُرحَّل عليه شيء."),
+            HelpTopic = "setup/dimensions",
+        },
+        new()
+        {
+            Code = DimensionBlocked,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("This dimension has been retired", "هذا البُعد أُوقف"),
+            Detail = new LocalizedText(
+                "{Dimension} is no longer in use, so nothing new may be analysed by it. What was "
+                + "already posted against it is untouched and still reports.",
+                "لم يعد {Dimension} مستخدمًا، فلا يمكن تحليل جديد به. أما ما رُحِّل عليه سابقًا "
+                + "فلم يتغير ولا يزال يظهر في التقارير."),
+            Resolution = new LocalizedText(
+                "Use a dimension still in use, or unblock {Dimension} if it was retired by "
+                + "mistake.",
+                "استخدم بُعدًا لا يزال مفعّلًا، أو ألغِ إيقاف {Dimension} إن كان قد أُوقف بالخطأ."),
+            HelpTopic = "setup/dimensions",
+        },
+        new()
+        {
+            Code = DimensionValueNotFound,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("No such value", "لا توجد قيمة بهذا الرمز"),
+            Detail = new LocalizedText(
+                "{Dimension} has no value {Value}.",
+                "لا توجد للبُعد {Dimension} قيمة بالرمز {Value}."),
+            Resolution = new LocalizedText(
+                "Choose one of the values {Dimension} has, or add {Value} to it. Values are "
+                + "deliberately a fixed list: an axis anybody can type a new value into stops "
+                + "being an axis and becomes a comment field.",
+                "اختر إحدى القيم المتاحة للبُعد {Dimension}، أو أضف إليه القيمة {Value}. والقيم "
+                + "قائمة محددة عن قصد، فالمحور الذي يستطيع أي أحد كتابة قيمة جديدة فيه يكفّ عن "
+                + "كونه محورًا ويصير حقل ملاحظات."),
             HelpTopic = "setup/dimensions",
         },
         new()

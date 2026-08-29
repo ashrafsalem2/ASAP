@@ -39,6 +39,12 @@ namespace ASAP.Modules.Finance.Journals;
 /// per line because one document can belong to several -- a payroll run splits a month's wage
 /// between the branches somebody actually worked at.
 /// </param>
+/// <param name="Dimensions">
+/// How this line is analysed, as dimension code to value code — <c>DEPARTMENT</c> is
+/// <c>SALES</c>. Named rather than identified, because that is what an integration sends and what
+/// somebody types. A dimension left out simply is not set on this line; a dimension the company
+/// demands and this line leaves out is refused, which is the whole point of demanding it.
+/// </param>
 /// <param name="CurrencyCode">
 /// What the amount is written in, or null for the company's own currency. When it is set,
 /// <paramref name="Amount"/> is read as being in that currency and is converted at the rate in
@@ -56,7 +62,8 @@ public sealed record PostJournalLine(
     string? TaxCode = null,
     bool TaxIncludedInAmount = false,
     Guid? BranchId = null,
-    string? CurrencyCode = null);
+    string? CurrencyCode = null,
+    IReadOnlyDictionary<string, string>? Dimensions = null);
 
 /// <summary>
 /// Posts a set of journal lines to the general ledger.

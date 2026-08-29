@@ -370,17 +370,6 @@ public sealed class PosModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISyncCont
         },
         new()
         {
-            Id = "Pos.Promotions",
-            Module = Id,
-            ParentId = "Pos.Root",
-            DisplayName = new LocalizedText("What the offers did", "أثر العروض"),
-            Kind = NavigationKind.Report,
-            Route = "/pos/promotions",
-            RequiresPermission = $"{Id}.Report.Read",
-            Order = 25,
-        },
-        new()
-        {
             Id = "Pos.PrintTemplates",
             Module = Id,
             ParentId = "Pos.Root",

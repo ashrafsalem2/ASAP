@@ -148,7 +148,19 @@ public sealed class FinanceSeeder(AsapDbContext context, ILogger<FinanceSeeder> 
             string.Join(", ", missing.Select(static a => a.No)));
     }
 
-    private static List<GlAccount> ChartOfAccounts(Guid tenantId, Guid companyId)
+    /// <summary>
+    /// The chart a new company is given.
+    /// </summary>
+    /// <param name="tenantId">The tenant the accounts belong to.</param>
+    /// <param name="companyId">The company they belong to.</param>
+    /// <returns>The accounts, in the order they are numbered.</returns>
+    /// <remarks>
+    /// A pure function, and public so it can be checked without a database. What it returns is
+    /// what every setup default in the system points at, and a number used twice here is one
+    /// account with two meanings — which is how an exchange loss comes to be posted to the till's
+    /// rounding figure. That is worth a test rather than a careful reading.
+    /// </remarks>
+    public static List<GlAccount> ChartOfAccounts(Guid tenantId, Guid companyId)
     {
         var accounts = new List<GlAccount>();
 
@@ -261,7 +273,11 @@ public sealed class FinanceSeeder(AsapDbContext context, ILogger<FinanceSeeder> 
         Add("6400", "Office expenses", "مصروفات مكتبية", GlAccountCategory.Expense);
         Add("6500", "Marketing", "التسويق", GlAccountCategory.Expense);
         Add("6600", "Depreciation", "الإهلاك", GlAccountCategory.Expense);
-        Add("6920", "Exchange loss", "خسائر فروق العملة", GlAccountCategory.Expense);
+        Add("6930", "Exchange loss", "خسائر فروق العملة", GlAccountCategory.Expense);
+        // Its own account rather than lost inside other expenses. It is the figure a
+        // reconciliation turns up every month, and the one worth arguing with the bank about.
+        Add("6700", "Bank charges", "مصاريف بنكية", GlAccountCategory.Expense);
+
         Add("6900", "Other expenses", "مصروفات أخرى", GlAccountCategory.Expense);
 
         // Where a drawer that counts to something other than it should is reconciled. Kept apart

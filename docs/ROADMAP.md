@@ -67,7 +67,19 @@ Everything else posts here, so it goes first.
   on the control account or, worse, left looking like an unpaid balance. Unrealised revaluation
   of open foreign balances at a period end still to come, and until it exists a receivables
   figure is what the open invoices were worth on the days they were raised
-- Bank accounts and reconciliation
+- **done** Bank accounts and reconciliation. One ledger account per bank account, never
+  shared, because two banks sharing one cannot be reconciled against either statement. The whole
+  thing rests on one identity — the books are ahead of the bank by exactly the items the bank has
+  not seen — checked at the moment of closing rather than at every keystroke, so the work can be
+  done in any order and only the claim at the end has to be true. The check counts outstanding
+  items against every statement ever agreed, not just the current one, so a line matched wrong
+  last March surfaces at this month's close rather than sitting in the books. Matches are held on
+  the statement line rather than on the entry, which leaves the ledger exactly as immutable as it
+  claims to be. Amounts that differ warn rather than refuse, because one bank line covering three
+  supplier payments is real; one entry settling two lines is refused, because the same money did
+  not clear twice. Suggestions are offered only where there is exactly one candidate — two
+  identical amounts in a week is a coin toss, not a decision. Importing a statement file, and
+  payment files out, still to come
 - **done** Customer and vendor ledgers with application and settlement, posted through the journal
   so the control account and the subsidiary ledger commit together
 - **done** VAT/tax setup with dated rates, tax posting on journal lines, and a return-ready

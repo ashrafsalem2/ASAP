@@ -26,6 +26,33 @@ public static class FinanceMessages
     /// <summary>A person is posting by hand to an account only a module should touch.</summary>
     public static readonly MessageCode DirectPostingNotAllowed = new("FIN.ACCOUNT.DIRECT_POSTING_BLOCKED");
 
+    /// <summary>No bank statement by that identifier.</summary>
+    public static readonly MessageCode BankStatementNotFound = new("FIN.BANK.STATEMENT_NOT_FOUND");
+
+    /// <summary>A statement that has been agreed cannot be worked on.</summary>
+    public static readonly MessageCode StatementAlreadyReconciled = new("FIN.BANK.ALREADY_RECONCILED");
+
+    /// <summary>The statement's own lines do not add up to the movement it claims.</summary>
+    public static readonly MessageCode StatementLinesDoNotAddUp = new("FIN.BANK.LINES_DO_NOT_ADD_UP");
+
+    /// <summary>Some statement lines have nothing in the books behind them.</summary>
+    public static readonly MessageCode StatementLinesUnmatched = new("FIN.BANK.LINES_UNMATCHED");
+
+    /// <summary>The books and the bank disagree by more than the outstanding items explain.</summary>
+    public static readonly MessageCode ReconciliationDoesNotBalance = new("FIN.BANK.DOES_NOT_BALANCE");
+
+    /// <summary>No ledger entry by that identifier.</summary>
+    public static readonly MessageCode BankEntryNotFound = new("FIN.BANK.ENTRY_NOT_FOUND");
+
+    /// <summary>The entry offered is not on the bank's own ledger account.</summary>
+    public static readonly MessageCode BankEntryOnAnotherAccount = new("FIN.BANK.ENTRY_WRONG_ACCOUNT");
+
+    /// <summary>Another statement line already claims that entry.</summary>
+    public static readonly MessageCode BankEntryAlreadyMatched = new("FIN.BANK.ENTRY_ALREADY_MATCHED");
+
+    /// <summary>A line has been matched to an entry of a different amount.</summary>
+    public static readonly MessageCode BankMatchAmountDiffers = new("FIN.BANK.MATCH_AMOUNT_DIFFERS");
+
     /// <summary>A line names a currency the company does not have.</summary>
     public static readonly MessageCode CurrencyNotFound = new("FIN.CURRENCY.NOT_FOUND");
 
@@ -179,6 +206,174 @@ public static class FinanceMessages
             Resolution = new LocalizedText(
                 "Choose a different account, or unblock {AccountNo} in the chart of accounts.",
                 "اختر حسابًا آخر، أو ألغِ حظر {AccountNo} في شجرة الحسابات."),
+        },
+        new()
+        {
+            Code = BankStatementNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such statement", "لا يوجد كشف بهذا المعرّف"),
+            Detail = new LocalizedText(
+                "Nothing in this company matches {Statement}.",
+                "لا يوجد في هذه الشركة ما يطابق {Statement}."),
+            Resolution = new LocalizedText(
+                "Open the statement from the bank account it belongs to. It may have been in "
+                + "another company.",
+                "افتح الكشف من الحساب البنكي الذي يتبعه. وربما كان في شركة أخرى."),
+            HelpTopic = "finance/bank-reconciliation",
+        },
+        new()
+        {
+            Code = StatementAlreadyReconciled,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("This statement has been agreed", "هذا الكشف تمت مطابقته"),
+            Detail = new LocalizedText(
+                "Statement {Statement} was reconciled, and every later reconciliation has been "
+                + "measured against it. Changing a match now would make those wrong without "
+                + "anybody being told.",
+                "الكشف {Statement} تمت مطابقته، وكل مطابقة لاحقة قيست عليه. وتغيير أي ربط الآن "
+                + "سيجعل تلك المطابقات خاطئة دون أن يُخطر بذلك أحد."),
+            Resolution = new LocalizedText(
+                "Correct it on the current statement instead. A difference found late belongs to "
+                + "the period it was found in, which is how it can be explained afterwards.",
+                "صحّح الأمر في الكشف الحالي بدلًا من ذلك. فالفرق الذي يُكتشف متأخرًا يخص الفترة "
+                + "التي اكتُشف فيها، وبهذا يمكن تفسيره لاحقًا."),
+            HelpTopic = "finance/bank-reconciliation",
+        },
+        new()
+        {
+            Code = StatementLinesDoNotAddUp,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText(
+                "The statement does not agree with itself", "الكشف لا يتفق مع نفسه"),
+            Detail = new LocalizedText(
+                "Statement {Statement} moves from its opening to its closing balance by "
+                + "{Movement:N2}, but its lines come to {LineTotal:N2} — a gap of "
+                + "{Difference:N2}. The difference is inside the statement, not between the "
+                + "statement and the books.",
+                "ينتقل الكشف {Statement} من رصيده الافتتاحي إلى الختامي بمقدار {Movement:N2}، "
+                + "بينما مجموع سطوره {LineTotal:N2}، بفارق {Difference:N2}. والفرق داخل الكشف "
+                + "نفسه لا بينه وبين الدفاتر."),
+            Resolution = new LocalizedText(
+                "Check the opening and closing balances and that every line was entered. No "
+                + "amount of matching will close this, so it is worth settling before starting.",
+                "تحقق من الرصيدين الافتتاحي والختامي ومن إدخال كل السطور. فلن تُغلق المطابقة "
+                + "مهما رُبط من سطور، ويجدر تسوية ذلك قبل البدء."),
+            HelpTopic = "finance/bank-reconciliation",
+        },
+        new()
+        {
+            Code = StatementLinesUnmatched,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText(
+                "Some lines are not accounted for", "بعض السطور غير مفسّرة"),
+            Detail = new LocalizedText(
+                "{Count} line(s) on statement {Statement} have nothing in the books behind them. "
+                + "Everything the bank has charged or credited has to exist in the ledger before "
+                + "the two can be said to agree.",
+                "يوجد {Count} من سطور الكشف {Statement} لا يقابلها شيء في الدفاتر. وكل ما خصمه "
+                + "البنك أو أضافه لا بد أن يكون مقيدًا قبل القول بتطابق الطرفين."),
+            Resolution = new LocalizedText(
+                "Match each line to its entry, or post the entry it is missing. Bank charges and "
+                + "interest are the usual answer: they are real costs nobody keyed, and this is "
+                + "the moment they are found.",
+                "اربط كل سطر بقيده، أو رحّل القيد الناقص. والمصاريف البنكية والفوائد هي الجواب "
+                + "المعتاد: فهي تكاليف حقيقية لم يدخلها أحد، وهذه هي اللحظة التي تُكتشف فيها."),
+            HelpTopic = "finance/bank-reconciliation",
+        },
+        new()
+        {
+            Code = ReconciliationDoesNotBalance,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText(
+                "The books and the bank still disagree", "لا يزال بين الدفاتر والبنك اختلاف"),
+            Detail = new LocalizedText(
+                "The books say {LedgerBalance:N2} and the bank says {ClosingBalance:N2}. "
+                + "{OutstandingTotal:N2} of that gap is items the bank has not seen yet, which "
+                + "leaves {Difference:N2} that nothing explains.",
+                "تقول الدفاتر {LedgerBalance:N2} ويقول البنك {ClosingBalance:N2}. ومن هذا الفارق "
+                + "{OutstandingTotal:N2} بنود لم يرها البنك بعد، فيبقى {Difference:N2} بلا تفسير."),
+            Resolution = new LocalizedText(
+                "The number itself is usually the clue: exactly twice a figure means a sign the "
+                + "wrong way round, a multiple of nine means two digits transposed. Check this "
+                + "statement's matches first, then the previous one — this check covers every "
+                + "reconciliation ever made, so an old mistake surfaces here.",
+                "الرقم نفسه هو الدليل عادةً: فضعف مبلغٍ بالضبط يعني إشارة معكوسة، ومضاعف تسعة "
+                + "يعني تبديل رقمين. راجع ارتباطات هذا الكشف أولًا ثم الكشف السابق، فهذا الفحص "
+                + "يشمل كل مطابقة سابقة، ومن ثم يظهر فيه الخطأ القديم."),
+            HelpTopic = "finance/bank-reconciliation",
+        },
+        new()
+        {
+            Code = BankEntryNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such ledger entry", "لا يوجد قيد بهذا المعرّف"),
+            Detail = new LocalizedText(
+                "Nothing in the ledger matches {Entry}.",
+                "لا يوجد في دفتر الأستاذ ما يطابق {Entry}."),
+            Resolution = new LocalizedText(
+                "Choose the entry from the list of what is still outstanding on this account.",
+                "اختر القيد من قائمة البنود التي لم تُطابق بعد على هذا الحساب."),
+            HelpTopic = "finance/bank-reconciliation",
+        },
+        new()
+        {
+            Code = BankEntryOnAnotherAccount,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText(
+                "That entry is on a different account", "هذا القيد على حساب آخر"),
+            Detail = new LocalizedText(
+                "{Entry} is on account {AccountNo}, and this statement reconciles "
+                + "{BankAccountNo}. Whatever the amounts say, money that moved through another "
+                + "account is not what this line was.",
+                "القيد {Entry} على الحساب {AccountNo}، وهذا الكشف يطابق الحساب {BankAccountNo}. "
+                + "ومهما تطابقت المبالغ، فالمال الذي تحرك عبر حساب آخر ليس هو ما يمثله هذا السطر."),
+            Resolution = new LocalizedText(
+                "Find the entry on this bank's own account. If there is genuinely none, the "
+                + "entry was posted to the wrong account and wants correcting rather than "
+                + "matching.",
+                "ابحث عن القيد على حساب هذا البنك نفسه. فإن لم يوجد فعلًا، فالقيد رُحِّل إلى "
+                + "حساب خاطئ ويحتاج تصحيحًا لا ربطًا."),
+            HelpTopic = "finance/bank-reconciliation",
+        },
+        new()
+        {
+            Code = BankEntryAlreadyMatched,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("That entry is already spoken for", "هذا القيد مرتبط بالفعل"),
+            Detail = new LocalizedText(
+                "{Entry} is already matched to another statement line. One payment cannot have "
+                + "cleared the bank twice, and counting it twice would hide a real difference of "
+                + "the same size.",
+                "القيد {Entry} مرتبط بسطر آخر في كشف. فالدفعة الواحدة لا يمكن أن تكون مرت "
+                + "بالبنك مرتين، واحتسابها مرتين يخفي فرقًا حقيقيًا بالقدر نفسه."),
+            Resolution = new LocalizedText(
+                "If this line is the right home for it, take the match off the other line first. "
+                + "If the bank really did take the money twice, that is a second entry to post "
+                + "and then match — and a call to the bank.",
+                "إن كان هذا السطر هو موضعه الصحيح، فأزل الارتباط عن السطر الآخر أولًا. أما إن "
+                + "كان البنك قد خصم المبلغ مرتين فعلًا، فذلك قيد ثانٍ يُرحَّل ثم يُربط، ومكالمة "
+                + "مع البنك."),
+            HelpTopic = "finance/bank-reconciliation",
+        },
+        new()
+        {
+            Code = BankMatchAmountDiffers,
+            Severity = MessageSeverity.Warning,
+            Title = new LocalizedText("The amounts are not the same", "المبلغان غير متطابقين"),
+            Detail = new LocalizedText(
+                "The bank line is {LineAmount:N2} and the entry is {EntryAmount:N2}, a "
+                + "difference of {Difference:N2}. Recorded as asked.",
+                "سطر البنك {LineAmount:N2} والقيد {EntryAmount:N2}، بفارق {Difference:N2}. "
+                + "وقد سُجّل كما طُلب."),
+            Resolution = new LocalizedText(
+                "Ordinary when one bank line covers several payments — match the rest to it too. "
+                + "If it is a bank charge taken out of a receipt, that charge is a cost and wants "
+                + "posting. Either way the reconciliation will not close until the whole "
+                + "difference is accounted for.",
+                "وهذا معتاد حين يغطي سطر بنكي واحد عدة دفعات، فاربط بقيتها به أيضًا. أما إن كان "
+                + "رسمًا بنكيًا اقتُطع من مبلغ محصّل، فذلك الرسم تكلفة تحتاج ترحيلًا. وفي "
+                + "الحالتين لن تُغلق المطابقة حتى يُفسَّر الفارق كله."),
+            HelpTopic = "finance/bank-reconciliation",
         },
         new()
         {

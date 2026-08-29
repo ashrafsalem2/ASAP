@@ -70,6 +70,7 @@ public sealed class FinanceModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISync
 
         services.AddScoped<JournalPostingValidator>();
         services.AddScoped<JournalPostingService>();
+        services.AddScoped<Banking.BankReconciliationService>();
         services.AddScoped<Currencies.ExchangeRateService>();
         services.AddScoped<Journals.DocumentPostingService>();
         services.AddScoped<Parties.PartyLedgerWriter>();
@@ -234,6 +235,30 @@ public sealed class FinanceModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISync
             isSensitive: true),
 
         PermissionDescriptor.Define(
+            Id, "Bank", PermissionAction.Read,
+            new LocalizedText("View bank accounts and statements", "عرض الحسابات البنكية والكشوف")),
+
+        PermissionDescriptor.Define(
+            Id, "Bank", PermissionAction.Update,
+            new LocalizedText("Maintain bank accounts and statements", "إدارة الحسابات البنكية والكشوف"),
+            new LocalizedText(
+                "Add bank accounts, enter statements and match their lines to the ledger.",
+                "إضافة الحسابات البنكية وإدخال الكشوف وربط سطورها بدفتر الأستاذ."),
+            implies: [$"{Id}.Bank.Read"]),
+
+        PermissionDescriptor.Define(
+            Id, "Bank", PermissionAction.Post,
+            new LocalizedText("Agree a bank statement", "اعتماد مطابقة كشف بنكي"),
+            new LocalizedText(
+                "Close a reconciliation, which is a statement that every difference between the "
+                + "bank and the books has been accounted for. Held apart from doing the matching "
+                + "because it is the moment somebody puts their name to the claim.",
+                "إغلاق المطابقة، وهو إقرار بأن كل فرق بين البنك والدفاتر قد فُسِّر. وهي منفصلة "
+                + "عن أعمال الربط لأنها اللحظة التي يضع فيها شخص اسمه على هذا الإقرار."),
+            implies: [$"{Id}.Bank.Update"],
+            isSensitive: true),
+
+        PermissionDescriptor.Define(
             Id, "Currency", PermissionAction.Read,
             new LocalizedText("View currencies and rates", "عرض العملات وأسعار الصرف")),
 
@@ -296,7 +321,7 @@ public sealed class FinanceModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISync
                 + "اشترته الشركة."),
             ValueType = SetupValueType.Text,
             Scope = SetupScope.Company,
-            DefaultValue = "6920",
+            DefaultValue = "6930",
             RequiresPermission = $"{Id}.Currency.Update",
             HelpTopic = "finance/currencies",
         },

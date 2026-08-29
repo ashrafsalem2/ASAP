@@ -1,4 +1,5 @@
 using ASAP.Modules.Finance.Accounts;
+using ASAP.Modules.Finance.Banking;
 using ASAP.Modules.Finance.Currencies;
 using ASAP.Modules.Finance.Journals;
 using ASAP.Modules.Finance.Ledger;
@@ -38,6 +39,79 @@ public sealed class FinanceSchema : IModuleSchema
 
     private void ConfigureTax(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<BankAccount>(builder =>
+        {
+            builder.ToTable("BankAccounts", SchemaName);
+
+            builder.Property(a => a.Code).HasMaxLength(20).IsRequired();
+            builder.Property(a => a.Name).HasMaxLength(200).IsRequired();
+            builder.Property(a => a.NameArabic).HasMaxLength(200);
+            builder.Property(a => a.BankName).HasMaxLength(200);
+            builder.Property(a => a.AccountNo).HasMaxLength(64);
+            builder.Property(a => a.Iban).HasMaxLength(34);
+            builder.Property(a => a.GlAccountNo).HasMaxLength(20).IsRequired();
+            builder.Property(a => a.CurrencyCode).HasMaxLength(3).IsFixedLength();
+            builder.Property(a => a.RowVersion).IsRowVersion();
+
+            builder.HasIndex(a => new { a.CompanyId, a.Code })
+                   .IsUnique()
+                   .HasFilter("[IsDeleted] = 0");
+
+            // One ledger account per bank account. Two banks sharing one cannot be reconciled
+            // against either statement, because every unmatched entry might belong to the other.
+            builder.HasIndex(a => new { a.CompanyId, a.GlAccountNo })
+                   .IsUnique()
+                   .HasFilter("[IsDeleted] = 0");
+        });
+
+        modelBuilder.Entity<BankStatement>(builder =>
+        {
+            builder.ToTable("BankStatements", SchemaName);
+
+            builder.Property(s => s.No).HasMaxLength(40).IsRequired();
+            builder.Property(s => s.OpeningBalance).HasColumnType(DecimalPrecisionConventions.Money);
+            builder.Property(s => s.ClosingBalance).HasColumnType(DecimalPrecisionConventions.Money);
+            builder.Property(s => s.RowVersion).IsRowVersion();
+
+            builder.HasIndex(s => new { s.CompanyId, s.BankAccountId, s.No })
+                   .IsUnique()
+                   .HasFilter("[IsDeleted] = 0");
+
+            builder.HasIndex(s => new { s.CompanyId, s.BankAccountId, s.StatementDate });
+
+            builder.HasOne(s => s.BankAccount)
+                   .WithMany()
+                   .HasForeignKey(s => s.BankAccountId)
+                   .OnDelete(DeleteBehavior.Restrict);
+
+            builder.HasMany(s => s.Lines)
+                   .WithOne(l => l.BankStatement!)
+                   .HasForeignKey(l => l.BankStatementId)
+                   .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Ignore(s => s.StatementMovement);
+            builder.Ignore(s => s.LineTotal);
+            builder.Ignore(s => s.IsEditable);
+        });
+
+        modelBuilder.Entity<BankStatementLine>(builder =>
+        {
+            builder.ToTable("BankStatementLines", SchemaName);
+
+            builder.Property(l => l.Description).HasMaxLength(250).IsRequired();
+            builder.Property(l => l.Reference).HasMaxLength(64);
+            builder.Property(l => l.Note).HasMaxLength(250);
+            builder.Property(l => l.Amount).HasColumnType(DecimalPrecisionConventions.Money);
+            builder.Property(l => l.RowVersion).IsRowVersion();
+
+            // "Has this entry been reconciled" is asked of every entry on the account at every
+            // reconciliation, and it is asked from this side because the ledger is never written.
+            builder.HasIndex(l => new { l.CompanyId, l.MatchedEntryId })
+                   .HasFilter("[MatchedEntryId] IS NOT NULL");
+
+            builder.Ignore(l => l.IsMatched);
+        });
+
         modelBuilder.Entity<Currency>(builder =>
         {
             builder.ToTable("Currencies", SchemaName);

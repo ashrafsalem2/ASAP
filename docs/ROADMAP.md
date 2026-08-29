@@ -184,24 +184,44 @@ Everything else posts here, so it goes first.
 - **done** **Leave accrual and the leave register** — twenty-one days a year rising to thirty after
   five, accrued by the day rather than granted in a lump, with the rate changing partway through
   the year it changes in. Requests are made, granted, refused or withdrawn, and only a granted one
-  comes off a balance or a wage. Each kind of leave carries its own pay bands as data: sick leave
-  at full pay for thirty days, three quarters for sixty and nothing for thirty after that,
-  cumulative across the year rather than restarting at each absence — so a year of intermittent
-  sickness costs exactly what one long absence costs. Attendance and shifts still to come
-- *in progress* **End of service done** — half a month a year for the first five and a full month
+  comes off a balance or a wage. A request is refused if it runs backwards, falls outside when
+  somebody actually worked here, or shares a day with one already on the books; asking for more
+  than the balance warns rather than blocks, since a company sometimes agrees exactly that. Each
+  kind of leave carries its own pay bands as data: sick leave at full pay for thirty days, three
+  quarters for sixty and nothing for thirty after that, cumulative across the year rather than
+  restarting at each absence — so a year of intermittent sickness costs exactly what one long
+  absence costs. Attendance and shifts still to come
+- **done** **End of service** — half a month a year for the first five and a full month
   thereafter, cumulative like tax bands rather than revalued at the final rate, and reduced by
-  tenure on resignation. The bands are data, so another jurisdiction is a policy and not a fork.
-  Earnings, deductions and posting into finance still to come
+  tenure on resignation. The bands are data, so another jurisdiction is a policy and not a fork
 - **done** Payroll: what everybody is owed for a period, each wage split across the branches the
   days were worked at and posted one debit per branch, with end-of-service and deductions
   dividing the same way. Posting over days a posted run already paid is blocked and overridable
   with a reason, because a correction run is a real thing that does exactly that
+- **done** Posting the provisions into Finance, with one writer each. Payroll charges
+  end-of-service as it is earned, split across the branches the month was worked at, so a branch
+  manager's staff cost includes what this month added to what will be owed. A provision run posts
+  the leave side, which nothing else touches: it computes what the company owes today and posts
+  however much that has moved since the last run, not the whole figure over again. Both go
+  through the same kernel event every other module's posting does, so HR still knows nothing
+  about Finance's tables — see
+  [docs/architecture/module-dependencies.md](architecture/module-dependencies.md)
+- Reconciling the end-of-service provision: payroll's charge accumulates month by month and
+  nothing yet compares the running total against what the entitlement formula says it should be.
+  Needs a way for a module to read a ledger balance without depending on Finance, which the
+  kernel does not have yet
+- A settlement posted at the moment somebody actually leaves, which is a different thing from
+  either of the above
+- **done** Employee, hiring, transfer, leaving and entitlement endpoints
 - **done** Client screens: employees with their branch history, payroll with each line's split,
   and what the company owes
 - Employee self-service
-- Reports: headcount and turnover. **Cost per branch done** — see branch performance in Phase 5.
-  Leave liability is reported as leave *earned*, which is an upper bound until a leave register
-  records what was taken
+- **done** Reports: headcount and staff cost by where somebody is currently assigned, and
+  turnover — opening and closing headcount, who joined and left in between, and the rate against
+  the average of the two rather than against either end alone. Cost per branch is answered twice
+  on purpose: this one is the contractual run rate on a day, branch performance in Phase 5 is
+  what was actually posted over a period. Both sit behind the wage permission, since an aggregate
+  is still a statement of what people are paid
 
 ## Phase 8 — Hardware stations
 

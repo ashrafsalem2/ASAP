@@ -104,9 +104,13 @@ public sealed class BranchPerformanceQueryHandler(
     /// Taken from what HR posts to rather than from a range of account numbers, so renumbering
     /// the chart does not silently empty the column.
     /// </remarks>
+    // Both accounts payroll charges a branch on. The end-of-service charge sits apart from the
+    // wage in the chart so the profit and loss can tell paid from provided for, but a branch
+    // manager asking what staff cost them wants the two added together.
     private static readonly string[] StaffCostSettings =
     [
         "Hr.Posting.WageAccount",
+        "Hr.Posting.EndOfServiceExpenseAccount",
     ];
 
     /// <inheritdoc />
@@ -240,6 +244,7 @@ public sealed class BranchPerformanceQueryHandler(
         // Wrong only where somebody moved the setting and this could not read it, and a staff
         // cost of nil on a shop full of staff is more obviously wrong than a slightly stale one.
         accounts.Add("6100");
+        accounts.Add("6110");
 
         return accounts;
     }

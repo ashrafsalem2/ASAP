@@ -329,6 +329,12 @@ public sealed class DemoSeeder(
         Add("PAYROLL", "Payroll runs", allowGaps: true, "PAY-{YYYY}-001");
         Add("LEAVE", "Leave requests", allowGaps: true, "LV-{YYYY}-0001");
 
+        // Not year-dated: an employee keeps one number for as long as they work here, which a
+        // year-reset series would not give them. Started well in the past rather than at
+        // yearStart, because unlike a document a hiring date is routinely years old the day the
+        // record is entered -- somebody moving onto ASAP brings their existing staff with them.
+        Add("EMP", "Employee numbers", allowGaps: true, "EMP-00001", startingDate: new DateOnly(2000, 1, 1));
+
         // Gapless: a till receipt is a simplified tax invoice, and a sequence with holes in it is
         // a question from the authority. Branches that want their own may override the setting.
         Add("POS-RCP", "Point of sale receipts", allowGaps: false, "R-{YYYY}-000001");
@@ -345,7 +351,13 @@ public sealed class DemoSeeder(
                 branch.Id);
         }
 
-        void Add(string code, string description, bool allowGaps, string startingNumber, Guid? branchId = null)
+        void Add(
+            string code,
+            string description,
+            bool allowGaps,
+            string startingNumber,
+            Guid? branchId = null,
+            DateOnly? startingDate = null)
         {
             // Already there, so leave it exactly as the company has it.
             if (skip?.Contains(code) == true)
@@ -369,7 +381,7 @@ public sealed class DemoSeeder(
                 TenantId = company.TenantId,
                 CompanyId = company.Id,
                 NumberSeriesId = series.Id,
-                StartingDate = yearStart,
+                StartingDate = startingDate ?? yearStart,
                 StartingNumber = startingNumber,
                 WarnWhenRemainingBelow = 500,
             });

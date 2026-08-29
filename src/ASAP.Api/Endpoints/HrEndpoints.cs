@@ -1,12 +1,53 @@
 using ASAP.Api.Infrastructure;
+using ASAP.Modules.Hr.Entitlements;
 using ASAP.Modules.Hr.Leave;
 using ASAP.Platform.Kernel.Results;
 using ASAP.Modules.Hr.Payroll;
 using ASAP.Modules.Hr.People;
+using ASAP.Modules.Hr.Reporting;
 using ASAP.Platform.Kernel.Security;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ASAP.Api.Endpoints;
+
+/// <summary>What a provision run posted.</summary>
+/// <param name="AsOf">The day it was measured at.</param>
+/// <param name="LeaveTotal">What the company owes in unused leave, in total.</param>
+/// <param name="LeaveMovement">How much that moved, and so how much was posted.</param>
+/// <param name="EndOfServiceTotal">
+/// What the company owes in end-of-service. Reported here, posted by the payroll run.
+/// </param>
+/// <param name="TransactionNo">What it was posted under, or null when nothing had moved.</param>
+public sealed record ProvisionPostingView(
+    DateOnly AsOf,
+    decimal LeaveTotal,
+    decimal LeaveMovement,
+    decimal EndOfServiceTotal,
+    long? TransactionNo);
+
+/// <summary>How many people are at one branch, as it is reported back.</summary>
+public sealed record HeadcountView(Guid? BranchId, string? BranchCode, string? BranchName, int Count);
+
+/// <summary>What one branch's staff cost, as it is reported back.</summary>
+public sealed record BranchCostView(
+    Guid? BranchId, string? BranchCode, string? BranchName, int Count, decimal MonthlyWageCost);
+
+/// <summary>How many people came and went over a period, as it is reported back.</summary>
+/// <param name="FromDate">The first day of the period.</param>
+/// <param name="ToDate">The last day of it.</param>
+/// <param name="OpeningHeadcount">How many people there were at the start.</param>
+/// <param name="Hired">How many started during it.</param>
+/// <param name="Left">How many went during it.</param>
+/// <param name="ClosingHeadcount">How many there were at the end.</param>
+/// <param name="TurnoverRate">Leavers as a share of the average headcount.</param>
+public sealed record TurnoverView(
+    DateOnly FromDate,
+    DateOnly ToDate,
+    int OpeningHeadcount,
+    int Hired,
+    int Left,
+    int ClosingHeadcount,
+    decimal TurnoverRate);
 
 /// <summary>What a client sends to hire somebody.</summary>
 /// <param name="Name">Their name.</param>
@@ -91,6 +132,7 @@ public static class HrEndpoints
     private const string LeaveCreatePermission = "Hr.Leave.Create";
     private const string LeaveApprovePermission = "Hr.Leave.Approve";
     private const string ReportPermission = "Hr.Report.Read";
+    private const string ProvisionPermission = "Hr.Provision.Post";
 
     /// <summary>Maps the human resources endpoints.</summary>
     /// <param name="app">The route builder.</param>
@@ -148,6 +190,24 @@ public static class HrEndpoints
         group.MapGet("/entitlements", EntitlementsAsync)
              .WithName("HrEntitlements")
              .WithSummary("What the company owes its staff in unused leave and end of service.");
+
+        group.MapPost("/entitlements/post", PostProvisionsAsync)
+             .WithName("PostHrProvisions")
+             .WithSummary(
+                 "Moves however much unused leave has changed since the last run into the "
+                 + "general ledger. End of service is charged by the payroll run instead.");
+
+        group.MapGet("/reports/headcount", HeadcountAsync)
+             .WithName("HrHeadcount")
+             .WithSummary("How many people are at each branch, on a day.");
+
+        group.MapGet("/reports/cost-by-branch", CostByBranchAsync)
+             .WithName("HrCostByBranch")
+             .WithSummary("What each branch's staff cost, on a day.");
+
+        group.MapGet("/reports/turnover", TurnoverAsync)
+             .WithName("HrTurnover")
+             .WithSummary("How many people came and went over a period, and the rate it comes to.");
 
         group.MapGet("/payroll", PayrollListAsync)
              .WithName("PayrollRuns")
@@ -321,6 +381,97 @@ public static class HrEndpoints
                 forfeitedByResigning = result.Value.ForfeitedByResigning,
                 messages = MessagePayload.FromAll(result.Messages),
             });
+    }
+
+    private static async Task<IResult> PostProvisionsAsync(
+        ProvisionPostingService provisions,
+        IUserContext user,
+        HttpContext http,
+        [FromQuery] DateOnly? on,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, ProvisionPermission))
+        {
+            return Forbidden(ProvisionPermission, "post entitlement provisions", http);
+        }
+
+        var result = await provisions.PostAsync(on, cancellationToken).ConfigureAwait(false);
+
+        return result.Failed
+            ? Refused(result, http)
+            : Results.Ok(new
+            {
+                posting = new ProvisionPostingView(
+                    result.Value.AsOf,
+                    result.Value.LeaveTotal,
+                    result.Value.LeaveMovement,
+                    result.Value.EndOfServiceTotal,
+                    result.Value.TransactionNo),
+                messages = MessagePayload.FromAll(result.Messages),
+            });
+    }
+
+    private static async Task<IResult> HeadcountAsync(
+        HrReportingService reporting,
+        IUserContext user,
+        HttpContext http,
+        [FromQuery] DateOnly? on,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, ReportPermission))
+        {
+            return Forbidden(ReportPermission, "run staff reports", http);
+        }
+
+        var rows = await reporting.HeadcountByBranchAsync(on, cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(rows.Select(static r => new HeadcountView(
+            r.BranchId, r.BranchCode, r.BranchName, r.Count)));
+    }
+
+    private static async Task<IResult> CostByBranchAsync(
+        HrReportingService reporting,
+        IUserContext user,
+        HttpContext http,
+        [FromQuery] DateOnly? on,
+        CancellationToken cancellationToken)
+    {
+        // Aggregated by branch rather than by person, but it is still a statement of what people
+        // are paid, so it sits behind the same permission the individual figures do.
+        if (!Can(user, ReportPermission) || !Can(user, WageReadPermission))
+        {
+            return Forbidden(WageReadPermission, "see what branches cost in wages", http);
+        }
+
+        var rows = await reporting.CostByBranchAsync(on, cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(rows.Select(static r => new BranchCostView(
+            r.BranchId, r.BranchCode, r.BranchName, r.Count, r.MonthlyWageCost)));
+    }
+
+    private static async Task<IResult> TurnoverAsync(
+        HrReportingService reporting,
+        IUserContext user,
+        HttpContext http,
+        [FromQuery] DateOnly fromDate,
+        [FromQuery] DateOnly toDate,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, ReportPermission))
+        {
+            return Forbidden(ReportPermission, "run staff reports", http);
+        }
+
+        var summary = await reporting.TurnoverAsync(fromDate, toDate, cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(new TurnoverView(
+            summary.FromDate,
+            summary.ToDate,
+            summary.OpeningHeadcount,
+            summary.Hired,
+            summary.Left,
+            summary.ClosingHeadcount,
+            summary.TurnoverRate));
     }
 
     private static async Task<IResult> EntitlementsAsync(

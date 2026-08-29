@@ -320,6 +320,13 @@ public sealed class PayrollService(
             .GetAsync<string>($"{HrModule.Id}.Posting.EndOfServiceAccount", cancellationToken)
             .ConfigureAwait(false);
 
+        // Kept off the wage account on purpose. Somebody reading "salaries and wages" is asking
+        // what was paid to people this month; what was added to what they will be owed when they
+        // go is a real cost of the same month, but it was not paid to anybody.
+        var provisionExpenseAccount = await AccountAsync(
+                "Posting.EndOfServiceExpenseAccount", "6110", cancellationToken)
+            .ConfigureAwait(false);
+
         if (string.IsNullOrWhiteSpace(provisionAccount))
         {
             return Result<PayrollRun>.Failure(messages.Render(
@@ -368,7 +375,7 @@ public sealed class PayrollService(
                 foreach (var share in WageApportionment.Reapportion(days, line.EndOfServiceCharge))
                 {
                     journal.Add(new PostJournalLine(
-                        wageAccount,
+                        provisionExpenseAccount,
                         share.Amount,
                         $"{line.EmployeeNo} — end of service earned",
                         BranchId: share.BranchId));

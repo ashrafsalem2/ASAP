@@ -203,6 +203,11 @@ public sealed class FinanceSeeder(AsapDbContext context, ILogger<FinanceSeeder> 
         // is a liability until somebody redeems it -- not revenue on the day it was bought.
         Add("2350", "Gift cards outstanding", "قسائم الشراء غير المستخدمة", GlAccountCategory.Liabilities);
         Add("2400", "Payroll payable", "رواتب مستحقة", GlAccountCategory.Liabilities, directPosting: false);
+        // Two liabilities, not one, and neither of them is payroll payable. What is owed for
+        // days somebody has earned and not taken moves whenever they take them; what is owed on
+        // the day they leave moves for as long as they stay. A single figure would answer
+        // neither question.
+        Add("2410", "Unused leave provision", "مخصص الإجازات غير المستخدمة", GlAccountCategory.Liabilities);
         Add("2500", "End of service provision", "مخصص نهاية الخدمة", GlAccountCategory.Liabilities);
         Add("2999", "TOTAL LIABILITIES", "إجمالي الخصوم", GlAccountCategory.Liabilities, GlAccountType.Total, 0, "2000..2998");
 
@@ -235,6 +240,14 @@ public sealed class FinanceSeeder(AsapDbContext context, ILogger<FinanceSeeder> 
         // Expenses
         Add("6000", "EXPENSES", "المصروفات", GlAccountCategory.Expense, GlAccountType.Heading, 0);
         Add("6100", "Salaries and wages", "الرواتب والأجور", GlAccountCategory.Expense);
+
+        // The expense side of what HR carries as a provision -- see Hr.Posting.*ExpenseAccount.
+        // Kept apart from ordinary salaries because these two move on a provision run, not on a
+        // payslip, and a manager reading "salaries and wages" should not have to guess which
+        // movements were actually paid to somebody this month.
+        Add("6110", "End-of-service provision", "مخصص نهاية الخدمة (المصروف)", GlAccountCategory.Expense);
+        Add("6120", "Unused leave provision", "مخصص الإجازات غير المستخدمة (المصروف)", GlAccountCategory.Expense);
+
         Add("6200", "Rent", "الإيجار", GlAccountCategory.Expense);
         Add("6300", "Utilities", "المرافق", GlAccountCategory.Expense);
         Add("6400", "Office expenses", "مصروفات مكتبية", GlAccountCategory.Expense);

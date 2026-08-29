@@ -282,6 +282,19 @@ public sealed class FinanceModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISync
             isSensitive: true),
 
         PermissionDescriptor.Define(
+            Id, "Schedule", PermissionAction.Update,
+            new LocalizedText("Edit statement layouts", "تعديل تخطيطات القوائم"),
+            new LocalizedText(
+                "Change what a statement adds up. A layout decides which accounts land on which "
+                + "line, so this moves every figure management reads without touching a single "
+                + "entry — and leaves the ledger able to prove it never changed.",
+                "تغيير ما تجمعه القائمة. فالتخطيط يقرر أي الحسابات تقع في أي سطر، وهذه الصلاحية "
+                + "تحرّك كل رقم تقرؤه الإدارة دون المساس بأي قيد، ويبقى دفتر الأستاذ قادرًا على "
+                + "إثبات أنه لم يتغير."),
+            implies: [$"{Id}.Report.Read"],
+            isSensitive: true),
+
+        PermissionDescriptor.Define(
             Id, "Report", PermissionAction.Read,
             new LocalizedText("Run financial reports", "تشغيل التقارير المالية")),
 
@@ -449,6 +462,17 @@ public sealed class FinanceModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISync
             "/finance/journals", $"{Id}.Journal.Read", 20),
         Page("Entries", new LocalizedText("Ledger entries", "قيود دفتر الأستاذ"),
             "/finance/entries", $"{Id}.Entry.Read", 30),
+        new()
+        {
+            Id = "Finance.Schedules",
+            Module = Id,
+            ParentId = "Finance.Root",
+            DisplayName = new LocalizedText("Statement layouts", "تخطيطات القوائم المالية"),
+            Kind = NavigationKind.Report,
+            Route = "/finance/schedules",
+            RequiresPermission = $"{Id}.Report.Read",
+            Order = 95,
+        },
         new()
         {
             Id = "Finance.BankReconciliation",

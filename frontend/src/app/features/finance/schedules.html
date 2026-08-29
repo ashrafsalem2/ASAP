@@ -1,0 +1,163 @@
+<div class="page">
+  <h1>{{ t('finance.schedules.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('finance.schedules.intro') }}</p>
+
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else if (schedules().length === 0) {
+      <p class="empty">{{ t('finance.schedules.none') }}</p>
+    } @else {
+      <div class="panel__body draft">
+        <label>
+          {{ t('finance.schedules.layout') }}
+          <select [(ngModel)]="selectedCode" name="code" (ngModelChange)="open()">
+            @for (item of schedules(); track item.code) {
+              <option [value]="item.code">{{ item.code }} — {{ item.name }}</option>
+            }
+          </select>
+        </label>
+
+        <label>
+          {{ t('finance.schedules.from') }}
+          <input type="date" [(ngModel)]="from" name="from" (change)="open()" />
+        </label>
+
+        <label>
+          {{ t('finance.schedules.to') }}
+          <input type="date" [(ngModel)]="to" name="to" (change)="open()" />
+        </label>
+
+        @if (canEdit() && layout()) {
+          <button type="button" class="button" (click)="editing.set(!editing())">
+            {{ editing() ? t('finance.schedules.hideRows') : t('finance.schedules.editRows') }}
+          </button>
+        }
+      </div>
+    }
+  </section>
+
+  @if (report(); as r) {
+    <section class="panel">
+      <div class="panel__header">
+        <h2>{{ pick(r.name, r.nameArabic) }}</h2>
+      </div>
+
+      <p class="panel__body admin__note">{{ r.from }} — {{ r.to }} · {{ r.currencyCode }}</p>
+
+      <div class="table-scroll">
+        <table class="table">
+          <tbody>
+            @for (row of r.rows; track row.rowNo) {
+              <tr>
+                <td class="code">{{ row.rowNo }}</td>
+                <td [style.padding-inline-start.rem]="row.indent * 1.5">
+                  @if (row.isBold) {
+                    <strong>{{ pick(row.description, row.descriptionArabic) }}</strong>
+                  } @else {
+                    {{ pick(row.description, row.descriptionArabic) }}
+                  }
+                </td>
+
+                <!-- Blank rather than nought when a figure has no answer. A margin on a month
+                     with no revenue is a question nobody can answer, and nought per cent would
+                     be a false claim about it. -->
+                <td class="numeric">
+                  @if (row.amount !== null) {
+                    @if (row.isBold) {
+                      <strong>{{ row.amount }}</strong>
+                    } @else {
+                      {{ row.amount }}
+                    }
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+
+  @if (editing() && layout(); as l) {
+    <section class="panel">
+      <div class="panel__header">
+        <h2>{{ t('finance.schedules.rows') }}</h2>
+      </div>
+
+      <p class="panel__body admin__note">{{ t('finance.schedules.rowsNote') }}</p>
+
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('finance.schedules.rowNo') }}</th>
+              <th>{{ t('finance.schedules.description') }}</th>
+              <th>{{ t('finance.schedules.kind') }}</th>
+              <th>{{ t('finance.schedules.expression') }}</th>
+              <th>{{ t('finance.schedules.period') }}</th>
+              <th>{{ t('finance.schedules.turn') }}</th>
+              <th>{{ t('finance.schedules.indent') }}</th>
+              <th>{{ t('finance.schedules.bold') }}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (line of l.lines; track $index) {
+              <tr>
+                <td><input type="text" size="6" [(ngModel)]="line.rowNo" [name]="'row' + $index" /></td>
+                <td><input type="text" [(ngModel)]="line.description" [name]="'desc' + $index" /></td>
+                <td>
+                  <select [(ngModel)]="line.kind" [name]="'kind' + $index">
+                    @for (kind of kinds; track kind) {
+                      <option [value]="kind">{{ kind }}</option>
+                    }
+                  </select>
+                </td>
+                <td>
+                  @if (line.kind !== 'Heading') {
+                    <input type="text" [(ngModel)]="line.expression" [name]="'expr' + $index" />
+                  }
+                </td>
+                <td>
+                  @if (line.kind === 'Accounts') {
+                    <select [(ngModel)]="line.amountKind" [name]="'amount' + $index">
+                      @for (kind of amountKinds; track kind) {
+                        <option [value]="kind">{{ kind }}</option>
+                      }
+                    </select>
+                  }
+                </td>
+                <td>
+                  <input type="checkbox" [(ngModel)]="line.showOppositeSign" [name]="'flip' + $index" />
+                </td>
+                <td>
+                  <input type="number" size="2" min="0" max="4" [(ngModel)]="line.indent" [name]="'indent' + $index" />
+                </td>
+                <td><input type="checkbox" [(ngModel)]="line.isBold" [name]="'bold' + $index" /></td>
+                <td>
+                  <button type="button" class="button" (click)="move(line, -1)">↑</button>
+                  <button type="button" class="button" (click)="move(line, 1)">↓</button>
+                  <button type="button" class="button" (click)="removeRow(line)">×</button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel__body draft">
+        <button type="button" class="button" (click)="addRow()">
+          {{ t('finance.schedules.addRow') }}
+        </button>
+
+        <button type="button" class="button button--primary" [disabled]="busy()" (click)="save()">
+          {{ t('finance.schedules.save') }}
+        </button>
+      </div>
+
+      <p class="panel__body admin__note">{{ t('finance.schedules.signNote') }}</p>
+    </section>
+  }
+</div>

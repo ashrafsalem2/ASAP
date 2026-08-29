@@ -66,6 +66,51 @@ public sealed record GlEntrySummary(
     string? DocumentNo,
     string SourceCode);
 
+/// <summary>One row of a statement layout, as it is written and read back.</summary>
+/// <param name="RowNo">What formulas call it, for example <c>R100</c>.</param>
+/// <param name="Description">What it is called on the page.</param>
+/// <param name="Kind">Accounts, Formula or Heading.</param>
+/// <param name="Expression">The account range, or the formula.</param>
+/// <param name="DescriptionArabic">What it is called in Arabic.</param>
+/// <param name="AmountKind">NetChange for a movement, BalanceAtDate for a balance.</param>
+/// <param name="ShowOppositeSign">
+/// Whether to turn the sign. Applied before formulas run, so a formula means what it looks like.
+/// </param>
+/// <param name="Indent">How far to indent the description.</param>
+/// <param name="IsBold">Whether it is a total.</param>
+/// <param name="HideIfZero">Whether to leave it out when its figure is nought.</param>
+public sealed record ScheduleLineRequest(
+    string RowNo,
+    string Description,
+    string Kind = "Accounts",
+    string? Expression = null,
+    string? DescriptionArabic = null,
+    string AmountKind = "NetChange",
+    bool ShowOppositeSign = false,
+    int Indent = 0,
+    bool IsBold = false,
+    bool HideIfZero = false);
+
+/// <summary>What a client sends to create or rewrite a statement layout.</summary>
+/// <remarks>
+/// The whole layout, rows included. A layout is read, edited and sent back as one thing, because
+/// a row only means anything alongside the rows its formulas name — sending one row at a time
+/// would allow a save that leaves a formula pointing at a row that no longer exists.
+/// </remarks>
+/// <param name="Code">The short code, which identifies it.</param>
+/// <param name="Name">What it is called.</param>
+/// <param name="Lines">The rows, in the order they print.</param>
+/// <param name="NameArabic">What it is called in Arabic.</param>
+/// <param name="Description">What it is for.</param>
+/// <param name="IsActive">Whether it may still be run.</param>
+public sealed record SaveScheduleRequest(
+    string Code,
+    string Name,
+    IReadOnlyList<ScheduleLineRequest> Lines,
+    string? NameArabic = null,
+    string? Description = null,
+    bool IsActive = true);
+
 /// <summary>A currency and what it is worth today, as it is reported back.</summary>
 /// <param name="Code">The ISO code.</param>
 /// <param name="Name">What it is called.</param>
@@ -189,6 +234,14 @@ public static class FinanceEndpoints
         group.MapGet("/schedules", SchedulesAsync)
              .WithName("AccountSchedules")
              .WithSummary("Lists the statement layouts this company can run.");
+
+        group.MapGet("/schedules/{code}/layout", ScheduleLayoutAsync)
+             .WithName("AccountScheduleLayout")
+             .WithSummary("Reads one layout's rows, for editing.");
+
+        group.MapPut("/schedules/{code}", SaveScheduleAsync)
+             .WithName("SaveAccountSchedule")
+             .WithSummary("Creates a layout or rewrites one, rows and all.");
 
         group.MapGet("/schedules/{code}", RunScheduleAsync)
              .WithName("RunAccountSchedule")
@@ -510,6 +563,149 @@ public static class FinanceEndpoints
         return Results.Ok(schedules);
     }
 
+    private static async Task<IResult> ScheduleLayoutAsync(
+        string code,
+        AsapDbContext context,
+        CancellationToken cancellationToken)
+    {
+        var normalised = code.Trim().ToUpperInvariant();
+
+        var schedule = await context.Set<AccountSchedule>()
+            .AsNoTracking()
+            .Include(s => s.Lines)
+            .FirstOrDefaultAsync(s => s.Code == normalised, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (schedule is null)
+        {
+            return Results.NotFound();
+        }
+
+        return Results.Ok(new
+        {
+            code = schedule.Code,
+            name = schedule.Name,
+            nameArabic = schedule.NameArabic,
+            description = schedule.Description,
+            isActive = schedule.IsActive,
+            lines = schedule.Lines
+                .OrderBy(static l => l.Order)
+                .Select(static l => new ScheduleLineRequest(
+                    l.RowNo,
+                    l.Description,
+                    l.Kind.ToString(),
+                    l.Expression,
+                    l.DescriptionArabic,
+                    l.AmountKind.ToString(),
+                    l.ShowOppositeSign,
+                    l.Indent,
+                    l.IsBold,
+                    l.HideIfZero)),
+        });
+    }
+
+    private static async Task<IResult> SaveScheduleAsync(
+        string code,
+        SaveScheduleRequest request,
+        AsapDbContext context,
+        IUserContext user,
+        ITenantContext tenantContext,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, ScheduleUpdatePermission))
+        {
+            return Forbidden(ScheduleUpdatePermission, "edit statement layouts", http);
+        }
+
+        var normalised = code.Trim().ToUpperInvariant();
+
+        // Through the execution strategy, because the connection retries on transient faults and
+        // will not allow a hand-rolled transaction otherwise. Everything the save touches is read
+        // inside the delegate, so a retry starts from the database rather than from a change
+        // tracker the failed attempt already emptied.
+        var strategy = context.Database.CreateExecutionStrategy();
+
+        await strategy
+            .ExecuteAsync(async () =>
+            {
+                await using var transaction = await context.Database
+                    .BeginTransactionAsync(cancellationToken)
+                    .ConfigureAwait(false);
+
+                var schedule = await context.Set<AccountSchedule>()
+                    .Include(s => s.Lines)
+                    .FirstOrDefaultAsync(s => s.Code == normalised, cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (schedule is null)
+                {
+                    schedule = new AccountSchedule
+                    {
+                        TenantId = tenantContext.TenantId ?? Guid.Empty,
+                        CompanyId = tenantContext.RequireCompanyId(),
+                        Code = normalised,
+                        Name = request.Name,
+                    };
+
+                    context.Set<AccountSchedule>().Add(schedule);
+                }
+
+                schedule.Name = request.Name;
+                schedule.NameArabic = request.NameArabic;
+                schedule.Description = request.Description;
+                schedule.IsActive = request.IsActive;
+
+                // Replaced wholesale rather than merged. A row is only meaningful beside the rows
+                // its formulas name, so the set is saved as a set -- and matching old rows to new
+                // ones by name would quietly keep a row somebody deleted.
+                //
+                // In two saves, and that is not fussiness. Row names are unique per layout, so a
+                // single save would offer the database the new R10 before it had taken the old one
+                // away, and the index would refuse it. Renaming or reordering a row -- the
+                // commonest edit there is -- would fail every time.
+                context.Set<AccountScheduleLine>().RemoveRange(schedule.Lines);
+
+                await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+                var order = 0;
+
+                foreach (var line in request.Lines)
+                {
+                    context.Set<AccountScheduleLine>().Add(new AccountScheduleLine
+                    {
+                        TenantId = schedule.TenantId,
+                        CompanyId = schedule.CompanyId,
+                        AccountScheduleId = schedule.Id,
+                        Order = ++order,
+                        RowNo = line.RowNo,
+                        Description = line.Description,
+                        DescriptionArabic = line.DescriptionArabic,
+                        Kind = Enum.TryParse<ScheduleRowKind>(line.Kind, true, out var kind)
+                            ? kind
+                            : ScheduleRowKind.Accounts,
+                        AmountKind = Enum.TryParse<ScheduleAmountKind>(line.AmountKind, true, out var amountKind)
+                            ? amountKind
+                            : ScheduleAmountKind.NetChange,
+                        Expression = line.Expression,
+                        ShowOppositeSign = line.ShowOppositeSign,
+                        Indent = line.Indent,
+                        IsBold = line.IsBold,
+                        HideIfZero = line.HideIfZero,
+                    });
+                }
+
+                await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+            })
+            .ConfigureAwait(false);
+
+        return Results.Ok(new { code = normalised, rows = request.Lines.Count });
+    }
+
+
     private static async Task<IResult> RunScheduleAsync(
         string code,
         IDispatcher dispatcher,
@@ -755,6 +951,7 @@ public static class FinanceEndpoints
         return Results.Ok(await dispatcher.SendAsync(query, cancellationToken).ConfigureAwait(false));
     }
 
+    private const string ScheduleUpdatePermission = "Finance.Schedule.Update";
     private const string CurrencyReadPermission = "Finance.Currency.Read";
     private const string CurrencyUpdatePermission = "Finance.Currency.Update";
 

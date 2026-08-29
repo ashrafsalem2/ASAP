@@ -1611,3 +1611,64 @@ export interface BankStatementDetail {
   lines: BankStatementLineInfo[];
   position: ReconciliationPositionInfo;
 }
+
+/** A statement layout as it appears in the list. */
+export interface ScheduleSummary {
+  code: string;
+  name: string;
+  nameArabic: string | null;
+  description: string | null;
+  rows: number;
+}
+
+/** One row of a statement layout, as it is edited. */
+export interface ScheduleLine {
+  rowNo: string;
+  description: string;
+  kind: 'Accounts' | 'Formula' | 'Heading';
+
+  /** The account range, or the formula, depending on the kind. */
+  expression: string | null;
+  descriptionArabic: string | null;
+  amountKind: 'NetChange' | 'BalanceAtDate';
+
+  /** Applied before formulas run, so a formula means what it looks like. */
+  showOppositeSign: boolean;
+  indent: number;
+  isBold: boolean;
+  hideIfZero: boolean;
+}
+
+/** A whole layout, for editing. */
+export interface ScheduleLayout {
+  code: string;
+  name: string;
+  nameArabic: string | null;
+  description: string | null;
+  isActive: boolean;
+  lines: ScheduleLine[];
+}
+
+/** One row of a layout that has been run. */
+export interface ScheduleReportRow {
+  rowNo: string;
+  description: string;
+  descriptionArabic: string | null;
+
+  /** Null when the figure has no answer, such as a margin on a month with no revenue. */
+  amount: number | null;
+  indent: number;
+  isBold: boolean;
+  isHeading: boolean;
+}
+
+/** A statement, run. */
+export interface ScheduleReport {
+  code: string;
+  name: string;
+  nameArabic: string | null;
+  from: string;
+  to: string;
+  currencyCode: string;
+  rows: ScheduleReportRow[];
+}

@@ -71,7 +71,14 @@ public sealed class FinanceSchema : IModuleSchema
             builder.Property(l => l.RowVersion).IsRowVersion();
 
             // A formula names a row, so two rows on one name is a formula with two answers.
-            builder.HasIndex(l => new { l.AccountScheduleId, l.RowNo }).IsUnique();
+            //
+            // Filtered on the soft-delete flag, like every other unique index here. Rows are not
+            // really deleted -- they are marked -- so an unfiltered index would keep every row a
+            // layout has ever had, and the second time somebody edited one the save would be
+            // refused by a row nobody can see.
+            builder.HasIndex(l => new { l.AccountScheduleId, l.RowNo })
+                   .IsUnique()
+                   .HasFilter("[IsDeleted] = 0");
         });
 
         modelBuilder.Entity<BankAccount>(builder =>

@@ -296,17 +296,10 @@ public sealed class PlatformModule : IAsapModule
             // information the menu, the setup screen and every refusal already disclose.
             Order = 96,
         },
-        new()
-        {
-            Id = "Platform.Extensions",
-            Module = Id,
-            ParentId = "Platform.Administration",
-            DisplayName = new LocalizedText("Extensions", "الإضافات"),
-            Route = "/admin/extensions",
-            Icon = "extension",
-            RequiresPermission = $"{Id}.Extension.Read",
-            Order = 90,
-        },
+        // No entry for extensions yet. The screen is Phase 9 work and the endpoint does not
+        // exist, and a menu that advertises a feature which is not there is worse than a menu
+        // that stays quiet about it -- somebody clicks it, is bounced home, and stops trusting
+        // the rest of the menu. It comes back when there is something to click through to.
     ];
 
     private static NavigationItem Page(

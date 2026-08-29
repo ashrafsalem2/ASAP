@@ -1672,3 +1672,71 @@ export interface ScheduleReport {
   currencyCode: string;
   rows: ScheduleReportRow[];
 }
+
+/** How many people are at one branch. */
+export interface HeadcountRow {
+  branchId: string | null;
+  branchCode: string | null;
+  branchName: string | null;
+  count: number;
+}
+
+/** What one branch's staff cost, at contractual rates. */
+export interface BranchCostRow extends HeadcountRow {
+  monthlyWageCost: number;
+}
+
+/** How many people came and went over a period. */
+export interface Turnover {
+  fromDate: string;
+  toDate: string;
+  openingHeadcount: number;
+  hired: number;
+  left: number;
+  closingHeadcount: number;
+
+  /** Leavers against the average of the opening and closing headcounts, not against either end. */
+  turnoverRate: number;
+}
+
+/** One value a dimension may take. */
+export interface DimensionValueRow {
+  code: string;
+  name: string;
+  nameArabic: string | null;
+  kind: string;
+  totalRange: string | null;
+  indentation: number;
+  isBlocked: boolean;
+}
+
+/** An axis the company analyses its figures along. */
+export interface DimensionRow {
+  code: string;
+  name: string;
+  nameArabic: string | null;
+  description: string | null;
+  shortcutIndex: number | null;
+  isMandatory: boolean;
+  isBlocked: boolean;
+  values: DimensionValueRow[];
+}
+
+/** One period of a financial year. */
+export interface FiscalPeriodRow {
+  name: string;
+  startDate: string;
+  endDate: string;
+  isClosed: boolean;
+}
+
+/** A financial year and its periods. */
+export interface FiscalYearRow {
+  code: string;
+  startDate: string;
+  endDate: string;
+  isClosed: boolean;
+  incomeTransferred: boolean;
+  closedAtUtc: string | null;
+  periods: FiscalPeriodRow[];
+}

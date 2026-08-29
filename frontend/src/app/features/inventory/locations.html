@@ -1,0 +1,41 @@
+<div class="page">
+  <h1>{{ t('inventory.locations.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('inventory.locations.intro') }}</p>
+
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else if (rows().length === 0) {
+      <p class="empty">{{ t('inventory.locations.none') }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('inventory.locations.code') }}</th>
+              <th>{{ t('inventory.locations.name') }}</th>
+              <th>{{ t('inventory.locations.sellable') }}</th>
+              <th>{{ t('inventory.locations.inTransit') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of rows(); track row.code) {
+              <tr>
+                <td class="code">
+                  {{ row.code }}
+                  @if (row.isBlocked) {
+                    <span class="tag">{{ t('inventory.locations.blocked') }}</span>
+                  }
+                </td>
+                <td>{{ name(row) }}</td>
+                <td>{{ row.isSellable ? t('inventory.locations.yes') : '' }}</td>
+                <td>{{ row.isInTransit ? t('inventory.locations.yes') : '' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+</div>

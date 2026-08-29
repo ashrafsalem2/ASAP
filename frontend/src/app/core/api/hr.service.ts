@@ -19,6 +19,9 @@ import {
   PayrollRunSummary,
   PayrollSaved,
   TransferRequest,
+  BranchCostRow,
+  HeadcountRow,
+  Turnover,
 } from './asap-api.models';
 
 /** Talks to the human resources endpoints, and to the branch list every screen here needs. */
@@ -171,5 +174,28 @@ export class HrService {
     return firstValueFrom(
       this.http.delete<void>(`${this.base}/payroll/${encodeURIComponent(runNo)}`),
     );
+  }
+
+  /** How many people are at each branch, on a day. */
+  headcount(on?: string): Promise<HeadcountRow[]> {
+    const query = on ? `?on=${on}` : '';
+
+    return firstValueFrom(this.http.get<HeadcountRow[]>(`${this.base}/reports/headcount${query}`));
+  }
+
+  /** What each branch's staff cost, on a day, at contractual rates. */
+  costByBranch(on?: string): Promise<BranchCostRow[]> {
+    const query = on ? `?on=${on}` : '';
+
+    return firstValueFrom(
+      this.http.get<BranchCostRow[]>(`${this.base}/reports/cost-by-branch${query}`),
+    );
+  }
+
+  /** How many people came and went over a period, and the rate it comes to. */
+  turnover(fromDate: string, toDate: string): Promise<Turnover> {
+    const query = new URLSearchParams({ fromDate, toDate });
+
+    return firstValueFrom(this.http.get<Turnover>(`${this.base}/reports/turnover?${query}`));
   }
 }

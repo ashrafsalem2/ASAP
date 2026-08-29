@@ -33,6 +33,41 @@ export const routes: Routes = [
           import('./features/finance/chart-of-accounts').then((m) => m.ChartOfAccounts),
       },
       {
+        path: 'admin/dimensions',
+        canActivate: [requirePermission('Platform.Dimension.Read')],
+        loadComponent: () => import('./features/admin/dimensions').then((m) => m.Dimensions),
+      },
+      {
+        path: 'finance/periods',
+        canActivate: [requirePermission('Finance.Period.Read')],
+        loadComponent: () => import('./features/finance/periods').then((m) => m.FiscalPeriods),
+      },
+      {
+        path: 'inventory/locations',
+        canActivate: [requirePermission('Inventory.Location.Read')],
+        loadComponent: () => import('./features/inventory/locations').then((m) => m.Locations),
+      },
+      {
+        path: 'pos/stations',
+        canActivate: [requirePermission('Pos.Station.Read')],
+        loadComponent: () => import('./features/pos/stations').then((m) => m.Stations),
+      },
+      {
+        path: 'hr/reports/headcount',
+        canActivate: [requirePermission('Hr.Report.Read')],
+        loadComponent: () => import('./features/hr/headcount').then((m) => m.Headcount),
+      },
+      {
+        path: 'hr/reports/cost-by-branch',
+        canActivate: [requirePermission('Hr.Report.Read')],
+        loadComponent: () => import('./features/hr/cost-by-branch').then((m) => m.CostByBranch),
+      },
+      {
+        path: 'hr/reports/turnover',
+        canActivate: [requirePermission('Hr.Report.Read')],
+        loadComponent: () => import('./features/hr/turnover').then((m) => m.TurnoverReport),
+      },
+      {
         path: 'finance/schedules',
         canActivate: [requirePermission('Finance.Report.Read')],
         loadComponent: () => import('./features/finance/schedules').then((m) => m.Schedules),

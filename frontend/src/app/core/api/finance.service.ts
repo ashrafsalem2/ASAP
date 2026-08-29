@@ -19,6 +19,7 @@ import {
   PostJournalLine,
   PostingReceipt,
   TrialBalance,
+  FiscalYearRow,
 } from './asap-api.models';
 
 /**
@@ -201,5 +202,10 @@ export class FinanceService {
   /** The two ledgers differ only in their route segment. */
   private path(kind: PartyKind): string {
     return kind === 'Customer' ? 'customers' : 'vendors';
+  }
+
+  /** The financial years and their periods. */
+  fiscalYears(): Promise<FiscalYearRow[]> {
+    return firstValueFrom(this.http.get<FiscalYearRow[]>(`${this.base}/finance/fiscal-years`));
   }
 }

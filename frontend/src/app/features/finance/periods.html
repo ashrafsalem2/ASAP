@@ -1,0 +1,54 @@
+<div class="page">
+  <h1>{{ t('finance.periods.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('finance.periods.intro') }}</p>
+
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else if (rows().length === 0) {
+      <p class="empty">{{ t('finance.periods.none') }}</p>
+    } @else {
+      @for (year of rows(); track year.code) {
+        <div class="panel__header">
+          <h2>
+            {{ year.code }} — {{ year.startDate }} … {{ year.endDate }}
+            @if (year.isClosed) {
+              <span class="tag">{{ t('finance.periods.closed') }}</span>
+            }
+            @if (year.incomeTransferred) {
+              <span class="tag">{{ t('finance.periods.transferred') }}</span>
+            }
+          </h2>
+        </div>
+
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('finance.periods.period') }}</th>
+                <th>{{ t('finance.periods.from') }}</th>
+                <th>{{ t('finance.periods.to') }}</th>
+                <th>{{ t('finance.periods.state') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (period of year.periods; track period.name) {
+                <tr>
+                  <td>{{ period.name }}</td>
+                  <td>{{ period.startDate }}</td>
+                  <td>{{ period.endDate }}</td>
+                  <td>
+                    <span class="tag">
+                      {{ period.isClosed ? t('finance.periods.closed') : t('finance.periods.open') }}
+                    </span>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    }
+  </section>
+</div>

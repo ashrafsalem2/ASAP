@@ -1,0 +1,47 @@
+<div class="page">
+  <h1>{{ t('pos.stations.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('pos.stations.intro') }}</p>
+
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else if (rows().length === 0) {
+      <p class="empty">{{ t('pos.stations.none') }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('pos.stations.code') }}</th>
+              <th>{{ t('pos.stations.name') }}</th>
+              <th>{{ t('pos.stations.location') }}</th>
+              <th>{{ t('pos.stations.session') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of rows(); track row.code) {
+              <tr>
+                <td class="code">
+                  {{ row.code }}
+                  @if (row.isBlocked) {
+                    <span class="tag">{{ t('pos.stations.blocked') }}</span>
+                  }
+                </td>
+                <td>{{ name(row) }}</td>
+                <td class="code">{{ row.locationCode }}</td>
+                <td>
+                  @if (row.openSessionNo) {
+                    <span class="tag tag--warning">{{ row.openSessionNo }}</span>
+                  } @else {
+                    {{ t('pos.stations.closed') }}
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+</div>

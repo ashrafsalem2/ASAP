@@ -1,0 +1,128 @@
+<div class="page">
+  <h1>{{ t('admin.dimensions.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('admin.dimensions.intro') }}</p>
+
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else if (dimensions().length === 0) {
+      <p class="empty">{{ t('admin.dimensions.none') }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('admin.dimensions.code') }}</th>
+              <th>{{ t('admin.dimensions.name') }}</th>
+              <th>{{ t('admin.dimensions.shortcut') }}</th>
+              <th>{{ t('admin.dimensions.mandatory') }}</th>
+              <th class="numeric">{{ t('admin.dimensions.values') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (dimension of dimensions(); track dimension.code) {
+              <tr
+                class="admin__row"
+                [class.admin__row--selected]="selected()?.code === dimension.code"
+                (click)="select(dimension)"
+              >
+                <td class="code">
+                  {{ dimension.code }}
+                  @if (dimension.isBlocked) {
+                    <span class="tag">{{ t('admin.dimensions.retired') }}</span>
+                  }
+                </td>
+                <td>{{ name(dimension) }}</td>
+                <td>
+                  @if (dimension.shortcutIndex) {
+                    <span class="tag">{{ dimension.shortcutIndex }}</span>
+                  }
+                </td>
+                <td>{{ dimension.isMandatory ? t('admin.dimensions.yes') : '' }}</td>
+                <td class="numeric">{{ dimension.values.length }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+
+  @if (selected(); as d) {
+    <section class="panel">
+      <div class="panel__header">
+        <h2>{{ d.code }} — {{ name(d) }}</h2>
+      </div>
+
+      <p class="panel__body admin__note">{{ t('admin.dimensions.valuesNote') }}</p>
+
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('admin.dimensions.code') }}</th>
+              <th>{{ t('admin.dimensions.name') }}</th>
+              <th>{{ t('admin.dimensions.nameArabic') }}</th>
+              <th>{{ t('admin.dimensions.kind') }}</th>
+              <th>{{ t('admin.dimensions.range') }}</th>
+              <th>{{ t('admin.dimensions.retired') }}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (value of d.values; track $index) {
+              <tr>
+                <td><input type="text" size="10" [(ngModel)]="value.code" [name]="'c' + $index" /></td>
+                <td><input type="text" [(ngModel)]="value.name" [name]="'n' + $index" /></td>
+                <td><input type="text" [(ngModel)]="value.nameArabic" [name]="'a' + $index" /></td>
+                <td>
+                  <select [(ngModel)]="value.kind" [name]="'k' + $index">
+                    @for (kind of kinds; track kind) {
+                      <option [value]="kind">{{ kind }}</option>
+                    }
+                  </select>
+                </td>
+                <td>
+                  @if (value.kind === 'Total') {
+                    <input type="text" size="14" [(ngModel)]="value.totalRange" [name]="'r' + $index" />
+                  }
+                </td>
+                <td><input type="checkbox" [(ngModel)]="value.isBlocked" [name]="'b' + $index" /></td>
+                <td>
+                  @if (canWrite()) {
+                    <button type="button" class="button" (click)="removeValue(value)">×</button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (canWrite()) {
+        <div class="panel__body draft">
+          <label>
+            {{ t('admin.dimensions.shortcut') }}
+            <input type="number" min="1" max="8" [(ngModel)]="d.shortcutIndex" name="shortcut" />
+          </label>
+
+          <label>
+            {{ t('admin.dimensions.mandatory') }}
+            <input type="checkbox" [(ngModel)]="d.isMandatory" name="mandatory" />
+          </label>
+
+          <button type="button" class="button" (click)="addValue()">
+            {{ t('admin.dimensions.addValue') }}
+          </button>
+
+          <button type="button" class="button button--primary" [disabled]="busy()" (click)="save()">
+            {{ t('admin.dimensions.save') }}
+          </button>
+        </div>
+
+        <p class="panel__body admin__note">{{ t('admin.dimensions.mandatoryNote') }}</p>
+      }
+    </section>
+  }
+</div>

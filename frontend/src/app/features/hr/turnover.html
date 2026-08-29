@@ -1,0 +1,52 @@
+<div class="page">
+  <h1>{{ t('hr.reports.turnover') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('hr.reports.turnoverIntro') }}</p>
+
+    <div class="panel__body draft">
+      <label>
+        {{ t('hr.reports.from') }}
+        <input type="date" [(ngModel)]="fromDate" name="fromDate" (change)="run()" />
+      </label>
+
+      <label>
+        {{ t('hr.reports.to') }}
+        <input type="date" [(ngModel)]="toDate" name="toDate" (change)="run()" />
+      </label>
+    </div>
+
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else if (report(); as r) {
+      <div class="table-scroll">
+        <table class="table">
+          <tbody>
+            <tr>
+              <td>{{ t('hr.reports.opening') }}</td>
+              <td class="numeric">{{ r.openingHeadcount }}</td>
+            </tr>
+            <tr>
+              <td>{{ t('hr.reports.hired') }}</td>
+              <td class="numeric">{{ r.hired }}</td>
+            </tr>
+            <tr>
+              <td>{{ t('hr.reports.left') }}</td>
+              <td class="numeric">{{ r.left }}</td>
+            </tr>
+            <tr>
+              <td>{{ t('hr.reports.closing') }}</td>
+              <td class="numeric">{{ r.closingHeadcount }}</td>
+            </tr>
+            <tr>
+              <td><strong>{{ t('hr.reports.rate') }}</strong></td>
+              <td class="numeric"><strong>{{ percent(r.turnoverRate) }}</strong></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <p class="panel__body admin__note">{{ t('hr.reports.rateNote') }}</p>
+    }
+  </section>
+</div>

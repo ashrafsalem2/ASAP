@@ -1,0 +1,46 @@
+<div class="page">
+  <h1>{{ t('hr.reports.cost') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('hr.reports.costIntro') }}</p>
+
+    <div class="panel__body draft">
+      <label>
+        {{ t('hr.reports.on') }}
+        <input type="date" [(ngModel)]="on" name="on" (change)="run()" />
+      </label>
+    </div>
+
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else if (rows().length === 0) {
+      <p class="empty">{{ t('hr.reports.nobody') }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('hr.reports.branch') }}</th>
+              <th class="numeric">{{ t('hr.reports.people') }}</th>
+              <th class="numeric">{{ t('hr.reports.monthlyCost') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of rows(); track row.branchCode) {
+              <tr>
+                <td>{{ branchOf(row) }}</td>
+                <td class="numeric">{{ row.count }}</td>
+                <td class="numeric">{{ row.monthlyWageCost }}</td>
+              </tr>
+            }
+            <tr>
+              <td><strong>{{ t('hr.reports.total') }}</strong></td>
+              <td class="numeric"><strong>{{ total() }}</strong></td>
+              <td class="numeric"></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+</div>

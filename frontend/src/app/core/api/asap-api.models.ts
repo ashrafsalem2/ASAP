@@ -174,6 +174,31 @@ export interface StockLocation {
   usesBins: boolean;
 }
 
+/** One line of a margin report. */
+export interface MarginRow {
+  key: string;
+  name: string;
+  quantity: number;
+  revenue: number;
+  cost: number;
+  margin: number;
+  marginPercent: number | null;
+  estimatedCost: number;
+}
+
+/** One sales order with goods still to go out. */
+export interface OpenSalesOrderRow {
+  orderNo: string;
+  customerNo: string;
+  customerName: string;
+  orderDate: string;
+  requestedDeliveryDate?: string | null;
+  daysOverdue: number | null;
+  quantityOutstanding: number;
+  valueOutstanding: number;
+  status: string;
+}
+
 /** One order with goods still to come. */
 export interface OpenOrderRow {
   orderNo: string;

@@ -263,7 +263,15 @@ Everything else posts here, so it goes first.
   the tax lands on what the customer actually pays and the discount stays visible in the P&L
 - **done** The location is asked about when the order is taken, not at the despatch bay
 - **done** Client screens: sales orders, shipment and invoice
-- Reports: sales analysis, margin by item and customer, open orders
+- **done** Reports: margin by item and by customer, and open orders. Margin comes from the item
+  ledger rather than sales documents, which is what the sales amount on every outbound value entry
+  was for -- so a till sale and an invoice are the same rows and the report cannot tell which door
+  a sale came through, any more than the P&L can. Every row says how much of its cost is still an
+  estimate, because a margin resting on stock that has not arrived will move and a figure somebody
+  acts on that changes underneath them is worse than one that admitted it was provisional. By
+  customer needs both channels, so a kernel port asks every module that owns documents who was on
+  the other side. Margin after promotions, by branch and by salesperson, and period comparison
+  still to come
 
 ## Phase 5 — Point of sale and branch operations
 

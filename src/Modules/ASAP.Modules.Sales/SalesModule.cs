@@ -53,6 +53,8 @@ public sealed class SalesModule : IAsapModule
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddScoped<Orders.SalesOrderService>();
+        services.AddScoped<Reporting.SalesReportService>();
+        services.AddScoped<ASAP.Platform.Kernel.Documents.IDocumentParties, Reporting.SalesDocumentParties>();
         services.AddScoped<Orders.SalesShipmentService>();
         services.AddScoped<Orders.SalesInvoiceService>();
     }
@@ -198,6 +200,20 @@ public sealed class SalesModule : IAsapModule
             Kind = NavigationKind.Group,
             Icon = "sales",
             Order = 400,
+        },
+        new()
+        {
+            Id = "Sales.Reports",
+            Module = Id,
+            ParentId = "Sales.Root",
+            DisplayName = new LocalizedText("Sales reports", "تقارير المبيعات"),
+            Kind = NavigationKind.Page,
+            Route = "/sales/reports",
+            RequiresPermission = $"{Id}.Order.Read",
+            Order = 70,
+
+            // A report refuses nothing, so it has no message to hang its documentation off.
+            HelpTopic = "sales/reports",
         },
         new()
         {

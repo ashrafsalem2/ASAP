@@ -4,6 +4,8 @@ import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   CreateSalesOrderRequest,
+  MarginRow,
+  OpenSalesOrderRow,
   SalesInvoiceResult,
   SalesOrder,
   SalesOrderCreated,
@@ -86,6 +88,46 @@ export class SalesService {
         `${this.base}/orders/${encodeURIComponent(orderNo)}/invoice`,
         { lines, overrideReason },
       ),
+    );
+  }
+
+  /**
+   * Revenue, cost and margin by item, thinnest first.
+   *
+   * A row whose estimated cost is most of its cost is not reporting a margin, it is saying to come
+   * back after the goods arrive.
+   */
+  marginByItem(from: string, to: string): Promise<MarginRow[]> {
+    const params = new HttpParams().set('from', from).set('to', to);
+
+    return firstValueFrom(
+      this.http.get<MarginRow[]>(`${this.base}/reports/margin-by-item`, { params }),
+    );
+  }
+
+  /** The same, by customer, gathering every channel a sale can come through. */
+  marginByCustomer(from: string, to: string): Promise<MarginRow[]> {
+    const params = new HttpParams().set('from', from).set('to', to);
+
+    return firstValueFrom(
+      this.http.get<MarginRow[]>(`${this.base}/reports/margin-by-customer`, { params }),
+    );
+  }
+
+  /** What is ordered and has not shipped, most overdue first. */
+  openSalesOrders(overdueOnly = false, customerNo?: string): Promise<OpenSalesOrderRow[]> {
+    let params = new HttpParams();
+
+    if (overdueOnly) {
+      params = params.set('overdueOnly', 'true');
+    }
+
+    if (customerNo) {
+      params = params.set('customerNo', customerNo);
+    }
+
+    return firstValueFrom(
+      this.http.get<OpenSalesOrderRow[]>(`${this.base}/reports/open-orders`, { params }),
     );
   }
 }

@@ -1,6 +1,8 @@
 using ASAP.Api.Infrastructure;
 using ASAP.Modules.Sales.Orders;
+using ASAP.Modules.Sales.Reporting;
 using ASAP.Platform.Kernel.Security;
+using ASAP.Platform.Kernel.Time;
 using ASAP.Platform.Persistence;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -155,8 +157,80 @@ public static class SalesEndpoints
              .WithName("PostSalesInvoice")
              .WithSummary("Turns what shipped into a debt the customer owes.");
 
+        group.MapGet("/reports/margin-by-item", MarginByItemAsync)
+             .WithName("MarginByItem")
+             .WithSummary("Revenue, cost and margin by item, thinnest margin first.");
+
+        group.MapGet("/reports/margin-by-customer", MarginByCustomerAsync)
+             .WithName("MarginByCustomer")
+             .WithSummary("Revenue, cost and margin by customer, across every channel.");
+
+        group.MapGet("/reports/open-orders", OpenSalesOrdersAsync)
+             .WithName("OpenSalesOrders")
+             .WithSummary("What is ordered and has not shipped, latest first.");
+
         return app;
     }
+    private static async Task<IResult> MarginByItemAsync(
+        SalesReportService reports,
+        IUserContext user,
+        IClock clock,
+        HttpContext http,
+        CancellationToken cancellationToken,
+        DateOnly? from = null,
+        DateOnly? to = null)
+    {
+        if (!Can(user, ReadPermission))
+        {
+            return Forbidden(ReadPermission, "read margin by item", http);
+        }
+
+        var last = to ?? clock.Today;
+
+        return Results.Ok(await reports
+            .MarginByItemAsync(from ?? last.AddMonths(-3), last, cancellationToken)
+            .ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> MarginByCustomerAsync(
+        SalesReportService reports,
+        IUserContext user,
+        IClock clock,
+        HttpContext http,
+        CancellationToken cancellationToken,
+        DateOnly? from = null,
+        DateOnly? to = null)
+    {
+        if (!Can(user, ReadPermission))
+        {
+            return Forbidden(ReadPermission, "read margin by customer", http);
+        }
+
+        var last = to ?? clock.Today;
+
+        return Results.Ok(await reports
+            .MarginByCustomerAsync(from ?? last.AddMonths(-3), last, cancellationToken)
+            .ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> OpenSalesOrdersAsync(
+        SalesReportService reports,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken,
+        string? customerNo = null,
+        bool overdueOnly = false)
+    {
+        if (!Can(user, ReadPermission))
+        {
+            return Forbidden(ReadPermission, "read open sales orders", http);
+        }
+
+        return Results.Ok(await reports
+            .OpenOrdersAsync(customerNo, overdueOnly, cancellationToken)
+            .ConfigureAwait(false));
+    }
+
 
     private static async Task<IResult> ListAsync(
         AsapDbContext context,

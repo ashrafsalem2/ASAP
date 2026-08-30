@@ -1,0 +1,164 @@
+<div class="page">
+  <h1>{{ t('sales.reports.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('sales.reports.intro') }}</p>
+
+    <div class="panel__body form-row">
+      <label>
+        {{ t('sales.reports.from') }}
+        <input type="date" [(ngModel)]="from" name="from" (change)="refresh()" />
+      </label>
+      <label>
+        {{ t('sales.reports.to') }}
+        <input type="date" [(ngModel)]="to" name="to" (change)="refresh()" />
+      </label>
+    </div>
+  </section>
+
+  @if (loading()) {
+    <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+  } @else {
+    <section class="panel">
+      <h2 class="panel__title">{{ t('sales.reports.byItemTitle') }}</h2>
+
+      @if (byItem().length === 0) {
+        <p class="empty">{{ t('sales.reports.nothingSold') }}</p>
+      } @else {
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('sales.reports.item') }}</th>
+                <th class="numeric">{{ t('sales.reports.quantity') }}</th>
+                <th class="numeric">{{ t('sales.reports.revenue') }}</th>
+                <th class="numeric">{{ t('sales.reports.cost') }}</th>
+                <th class="numeric">{{ t('sales.reports.margin') }}</th>
+                <th class="numeric">{{ t('sales.reports.marginPercent') }}</th>
+                <th class="numeric">{{ t('sales.reports.estimated') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of byItem(); track row.key) {
+                <tr>
+                  <td><span class="code">{{ row.key }}</span> {{ row.name }}</td>
+                  <td class="numeric">{{ row.quantity }}</td>
+                  <td class="numeric">{{ row.revenue }}</td>
+                  <td class="numeric">{{ row.cost }}</td>
+                  <td class="numeric">{{ row.margin }}</td>
+                  <td class="numeric">
+                    @if (row.marginPercent !== null) {
+                      {{ row.marginPercent }}%
+                    }
+                  </td>
+                  <td class="numeric">
+                    @if (row.estimatedCost !== 0) {
+                      {{ row.estimatedCost }}
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="6">{{ t('sales.reports.estimatedTotal') }}</td>
+                <td class="numeric">{{ estimatedTotal() }}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      }
+
+      <p class="panel__body hint">{{ t('sales.reports.byItemHint') }}</p>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">{{ t('sales.reports.byCustomerTitle') }}</h2>
+
+      @if (byCustomer().length === 0) {
+        <p class="empty">{{ t('sales.reports.nothingSold') }}</p>
+      } @else {
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('sales.reports.customer') }}</th>
+                <th class="numeric">{{ t('sales.reports.revenue') }}</th>
+                <th class="numeric">{{ t('sales.reports.cost') }}</th>
+                <th class="numeric">{{ t('sales.reports.margin') }}</th>
+                <th class="numeric">{{ t('sales.reports.marginPercent') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of byCustomer(); track row.key) {
+                <tr>
+                  <td><span class="code">{{ row.key }}</span> {{ row.name }}</td>
+                  <td class="numeric">{{ row.revenue }}</td>
+                  <td class="numeric">{{ row.cost }}</td>
+                  <td class="numeric">{{ row.margin }}</td>
+                  <td class="numeric">
+                    @if (row.marginPercent !== null) {
+                      {{ row.marginPercent }}%
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+
+      <p class="panel__body hint">{{ t('sales.reports.byCustomerHint') }}</p>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">{{ t('sales.reports.openTitle') }}</h2>
+
+      <div class="panel__body form-row">
+        <label class="check">
+          <input type="checkbox" [(ngModel)]="overdueOnly" name="overdueOnly" (change)="refresh()" />
+          {{ t('sales.reports.overdueOnly') }}
+        </label>
+      </div>
+
+      @if (open().length === 0) {
+        <p class="empty">{{ t('sales.reports.nothingOutstanding') }}</p>
+      } @else {
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('sales.reports.order') }}</th>
+                <th>{{ t('sales.reports.customer') }}</th>
+                <th>{{ t('sales.reports.wanted') }}</th>
+                <th class="numeric">{{ t('sales.reports.daysLate') }}</th>
+                <th class="numeric">{{ t('sales.reports.outstanding') }}</th>
+                <th class="numeric">{{ t('sales.reports.value') }}</th>
+                <th>{{ t('sales.reports.status') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of open(); track row.orderNo) {
+                <tr>
+                  <td class="code">{{ row.orderNo }}</td>
+                  <td>{{ row.customerName }}</td>
+                  <td>{{ row.requestedDeliveryDate }}</td>
+                  <td class="numeric">
+                    @if (row.daysOverdue !== null && row.daysOverdue > 0) {
+                      {{ row.daysOverdue }}
+                    }
+                  </td>
+                  <td class="numeric">{{ row.quantityOutstanding }}</td>
+                  <td class="numeric">{{ row.valueOutstanding }}</td>
+                  <td>{{ row.status }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+
+      <p class="panel__body hint">{{ t('sales.reports.openHint') }}</p>
+    </section>
+  }
+</div>

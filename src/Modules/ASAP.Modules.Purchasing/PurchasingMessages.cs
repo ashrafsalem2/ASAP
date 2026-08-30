@@ -32,6 +32,24 @@ public static class PurchasingMessages
     /// <summary>Nobody in the company can sign for an order this size.</summary>
     public static readonly MessageCode NobodyCanApproveThis = new("PUR.APPROVAL.NOBODY_CAN");
 
+    /// <summary>A landed cost of nothing or less was offered.</summary>
+    public static readonly MessageCode LandedCostNotPositive = new("PUR.LANDED.NOT_POSITIVE");
+
+    /// <summary>A landed cost was offered with nothing to post it against.</summary>
+    public static readonly MessageCode LandedCostNeedsAnAccount = new("PUR.LANDED.NO_ACCOUNT");
+
+    /// <summary>Nothing has been received against the order.</summary>
+    public static readonly MessageCode NothingReceivedToLandCostOn = new("PUR.LANDED.NOTHING_RECEIVED");
+
+    /// <summary>The chosen basis comes to nothing, so nothing can be shared out by it.</summary>
+    public static readonly MessageCode NothingToApportionBy = new("PUR.LANDED.NO_BASIS");
+
+    /// <summary>Part of the charge belonged to goods that have already gone.</summary>
+    public static readonly MessageCode LandedCostReachedGoodsAlreadySold = new("PUR.LANDED.CORRECTED_SALES");
+
+    /// <summary>The account a landed cost was to post against will not take an entry.</summary>
+    public static readonly MessageCode LandedCostAccountUnusable = new("PUR.LANDED.ACCOUNT_UNUSABLE");
+
     /// <summary>The order named does not exist.</summary>
     public static readonly MessageCode OrderNotFound = new("PUR.ORDER.NOT_FOUND");
 
@@ -175,6 +193,96 @@ public static class PurchasingMessages
                 "It stays on the record with the reason on it, because somebody will ask.",
                 "يبقى في السجل ومعه سببه، لأن أحدهم سيسأل."),
             HelpTopic = "purchasing/approval-limits",
+        },
+        new()
+        {
+            Code = LandedCostAccountUnusable,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Nothing will post to that account", "لن يُرحّل شيء إلى هذا الحساب"),
+            Detail = new LocalizedText(
+                "{AccountNo} was given for the charge on {OrderNo}, and {Reason}.",
+                "أُعطي الحساب {AccountNo} لرسم الأمر {OrderNo}، و{Reason}."),
+            Resolution = new LocalizedText(
+                "Name an account entries can land on. Checked before anything is written rather "
+                + "than discovered by the ledger afterwards, because half a landed cost is worse "
+                + "than none: the cost layers would carry the charge and the accounts would not.",
+                "حدّد حسابًا تقع عليه القيود. ويُفحص قبل كتابة أي شيء لا بعد أن يكتشفه دفتر "
+                + "الأستاذ، لأن نصف تكلفة توريد أسوأ من لا شيء: فتحمل طبقات التكلفة الرسم ولا "
+                + "تحمله الحسابات."),
+            HelpTopic = "purchasing/landed-cost",
+        },
+        new()
+        {
+            Code = LandedCostNotPositive,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("A charge has to be worth something", "الرسم يجب أن يكون له قيمة"),
+            Detail = new LocalizedText(
+                "{Amount:N2} was offered as a landed cost.",
+                "عُرض المبلغ {Amount:N2} كتكلفة توريد."),
+            Resolution = new LocalizedText(
+                "Give the amount on the carrier's invoice. A credit note against a charge already "
+                + "landed is a different operation and not this one.",
+                "أدخل المبلغ في فاتورة الناقل. أما الإشعار الدائن على رسم مُحمّل فعملية أخرى ليست هذه."),
+            HelpTopic = "purchasing/landed-cost",
+        },
+        new()
+        {
+            Code = LandedCostNeedsAnAccount,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Say what it posts against", "حدّد ما يُرحّل مقابله"),
+            Detail = new LocalizedText(
+                "A landed cost on {OrderNo} was offered with no account to post against.",
+                "عُرضت تكلفة توريد على الأمر {OrderNo} بلا حساب تُرحّل مقابله."),
+            Resolution = new LocalizedText(
+                "Name the accrual the carrier will be paid from. The charge raises the value of "
+                + "goods, and the other side of that has to be somewhere.",
+                "حدّد المستحق الذي سيُدفع منه للناقل. فالرسم يرفع قيمة البضاعة، ولا بد للطرف الآخر من مكان."),
+            HelpTopic = "purchasing/landed-cost",
+        },
+        new()
+        {
+            Code = NothingReceivedToLandCostOn,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("Nothing has arrived on that order", "لم يصل شيء على هذا الأمر"),
+            Detail = new LocalizedText(
+                "{OrderNo} has no goods receipts to spread a charge across.",
+                "الأمر {OrderNo} ليس فيه استلامات لتوزيع الرسم عليها."),
+            Resolution = new LocalizedText(
+                "Receive the goods first. Freight belongs to the goods it carried, and until they "
+                + "have arrived there is nothing for it to attach to.",
+                "استلم البضاعة أولًا. فالشحن يخص البضاعة التي حملها، وما لم تصل فليس له ما يتعلق به."),
+            HelpTopic = "purchasing/landed-cost",
+        },
+        new()
+        {
+            Code = NothingToApportionBy,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("Nothing to share it out by", "لا شيء يُوزَّع عليه"),
+            Detail = new LocalizedText(
+                "The receipts on {OrderNo} come to nothing by {Basis}.",
+                "استلامات الأمر {OrderNo} مجموعها صفر بحسب {Basis}."),
+            Resolution = new LocalizedText(
+                "Choose the other basis. Spreading it evenly instead would be inventing a basis "
+                + "nobody chose, and the wrong item would carry the charge.",
+                "اختر الأساس الآخر. فتوزيعه بالتساوي اختراع لأساس لم يخترْه أحد، ويحمل الرسمَ الصنفُ الخطأ."),
+            HelpTopic = "purchasing/landed-cost",
+        },
+        new()
+        {
+            Code = LandedCostReachedGoodsAlreadySold,
+            Severity = MessageSeverity.Information,
+            Title = new LocalizedText("Some of it belonged to goods already sold", "جزء منه يخص بضاعة بيعت"),
+            Detail = new LocalizedText(
+                "{Amount:N2} of the charge on {OrderNo} covered goods that have gone, so it "
+                + "corrected their cost of sales rather than the value of stock.",
+                "غطّى {Amount:N2} من رسم الأمر {OrderNo} بضاعةً خرجت، فصحّح تكلفة مبيعاتها بدل "
+                + "قيمة المخزون."),
+            Resolution = new LocalizedText(
+                "Nothing to do. A landed cost is what the goods cost all along, so the sales that "
+                + "already happened were understating their cost until now.",
+                "لا شيء يُفعل. فتكلفة التوريد هي ما كلّفته البضاعة منذ البداية، وكانت المبيعات "
+                + "التي تمت تُنقص تكلفتها حتى الآن."),
+            HelpTopic = "purchasing/landed-cost",
         },
         new()
         {

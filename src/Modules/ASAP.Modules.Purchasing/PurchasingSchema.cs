@@ -91,6 +91,8 @@ public sealed class PurchasingSchema : IModuleSchema
         {
             builder.ToTable("PurchaseOrderLines", SchemaName);
 
+            builder.Property(l => l.VariantCode).HasMaxLength(32);
+
             builder.Property(l => l.ItemNo).HasMaxLength(20);
             builder.Property(l => l.AccountNo).HasMaxLength(20);
             builder.Property(l => l.Description).HasMaxLength(250).IsRequired();

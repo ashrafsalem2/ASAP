@@ -165,6 +165,16 @@ public sealed class PurchaseOrderLine : CompanyEntity
     /// <summary>The item number, on an item line.</summary>
     public string? ItemNo { get; set; }
 
+    /// <summary>
+    /// Which variant, on an item stocked as separate colours or sizes.
+    /// </summary>
+    /// <remarks>
+    /// Required there and refused elsewhere, exactly as it is on a stock movement. A purchase order
+    /// for shirts that does not say which size is not an order anybody can receive against, and the
+    /// goods-in door is a poor place to discover that.
+    /// </remarks>
+    public string? VariantCode { get; set; }
+
     /// <summary>The account number, on a cost line.</summary>
     public string? AccountNo { get; set; }
 

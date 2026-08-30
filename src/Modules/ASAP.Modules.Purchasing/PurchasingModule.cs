@@ -58,6 +58,7 @@ public sealed class PurchasingModule : IAsapModule
 
 
         services.AddScoped<Approvals.PurchaseApprovalService>();
+        services.AddScoped<Costing.LandedCostService>();
         services.AddScoped<Orders.PurchaseReceiptService>();
         services.AddScoped<Orders.PurchaseInvoiceService>();
     }
@@ -65,6 +66,17 @@ public sealed class PurchasingModule : IAsapModule
     /// <inheritdoc />
     public IReadOnlyCollection<PermissionDescriptor> Permissions =>
     [
+        PermissionDescriptor.Define(
+            Id, "LandedCost", PermissionAction.Post,
+            new LocalizedText("Apply landed cost", "تحميل تكلفة التوريد"),
+            new LocalizedText(
+                "Add freight, duty and clearance to the cost of the goods they were spent on. "
+                + "Where some of those goods have already been sold, this corrects what that sale "
+                + "cost as well as what the stock is worth.",
+                "إضافة الشحن والرسوم والتخليص إلى تكلفة البضاعة التي أُنفقت عليها. وحيث بيع شيء "
+                + "منها، يصحّح هذا تكلفة تلك البيعة إلى جانب قيمة المخزون."),
+            isSensitive: true),
+
         PermissionDescriptor.Define(
             Id, "Approval", PermissionAction.Read,
             new LocalizedText("View approval limits", "عرض حدود الاعتماد")),

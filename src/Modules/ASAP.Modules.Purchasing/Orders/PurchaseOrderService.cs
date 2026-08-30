@@ -30,7 +30,8 @@ public readonly record struct PurchaseOrderLineRequest(
     decimal DirectUnitCost,
     string? Description = null,
     string? TaxCode = null,
-    string? LocationCode = null);
+    string? LocationCode = null,
+    string? VariantCode = null);
 
 /// <summary>
 /// Raises and amends purchase orders.
@@ -175,6 +176,7 @@ public sealed class PurchaseOrderService(
                 LineNo = ++lineNo * 10,
                 Type = line.Type,
                 ItemNo = line.Type is PurchaseLineType.Item ? line.No : null,
+                VariantCode = line.Type is PurchaseLineType.Item ? line.VariantCode : null,
                 AccountNo = line.Type is PurchaseLineType.GlAccount ? line.No : null,
                 Description = line.Description ?? item?.Description ?? line.No,
                 LocationCode = line.LocationCode,

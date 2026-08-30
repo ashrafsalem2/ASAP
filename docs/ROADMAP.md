@@ -218,7 +218,15 @@ Everything else posts here, so it goes first.
   sign for says so rather than waiting silently. The amount is frozen with the signature, because an
   approval is authority for an amount not for an order number. Approval chains, delegation and
   notifications still to come
-- Landed cost applied across an item charge
+- **done** Landed cost. Freight and duty are part of what the goods cost, and left in an expense
+  account every margin on those items is overstated for as long as they sell. The charge is spread
+  across the receipts it covered -- by value or by quantity, never evenly, because an even split
+  invents a basis nobody chose -- and applied per unit received so the cost layers carry it. The
+  part that makes it harder than a revaluation: a landed cost is a correction to what the goods
+  cost all along, so freight arriving after sixty of a hundred are sold belongs on all hundred. What
+  is still on hand raises inventory; what has gone corrects cost of sales, against the very outbound
+  entries that consumed the receipt. Landed cost as a document the three-way match can see, one
+  charge across several orders, reversal, and bases by weight or volume still to come
 - **done** Posting into inventory and the vendor ledger, through a goods-received-not-invoiced
   accrual so the company owes for stock from the day it lands rather than the day the post does
 - **done** Client screens: purchase orders, goods receipt and vendor invoice

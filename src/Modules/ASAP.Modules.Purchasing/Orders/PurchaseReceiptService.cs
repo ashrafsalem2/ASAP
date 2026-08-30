@@ -134,7 +134,11 @@ public sealed class PurchaseReceiptService(
                 // Inventory goes up against goods-received-not-invoiced rather than against the
                 // variance account it would otherwise fall back to. The company owes for these
                 // goods from the moment they land; there is simply nobody to pay yet.
-                ContraAccountNo: accrualAccount))
+                ContraAccountNo: accrualAccount,
+
+                // Carried from the order line. Without it a variant item cannot be received at all,
+                // and the refusal lands at the goods-in door rather than when the order was raised.
+                VariantCode: a.Line.VariantCode))
             .ToList();
 
         var transactionNo = 0L;

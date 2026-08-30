@@ -1,6 +1,7 @@
 using ASAP.Api.Infrastructure;
 using ASAP.Modules.Purchasing;
 using ASAP.Modules.Purchasing.Approvals;
+using ASAP.Modules.Purchasing.Costing;
 using ASAP.Modules.Purchasing.Orders;
 using ASAP.Platform.Kernel.Security;
 using ASAP.Platform.Persistence;
@@ -8,6 +9,19 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace ASAP.Api.Endpoints;
+
+/// <summary>A charge to spread across the goods an order brought in.</summary>
+/// <param name="Amount">The charge, from the carrier's invoice.</param>
+/// <param name="Basis">Whether to spread it by value or by quantity.</param>
+/// <param name="ContraAccountNo">What it posts against -- the accrual the carrier is paid from.</param>
+/// <param name="PostingDate">The date to report it in. Defaults to today.</param>
+/// <param name="Description">What it was for.</param>
+public sealed record LandedCostRequest(
+    decimal Amount,
+    LandedCostBasis Basis = LandedCostBasis.ByValue,
+    string ContraAccountNo = "",
+    DateOnly? PostingDate = null,
+    string? Description = null);
 
 /// <summary>Why an order is being turned down.</summary>
 /// <param name="Reason">What was wrong, which the buyer will read.</param>
@@ -54,7 +68,8 @@ public sealed record PurchaseLinePayload(
     decimal DirectUnitCost,
     string? Description = null,
     string? TaxCode = null,
-    string? LocationCode = null);
+    string? LocationCode = null,
+    string? VariantCode = null);
 
 /// <summary>What a client sends to raise a purchase order.</summary>
 /// <param name="VendorNo">Who it is being ordered from.</param>
@@ -116,7 +131,8 @@ public sealed record PurchaseOrderLineView(
     decimal QuantityReceived,
     decimal QuantityInvoiced,
     decimal OutstandingToReceive,
-    decimal ReceivedNotInvoiced);
+    decimal ReceivedNotInvoiced,
+    string? VariantCode = null);
 
 /// <summary>A purchase order as it is reported back.</summary>
 /// <param name="No">Its number.</param>
@@ -231,6 +247,10 @@ public static class PurchasingEndpoints
              .WithName("SetPurchaseApprovalLimit")
              .WithSummary("Sets what one person may approve.");
 
+        group.MapPost("/orders/{orderNo}/landed-cost", LandedCostAsync)
+             .WithName("ApplyLandedCost")
+             .WithSummary("Adds freight or duty to the cost of the goods received against an order.");
+
         group.MapPost("/orders/{orderNo}/receive", ReceiveAsync)
              .WithName("ReceiveGoods")
              .WithSummary("Records that goods arrived: moves stock and accrues what is owed.");
@@ -317,7 +337,8 @@ public static class PurchasingEndpoints
                     l.DirectUnitCost,
                     l.Description,
                     l.TaxCode,
-                    l.LocationCode))],
+                    l.LocationCode,
+                    l.VariantCode))],
                 request.LocationCode,
                 request.ExpectedReceiptDate,
                 request.Description,
@@ -334,6 +355,50 @@ public static class PurchasingEndpoints
                 messages = MessagePayload.FromAll(result.Messages),
             });
     }
+    private static async Task<IResult> LandedCostAsync(
+        string orderNo,
+        LandedCostRequest request,
+        LandedCostService landed,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, "Purchasing.LandedCost.Post"))
+        {
+            return Forbidden("Purchasing.LandedCost.Post", "apply a landed cost", http);
+        }
+
+        var result = await landed
+            .ApplyAsync(
+                orderNo,
+                request.Amount,
+                request.Basis,
+                request.ContraAccountNo,
+                request.PostingDate,
+                request.Description,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed
+            ? Refused(result, http)
+            : Results.Ok(new
+            {
+                transactionNo = result.Value.TransactionNo,
+                amount = result.Value.Amount,
+                toInventory = result.Value.ToInventory,
+                toCostOfSales = result.Value.ToCostOfSales,
+                shares = result.Value.Shares,
+                messages = result.Messages.Select(static m => new MessageView(
+                    m.Code.Value,
+                    m.Severity.ToString(),
+                    m.Title,
+                    m.Detail,
+                    m.Resolution)),
+            });
+    }
+
     private static async Task<IResult> ApproveAsync(
         string orderNo,
         PurchaseOrderService orders,

@@ -112,7 +112,7 @@ public sealed class ExtensionCheckTests
     {
         var problems = ExtensionCheck.Problems(new Broken
         {
-            Setting = new SetupDescriptor
+            Declared = new SetupDescriptor
             {
                 Key = "Broken.Months",
                 Module = "Broken",
@@ -160,7 +160,7 @@ public sealed class ExtensionCheckTests
 
         public NavigationItem? Entry { get; init; }
 
-        public SetupDescriptor? Setting { get; init; }
+        public SetupDescriptor? Declared { get; init; }
 
         public override string ModuleId => "Broken";
 
@@ -175,6 +175,6 @@ public sealed class ExtensionCheckTests
             => Entry is null ? [] : [Entry];
 
         public override IReadOnlyCollection<SetupDescriptor> Setups
-            => Setting is null ? [] : [Setting];
+            => Declared is null ? [] : [Declared];
     }
 }

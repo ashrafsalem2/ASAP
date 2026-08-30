@@ -1740,3 +1740,44 @@ export interface FiscalYearRow {
   closedAtUtc: string | null;
   periods: FiscalPeriodRow[];
 }
+
+/** One line of a recurring batch. */
+export interface RecurringLine {
+  accountNo: string;
+  description: string;
+
+  /** A step through the calendar: 1M a month on, 1M+CM the last day of next month. */
+  recurrenceFormula: string;
+  amount: number;
+  method: 'Fixed' | 'Variable' | 'Balance' | 'ReversingFixed' | 'ReversingVariable';
+  balancingAccountNo: string | null;
+  nextPostingDate: string | null;
+  expiresOn: string | null;
+
+  /** How it is analysed, as CODE=VALUE pairs. */
+  dimensions: string | null;
+}
+
+/** A recurring batch and when it next falls due. */
+export interface RecurringBatch {
+  code: string;
+  name: string;
+  nameArabic: string | null;
+  description: string | null;
+  isActive: boolean;
+
+  /** The earliest day any line is due, which is when the batch is due. */
+  nextDue: string | null;
+  lines: RecurringLine[];
+}
+
+/** What one run of a recurring batch produced. */
+export interface RecurringRun {
+  batchCode: string;
+  on: string;
+  linesPosted: number;
+  transactionNo: number | null;
+
+  /** The transaction the reversing lines went under, when any line reverses. */
+  reversalTransactionNo: number | null;
+}

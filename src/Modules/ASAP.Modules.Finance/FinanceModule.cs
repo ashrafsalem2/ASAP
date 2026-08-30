@@ -461,6 +461,17 @@ public sealed class FinanceModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISync
             "/finance/accounts", $"{Id}.Account.Read", 10),
         Page("Journals", new LocalizedText("General journals", "قيود اليومية"),
             "/finance/journals", $"{Id}.Journal.Read", 20),
+        new()
+        {
+            Id = "Finance.Recurring",
+            Module = Id,
+            ParentId = "Finance.Root",
+            DisplayName = new LocalizedText("Recurring journals", "القيود المتكررة"),
+            Kind = NavigationKind.Task,
+            Route = "/finance/recurring",
+            RequiresPermission = $"{Id}.Journal.Read",
+            Order = 25,
+        },
         Page("Entries", new LocalizedText("Ledger entries", "قيود دفتر الأستاذ"),
             "/finance/entries", $"{Id}.Entry.Read", 30),
         new()

@@ -1,0 +1,147 @@
+<div class="page">
+  <h1>{{ t('finance.recurring.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('finance.recurring.intro') }}</p>
+
+    <div class="panel__body draft">
+      <label>
+        {{ t('finance.recurring.postOn') }}
+        <input type="date" [(ngModel)]="postOn" name="postOn" />
+      </label>
+    </div>
+
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else if (batches().length === 0) {
+      <p class="empty">{{ t('finance.recurring.none') }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('finance.recurring.code') }}</th>
+              <th>{{ t('finance.recurring.name') }}</th>
+              <th class="numeric">{{ t('finance.recurring.lines') }}</th>
+              <th>{{ t('finance.recurring.nextDue') }}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (batch of batches(); track batch.code) {
+              <tr
+                class="admin__row"
+                [class.admin__row--selected]="selected()?.code === batch.code"
+                (click)="select(batch)"
+              >
+                <td class="code">
+                  {{ batch.code }}
+                  @if (!batch.isActive) {
+                    <span class="tag">{{ t('finance.recurring.inactive') }}</span>
+                  }
+                </td>
+                <td>{{ name(batch) }}</td>
+                <td class="numeric">{{ batch.lines.length }}</td>
+
+                <!-- The column worth having. A month end is a checklist, and the useful question
+                     is not what exists but what has not been done yet. -->
+                <td>
+                  {{ batch.nextDue }}
+                  @if (isDue(batch)) {
+                    <span class="tag tag--warning">{{ t('finance.recurring.due') }}</span>
+                  }
+                </td>
+                <td>
+                  @if (canPost() && batch.isActive) {
+                    <button
+                      type="button"
+                      class="button"
+                      [disabled]="busy()"
+                      (click)="post(batch); $event.stopPropagation()"
+                    >
+                      {{ t('finance.recurring.post') }}
+                    </button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+
+  @if (selected(); as b) {
+    <section class="panel">
+      <div class="panel__header">
+        <h2>{{ b.code }} — {{ name(b) }}</h2>
+      </div>
+
+      <p class="panel__body admin__note">{{ t('finance.recurring.linesNote') }}</p>
+
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('finance.recurring.account') }}</th>
+              <th>{{ t('finance.recurring.balancing') }}</th>
+              <th>{{ t('finance.recurring.description') }}</th>
+              <th class="numeric">{{ t('finance.recurring.amount') }}</th>
+              <th>{{ t('finance.recurring.method') }}</th>
+              <th>{{ t('finance.recurring.every') }}</th>
+              <th>{{ t('finance.recurring.nextDue') }}</th>
+              <th>{{ t('finance.recurring.until') }}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (line of b.lines; track $index) {
+              <tr>
+                <td><input type="text" size="8" [(ngModel)]="line.accountNo" [name]="'a' + $index" /></td>
+                <td>
+                  <input type="text" size="8" [(ngModel)]="line.balancingAccountNo" [name]="'g' + $index" />
+                </td>
+                <td><input type="text" [(ngModel)]="line.description" [name]="'d' + $index" /></td>
+                <td class="numeric">
+                  @if (line.method !== 'Balance') {
+                    <input type="number" step="0.01" [(ngModel)]="line.amount" [name]="'m' + $index" />
+                  }
+                </td>
+                <td>
+                  <select [(ngModel)]="line.method" [name]="'k' + $index">
+                    @for (method of methods; track method) {
+                      <option [value]="method">{{ method }}</option>
+                    }
+                  </select>
+                </td>
+                <td><input type="text" size="8" [(ngModel)]="line.recurrenceFormula" [name]="'f' + $index" /></td>
+                <td><input type="date" [(ngModel)]="line.nextPostingDate" [name]="'n' + $index" /></td>
+                <td><input type="date" [(ngModel)]="line.expiresOn" [name]="'e' + $index" /></td>
+                <td>
+                  @if (canEdit()) {
+                    <button type="button" class="button" (click)="removeLine(line)">×</button>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (canEdit()) {
+        <div class="panel__body draft">
+          <button type="button" class="button" (click)="addLine()">
+            {{ t('finance.recurring.addLine') }}
+          </button>
+
+          <button type="button" class="button button--primary" [disabled]="busy()" (click)="save()">
+            {{ t('finance.recurring.save') }}
+          </button>
+        </div>
+      }
+
+      <p class="panel__body admin__note">{{ t('finance.recurring.methodNote') }}</p>
+      <p class="panel__body admin__note">{{ t('finance.recurring.formulaNote') }}</p>
+    </section>
+  }
+</div>

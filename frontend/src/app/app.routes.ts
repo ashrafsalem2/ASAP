@@ -68,6 +68,11 @@ export const routes: Routes = [
         loadComponent: () => import('./features/hr/turnover').then((m) => m.TurnoverReport),
       },
       {
+        path: 'finance/recurring',
+        canActivate: [requirePermission('Finance.Journal.Read')],
+        loadComponent: () => import('./features/finance/recurring').then((m) => m.Recurring),
+      },
+      {
         path: 'finance/schedules',
         canActivate: [requirePermission('Finance.Report.Read')],
         loadComponent: () => import('./features/finance/schedules').then((m) => m.Schedules),

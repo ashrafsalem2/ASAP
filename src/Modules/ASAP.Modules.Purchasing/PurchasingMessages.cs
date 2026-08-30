@@ -5,6 +5,33 @@ namespace ASAP.Modules.Purchasing;
 /// <summary>Everything the Purchasing module can tell the user.</summary>
 public static class PurchasingMessages
 {
+    /// <summary>An approval limit was set below nothing.</summary>
+    public static readonly MessageCode ApprovalLimitNegative = new("PUR.APPROVAL.LIMIT_NEGATIVE");
+
+    /// <summary>The order is not waiting to be signed for.</summary>
+    public static readonly MessageCode OrderNotAwaitingApproval = new("PUR.APPROVAL.NOT_PENDING");
+
+    /// <summary>Somebody tried to approve an order they raised.</summary>
+    public static readonly MessageCode CannotApproveYourOwnOrder = new("PUR.APPROVAL.OWN_ORDER");
+
+    /// <summary>The approver may not sign for this much.</summary>
+    public static readonly MessageCode ApprovalLimitTooLow = new("PUR.APPROVAL.LIMIT_TOO_LOW");
+
+    /// <summary>An order was turned down with nothing written against it.</summary>
+    public static readonly MessageCode RejectionNeedsAReason = new("PUR.APPROVAL.REASON_REQUIRED");
+
+    /// <summary>The order was signed for.</summary>
+    public static readonly MessageCode OrderApproved = new("PUR.APPROVAL.APPROVED");
+
+    /// <summary>The order was turned down.</summary>
+    public static readonly MessageCode OrderRejected = new("PUR.APPROVAL.REJECTED");
+
+    /// <summary>The order went for approval rather than to the vendor.</summary>
+    public static readonly MessageCode OrderSentForApproval = new("PUR.APPROVAL.SENT");
+
+    /// <summary>Nobody in the company can sign for an order this size.</summary>
+    public static readonly MessageCode NobodyCanApproveThis = new("PUR.APPROVAL.NOBODY_CAN");
+
     /// <summary>The order named does not exist.</summary>
     public static readonly MessageCode OrderNotFound = new("PUR.ORDER.NOT_FOUND");
 
@@ -50,6 +77,140 @@ public static class PurchasingMessages
     /// <summary>Every message the module declares.</summary>
     public static IReadOnlyCollection<MessageDefinition> All { get; } =
     [
+        new()
+        {
+            Code = ApprovalLimitNegative,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("A limit cannot be below nothing", "لا يكون الحد دون الصفر"),
+            Detail = new LocalizedText(
+                "{Amount:N2} was given as an approval limit.",
+                "أُعطي المبلغ {Amount:N2} حدًّا للاعتماد."),
+            Resolution = new LocalizedText(
+                "Set nought to let somebody approve nothing, or a figure they may sign up to.",
+                "اجعله صفرًا ليكون بلا صلاحية اعتماد، أو مبلغًا يجوز له التوقيع حتى حده."),
+            HelpTopic = "purchasing/approval-limits",
+        },
+        new()
+        {
+            Code = OrderNotAwaitingApproval,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("That order is not waiting for a signature", "هذا الأمر لا ينتظر توقيعًا"),
+            Detail = new LocalizedText(
+                "{OrderNo} is {Status}.",
+                "حالة الأمر {OrderNo} هي {Status}."),
+            Resolution = new LocalizedText(
+                "Only an order sent for approval can be signed for or turned down.",
+                "لا يُوقَّع أو يُرفض إلا أمر أُرسل للاعتماد."),
+            HelpTopic = "purchasing/approval-limits",
+        },
+        new()
+        {
+            Code = CannotApproveYourOwnOrder,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("You raised this one", "أنت من أصدر هذا الأمر"),
+            Detail = new LocalizedText(
+                "{OrderNo} was raised by the same person now approving it.",
+                "الأمر {OrderNo} أصدره الشخص نفسه الذي يعتمده الآن."),
+            Resolution = new LocalizedText(
+                "Somebody else has to sign. An approval you can give yourself is not a control but "
+                + "a checkbox, and the whole point of the step is that a second person looked.",
+                "على شخص آخر أن يوقّع. فالاعتماد الذي تمنحه لنفسك ليس ضابطًا بل خانة تُعلَّم، "
+                + "والغاية كلها من هذه الخطوة أن ينظر فيها شخص ثانٍ."),
+            HelpTopic = "purchasing/approval-limits",
+        },
+        new()
+        {
+            Code = ApprovalLimitTooLow,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("That is more than you may sign for", "هذا يتجاوز حد توقيعك"),
+            Detail = new LocalizedText(
+                "{OrderNo} comes to {Amount:N2} and your limit is {Limit:N2}. {WhoCan}",
+                "الأمر {OrderNo} يبلغ {Amount:N2} وحدك {Limit:N2}. {WhoCan}"),
+            Resolution = new LocalizedText(
+                "Take it to somebody whose limit covers it. Somebody with no limit at all approves "
+                + "nothing, because a system where unknown means unlimited answers \"who can "
+                + "approve this\" with \"whoever has not been set up yet\".",
+                "خذه إلى من يغطي حده المبلغ. ومن لا حد له لا يعتمد شيئًا، لأن نظامًا يعني فيه "
+                + "المجهول «بلا حدود» يجيب عن سؤال «من يعتمد هذا» بـ«كل من لم يُضبط بعد»."),
+            HelpTopic = "purchasing/approval-limits",
+        },
+        new()
+        {
+            Code = RejectionNeedsAReason,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("Say why", "بيّن السبب"),
+            Detail = new LocalizedText(
+                "{OrderNo} was turned down with nothing written against it.",
+                "رُفض الأمر {OrderNo} دون كتابة شيء معه."),
+            Resolution = new LocalizedText(
+                "Write what was wrong. A rejection with no reason sends the buyer back to guess, "
+                + "and the order comes round again unchanged.",
+                "اكتب ما الخطأ. فالرفض بلا سبب يعيد المشتري إلى التخمين، ويعود الأمر كما هو."),
+            HelpTopic = "purchasing/approval-limits",
+        },
+        new()
+        {
+            Code = OrderApproved,
+            Severity = MessageSeverity.Information,
+            Title = new LocalizedText("Approved", "اعتُمد"),
+            Detail = new LocalizedText(
+                "{OrderNo} was approved for {Amount:N2} by {Approver}.",
+                "اعتُمد الأمر {OrderNo} بمبلغ {Amount:N2} من {Approver}."),
+            Resolution = new LocalizedText(
+                "It is released to the vendor. The amount is recorded with the signature, so "
+                + "anything that changes the total has to be approved again.",
+                "أُرسل إلى المورّد. والمبلغ مسجّل مع التوقيع، فأي تغيير في الإجمالي يستلزم "
+                + "اعتمادًا جديدًا."),
+            HelpTopic = "purchasing/approval-limits",
+        },
+        new()
+        {
+            Code = OrderRejected,
+            Severity = MessageSeverity.Information,
+            Title = new LocalizedText("Turned down", "مرفوض"),
+            Detail = new LocalizedText(
+                "{OrderNo} was rejected: {Reason}",
+                "رُفض الأمر {OrderNo}: {Reason}"),
+            Resolution = new LocalizedText(
+                "It stays on the record with the reason on it, because somebody will ask.",
+                "يبقى في السجل ومعه سببه، لأن أحدهم سيسأل."),
+            HelpTopic = "purchasing/approval-limits",
+        },
+        new()
+        {
+            Code = NobodyCanApproveThis,
+            Severity = MessageSeverity.Warning,
+            Title = new LocalizedText("Nobody can sign for this", "لا أحد يستطيع التوقيع على هذا"),
+            Detail = new LocalizedText(
+                "{OrderNo} comes to {Amount:N2}, and nobody other than whoever raised it has an "
+                + "approval limit that covers it.",
+                "يبلغ الأمر {OrderNo} مبلغ {Amount:N2}، ولا أحد غير من أصدره يملك حد اعتماد يغطيه."),
+            Resolution = new LocalizedText(
+                "Raise somebody's limit, or split the order. It will sit waiting until one of "
+                + "those happens -- said now rather than discovered next week, because an order "
+                + "nobody can approve looks exactly like one nobody has got to yet.",
+                "ارفع حد أحدهم، أو قسّم الأمر. فسيبقى منتظرًا حتى يحدث أحدهما — ويُقال ذلك الآن "
+                + "لا يُكتشف الأسبوع المقبل، لأن أمرًا لا يستطيع أحد اعتماده يبدو تمامًا كأمر لم "
+                + "يصل إليه أحد بعد."),
+            HelpTopic = "purchasing/approval-limits",
+        },
+        new()
+        {
+            Code = OrderSentForApproval,
+            Severity = MessageSeverity.Information,
+            Title = new LocalizedText("Sent for approval", "أُرسل للاعتماد"),
+            Detail = new LocalizedText(
+                "{OrderNo} comes to {Amount:N2}, which is above the {Threshold:N2} this company "
+                + "lets through unsigned.",
+                "يبلغ الأمر {OrderNo} مبلغ {Amount:N2}، وهو فوق {Threshold:N2} التي تمررها هذه "
+                + "الشركة بلا توقيع."),
+            Resolution = new LocalizedText(
+                "Nothing has gone to the vendor yet. It goes the moment somebody with the "
+                + "authority signs for it.",
+                "لم يذهب شيء إلى المورّد بعد. ويذهب فور توقيع صاحب الصلاحية عليه."),
+            HelpTopic = "purchasing/approval-limits",
+        },
+
         new()
         {
             Code = OrderNotFound,

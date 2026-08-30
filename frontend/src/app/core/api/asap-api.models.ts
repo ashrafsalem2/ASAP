@@ -174,6 +174,15 @@ export interface StockLocation {
   usesBins: boolean;
 }
 
+/** How much one person may sign a purchase order for. */
+export interface ApprovalLimit {
+  userId: string;
+  userName: string;
+  displayName?: string | null;
+  maximumAmount: number;
+  isActive: boolean;
+}
+
 /** One version of an item that is stocked separately. */
 export interface ItemVariant {
   code: string;

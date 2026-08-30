@@ -11,6 +11,19 @@ public enum PurchaseOrderStatus
     /// <summary>Sent to the vendor and awaiting delivery.</summary>
     Released = 1,
 
+    /// <summary>
+    /// Waiting for somebody with the authority to sign for it.
+    /// </summary>
+    /// <remarks>
+    /// A status of its own rather than a flag on Open, because the two mean different things to
+    /// the person who raised it: an open order is theirs to finish, and one waiting for approval
+    /// is out of their hands.
+    /// </remarks>
+    PendingApproval = 6,
+
+    /// <summary>Turned down, with a reason. Kept, because somebody will ask.</summary>
+    Rejected = 7,
+
     /// <summary>Some of it has arrived.</summary>
     PartiallyReceived = 2,
 
@@ -97,6 +110,35 @@ public sealed class PurchaseOrder : CompanyEntity
     /// about the world rather than a figure the order gets to decide.
     /// </remarks>
     public bool IsEditable => Status is PurchaseOrderStatus.Open or PurchaseOrderStatus.Released;
+
+    /// <summary>What the order comes to, which is what an approval limit is measured against.</summary>
+    public decimal TotalAmount => Lines.Sum(static l => l.LineAmount);
+
+    /// <summary>Who raised it, so they can be stopped from approving it themselves.</summary>
+    public Guid? RaisedByUserId { get; set; }
+
+    /// <summary>Who signed for it, on an order that needed signing.</summary>
+    public Guid? ApprovedByUserId { get; set; }
+
+    /// <summary>Their name, copied so the record reads without a join.</summary>
+    public string? ApprovedByUserName { get; set; }
+
+    /// <summary>When they signed.</summary>
+    public DateTime? ApprovedAtUtc { get; set; }
+
+    /// <summary>
+    /// What the order came to when it was approved.
+    /// </summary>
+    /// <remarks>
+    /// Frozen at the moment of signing. An approval is authority for an amount, not for an order
+    /// number, so anything that changes the total afterwards has to ask again -- otherwise a
+    /// five thousand order approved on Monday becomes a five hundred thousand order on Tuesday
+    /// with a signature still attached to it.
+    /// </remarks>
+    public decimal? ApprovedAmount { get; set; }
+
+    /// <summary>Why it was turned down, where it was.</summary>
+    public string? RejectionReason { get; set; }
 
     /// <summary>Whether anything on the order is still to arrive.</summary>
     public bool HasOutstandingReceipt => Lines.Any(static l => l.OutstandingToReceive > 0);

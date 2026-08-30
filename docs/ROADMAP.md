@@ -208,7 +208,16 @@ Everything else posts here, so it goes first.
 - **done** Vendors (through the Finance party ledger); purchase prices, discounts and lead times to come
 - *in progress* **Purchase order, goods receipt and vendor invoice done**, with the three-way match
   between them; requisition, request for quotation, return and credit memo to come
-- Approval limits and the approval workflow
+- **done** Approval limits. An order over the company's threshold waits for somebody whose limit
+  covers it, and never for the person who raised it -- an approval you can give yourself is not a
+  control but a checkbox, and that single comparison is the feature. Limits are per person rather
+  than per role, because a role carries authority only until somebody joins it for an unrelated
+  reason; and per order rather than per day, because a daily total makes the same order approvable
+  or not depending on what else happened that morning. Somebody with no limit approves nothing:
+  unknown must not mean unlimited. A refusal names who can sign instead, and an order nobody can
+  sign for says so rather than waiting silently. The amount is frozen with the signature, because an
+  approval is authority for an amount not for an order number. Approval chains, delegation and
+  notifications still to come
 - Landed cost applied across an item charge
 - **done** Posting into inventory and the vendor ledger, through a goods-received-not-invoiced
   accrual so the company owes for stock from the day it lands rather than the day the post does

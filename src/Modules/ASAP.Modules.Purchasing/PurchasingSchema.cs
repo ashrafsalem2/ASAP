@@ -22,9 +22,43 @@ public sealed class PurchasingSchema : IModuleSchema
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
 
+        modelBuilder.Entity<Approvals.PurchaseApprovalLimit>(builder =>
+
+        {
+
+            builder.ToTable("PurchaseApprovalLimits", SchemaName);
+
+
+            builder.Property(l => l.UserName).HasMaxLength(100).IsRequired();
+
+            builder.Property(l => l.DisplayName).HasMaxLength(200);
+
+            builder.Property(l => l.MaximumAmount).HasColumnType(DecimalPrecisionConventions.Money);
+
+            builder.Property(l => l.RowVersion).IsRowVersion();
+
+
+            // One limit per person. Two would make "how much may they approve" depend on which
+
+            // row was read first, which is not a question that may have two answers.
+
+            builder.HasIndex(l => new { l.CompanyId, l.UserId })
+
+                   .IsUnique()
+
+                   .HasFilter("[IsDeleted] = 0");
+
+        });
+
+
         modelBuilder.Entity<PurchaseOrder>(builder =>
         {
             builder.ToTable("PurchaseOrders", SchemaName);
+
+            builder.Property(o => o.ApprovedByUserName).HasMaxLength(100);
+            builder.Property(o => o.ApprovedAmount).HasColumnType(DecimalPrecisionConventions.Money);
+            builder.Property(o => o.RejectionReason).HasMaxLength(500);
+            builder.Ignore(o => o.TotalAmount);
 
             builder.Property(o => o.No).HasMaxLength(20).IsRequired();
             builder.Property(o => o.VendorNo).HasMaxLength(20).IsRequired();

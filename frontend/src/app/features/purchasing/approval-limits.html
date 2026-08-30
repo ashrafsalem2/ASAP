@@ -1,0 +1,87 @@
+<div class="page">
+  <h1>{{ t('purchasing.approvals.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('purchasing.approvals.intro') }}</p>
+  </section>
+
+  @if (loading()) {
+    <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+  } @else {
+    <section class="panel">
+      <h2 class="panel__title">{{ t('purchasing.approvals.listTitle') }}</h2>
+
+      @if (limits().length === 0) {
+        <p class="empty">{{ t('purchasing.approvals.none') }}</p>
+      } @else {
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('purchasing.approvals.who') }}</th>
+                <th>{{ t('purchasing.approvals.userName') }}</th>
+                <th class="numeric">{{ t('purchasing.approvals.maximum') }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (limit of limits(); track limit.userId) {
+                <tr>
+                  <td>
+                    {{ who(limit) }}
+                    @if (!limit.isActive) {
+                      <span class="tag">{{ t('purchasing.approvals.withdrawn') }}</span>
+                    }
+                  </td>
+                  <td class="code">{{ limit.userName }}</td>
+                  <td class="numeric">{{ limit.maximumAmount }}</td>
+                  <td>
+                    <button type="button" class="button button--quiet" (click)="edit(limit)">
+                      {{ t('purchasing.approvals.edit') }}
+                    </button>
+                    <button
+                      type="button"
+                      class="button button--quiet"
+                      [disabled]="busy()"
+                      (click)="setActive(limit, !limit.isActive)"
+                    >
+                      {{
+                        limit.isActive
+                          ? t('purchasing.approvals.withdraw')
+                          : t('purchasing.approvals.restore')
+                      }}
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+
+      <div class="panel__body form-row">
+        <label>
+          {{ t('purchasing.approvals.userId') }}
+          <input [(ngModel)]="userId" name="userId" />
+        </label>
+        <label>
+          {{ t('purchasing.approvals.userName') }}
+          <input [(ngModel)]="userName" name="userName" />
+        </label>
+        <label>
+          {{ t('purchasing.approvals.who') }}
+          <input [(ngModel)]="displayName" name="displayName" />
+        </label>
+        <label>
+          {{ t('purchasing.approvals.maximum') }}
+          <input type="number" min="0" step="any" [(ngModel)]="maximumAmount" name="maximumAmount" />
+        </label>
+        <button type="button" class="button" [disabled]="busy()" (click)="save()">
+          {{ t('purchasing.approvals.save') }}
+        </button>
+      </div>
+
+      <p class="panel__body hint">{{ t('purchasing.approvals.hint') }}</p>
+    </section>
+  }
+</div>

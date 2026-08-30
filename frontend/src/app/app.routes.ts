@@ -185,6 +185,12 @@ export const routes: Routes = [
           import('./features/finance/balance-sheet').then((m) => m.BalanceSheetReport),
       },
       {
+        path: 'purchasing/approval-limits',
+        canActivate: [requirePermission('Purchasing.Approval.Read')],
+        loadComponent: () =>
+          import('./features/purchasing/approval-limits').then((m) => m.ApprovalLimits),
+      },
+      {
         path: 'purchasing/orders',
         canActivate: [requirePermission('Purchasing.Order.Read')],
         loadComponent: () =>

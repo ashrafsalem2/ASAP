@@ -1,5 +1,6 @@
 using ASAP.Api.Infrastructure;
 using ASAP.Modules.Purchasing;
+using ASAP.Modules.Purchasing.Approvals;
 using ASAP.Modules.Purchasing.Orders;
 using ASAP.Platform.Kernel.Security;
 using ASAP.Platform.Persistence;
@@ -7,6 +8,36 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
 namespace ASAP.Api.Endpoints;
+
+/// <summary>Why an order is being turned down.</summary>
+/// <param name="Reason">What was wrong, which the buyer will read.</param>
+public sealed record RejectOrderRequest(string? Reason);
+
+/// <summary>How much one person may sign a purchase order for.</summary>
+/// <param name="UserId">The person.</param>
+/// <param name="UserName">Their user name.</param>
+/// <param name="DisplayName">What they are called.</param>
+/// <param name="MaximumAmount">The most they may approve, on one order.</param>
+/// <param name="IsActive">Whether the limit is still in force.</param>
+public sealed record ApprovalLimitView(
+    Guid UserId,
+    string UserName,
+    string? DisplayName,
+    decimal MaximumAmount,
+    bool IsActive);
+
+/// <summary>An approval limit as a client sends it.</summary>
+/// <param name="UserId">The person.</param>
+/// <param name="UserName">Their user name.</param>
+/// <param name="DisplayName">What they are called.</param>
+/// <param name="MaximumAmount">The most they may approve, on one order.</param>
+/// <param name="IsActive">Whether the limit is still in force.</param>
+public sealed record SetApprovalLimitRequest(
+    Guid UserId,
+    string UserName,
+    string? DisplayName = null,
+    decimal MaximumAmount = 0m,
+    bool IsActive = true);
 
 /// <summary>One line on a new purchase order, as a client sends it.</summary>
 /// <param name="Type">Whether it buys stock or a cost.</param>
@@ -112,7 +143,43 @@ public sealed record PurchaseOrderView(
     string? Description,
     decimal TotalAmount,
     bool IsEditable,
-    IReadOnlyList<PurchaseOrderLineView> Lines);
+    IReadOnlyList<PurchaseOrderLineView> Lines)
+{
+    /// <summary>Who signed for it, on an order that needed signing.</summary>
+    public string? ApprovedBy { get; init; }
+
+    /// <summary>When they signed.</summary>
+    public DateTime? ApprovedAtUtc { get; init; }
+
+    /// <summary>What it came to when they signed, which is what they signed for.</summary>
+    public decimal? ApprovedAmount { get; init; }
+
+    /// <summary>Why it was turned down, where it was.</summary>
+    public string? RejectionReason { get; init; }
+
+    /// <summary>
+    /// What the server said, where it said anything.
+    /// </summary>
+    /// <remarks>
+    /// Carried on the view rather than dropped, because the interesting outcome of a release is a
+    /// thing that succeeded and still needs saying: an order that went for approval rather than to
+    /// the vendor looks identical to one that went out, unless somebody is told.
+    /// </remarks>
+    public IReadOnlyList<MessageView> Messages { get; init; } = [];
+}
+
+/// <summary>Something the server said about a document.</summary>
+/// <param name="Code">Its code.</param>
+/// <param name="Severity">How serious it is.</param>
+/// <param name="Title">The short form.</param>
+/// <param name="Detail">What happened.</param>
+/// <param name="Resolution">What to do about it.</param>
+public sealed record MessageView(
+    string Code,
+    string Severity,
+    string Title,
+    string? Detail,
+    string? Resolution);
 
 /// <summary>Purchase orders, goods receipts and vendor invoices.</summary>
 public static class PurchasingEndpoints
@@ -147,6 +214,22 @@ public static class PurchasingEndpoints
         group.MapPost("/orders/{orderNo}/release", ReleaseAsync)
              .WithName("ReleasePurchaseOrder")
              .WithSummary("Marks an order as sent to the vendor.");
+
+        group.MapPost("/orders/{orderNo}/approve", ApproveAsync)
+             .WithName("ApprovePurchaseOrder")
+             .WithSummary("Signs for an order, up to your limit and never one you raised.");
+
+        group.MapPost("/orders/{orderNo}/reject", RejectAsync)
+             .WithName("RejectPurchaseOrder")
+             .WithSummary("Turns an order down, with a reason the buyer will read.");
+
+        group.MapGet("/approval-limits", ApprovalLimitsAsync)
+             .WithName("PurchaseApprovalLimits")
+             .WithSummary("How much each person may sign a purchase order for.");
+
+        group.MapPost("/approval-limits", SetApprovalLimitAsync)
+             .WithName("SetPurchaseApprovalLimit")
+             .WithSummary("Sets what one person may approve.");
 
         group.MapPost("/orders/{orderNo}/receive", ReceiveAsync)
              .WithName("ReceiveGoods")
@@ -190,7 +273,7 @@ public static class PurchasingEndpoints
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        return Results.Ok(orders.Select(View));
+        return Results.Ok(orders.Select(static o => View(o)));
     }
 
     private static async Task<IResult> GetAsync(
@@ -251,6 +334,116 @@ public static class PurchasingEndpoints
                 messages = MessagePayload.FromAll(result.Messages),
             });
     }
+    private static async Task<IResult> ApproveAsync(
+        string orderNo,
+        PurchaseOrderService orders,
+        PurchaseApprovalService approvals,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, "Purchasing.Approval.Post"))
+        {
+            return Forbidden("Purchasing.Approval.Post", "approve a purchase order", http);
+        }
+
+        var order = await orders.LoadAsync(orderNo, cancellationToken).ConfigureAwait(false);
+
+        if (order is null)
+        {
+            return Refused(orders.NotFound(orderNo), http);
+        }
+
+        var result = await approvals.ApproveAsync(order, cancellationToken).ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.Ok(View(order, result.Messages));
+    }
+
+    private static async Task<IResult> RejectAsync(
+        string orderNo,
+        RejectOrderRequest request,
+        PurchaseOrderService orders,
+        PurchaseApprovalService approvals,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, "Purchasing.Approval.Post"))
+        {
+            return Forbidden("Purchasing.Approval.Post", "reject a purchase order", http);
+        }
+
+        var order = await orders.LoadAsync(orderNo, cancellationToken).ConfigureAwait(false);
+
+        if (order is null)
+        {
+            return Refused(orders.NotFound(orderNo), http);
+        }
+
+        var result = await approvals.RejectAsync(order, request.Reason, cancellationToken).ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.Ok(View(order, result.Messages));
+    }
+
+    private static async Task<IResult> ApprovalLimitsAsync(
+        PurchaseApprovalService approvals,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken,
+        bool includeWithdrawn = false)
+    {
+        if (!Can(user, "Purchasing.Approval.Read"))
+        {
+            return Forbidden("Purchasing.Approval.Read", "view approval limits", http);
+        }
+
+        var rows = await approvals.LimitsAsync(includeWithdrawn, cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(rows.Select(static l => new ApprovalLimitView(
+            l.UserId,
+            l.UserName,
+            l.DisplayName,
+            l.MaximumAmount,
+            l.IsActive)));
+    }
+
+    private static async Task<IResult> SetApprovalLimitAsync(
+        SetApprovalLimitRequest request,
+        PurchaseApprovalService approvals,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, "Purchasing.Approval.Update"))
+        {
+            return Forbidden("Purchasing.Approval.Update", "set approval limits", http);
+        }
+
+        var result = await approvals
+            .SetLimitAsync(
+                new ApprovalLimitRequest(
+                    request.UserId,
+                    request.UserName,
+                    request.DisplayName,
+                    request.MaximumAmount,
+                    request.IsActive),
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed
+            ? Refused(result, http)
+            : Results.Ok(new ApprovalLimitView(
+                result.Value.UserId,
+                result.Value.UserName,
+                result.Value.DisplayName,
+                result.Value.MaximumAmount,
+                result.Value.IsActive));
+    }
+
 
     private static async Task<IResult> ReleaseAsync(
         string orderNo,
@@ -266,7 +459,7 @@ public static class PurchasingEndpoints
 
         var result = await orders.ReleaseAsync(orderNo, cancellationToken).ConfigureAwait(false);
 
-        return result.Failed ? Refused(result, http) : Results.Ok(View(result.Value));
+        return result.Failed ? Refused(result, http) : Results.Ok(View(result.Value, result.Messages));
     }
 
     private static async Task<IResult> ReceiveAsync(
@@ -345,7 +538,9 @@ public static class PurchasingEndpoints
             });
     }
 
-    private static PurchaseOrderView View(PurchaseOrder order)
+    private static PurchaseOrderView View(
+        PurchaseOrder order,
+        IReadOnlyList<ASAP.Platform.Kernel.Messaging.AsapMessage>? messages = null)
         => new(
             order.No,
             order.VendorNo,
@@ -373,7 +568,21 @@ public static class PurchasingEndpoints
                     l.QuantityReceived,
                     l.QuantityInvoiced,
                     l.OutstandingToReceive,
-                    l.ReceivedNotInvoiced))]);
+                    l.ReceivedNotInvoiced))])
+        {
+            ApprovedBy = order.ApprovedByUserName,
+            ApprovedAtUtc = order.ApprovedAtUtc,
+            ApprovedAmount = order.ApprovedAmount,
+            RejectionReason = order.RejectionReason,
+            Messages = messages is null
+                ? []
+                : [.. messages.Select(static m => new MessageView(
+                    m.Code.Value,
+                    m.Severity.ToString(),
+                    m.Title,
+                    m.Detail,
+                    m.Resolution))],
+        };
 
     /// <summary>
     /// The overrides this caller holds.

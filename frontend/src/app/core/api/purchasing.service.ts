@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
+  ApprovalLimit,
   CreatePurchaseOrderRequest,
   GoodsReceiptResult,
   PurchaseInvoiceResult,
@@ -94,6 +95,43 @@ export class PurchasingService {
         `${this.base}/orders/${encodeURIComponent(orderNo)}/invoice`,
         { vendorInvoiceNo, lines, overrideReason },
       ),
+    );
+  }
+
+  /** How much each person may sign a purchase order for. */
+  approvalLimits(includeWithdrawn = false): Promise<ApprovalLimit[]> {
+    const params = includeWithdrawn
+      ? new HttpParams().set('includeWithdrawn', 'true')
+      : new HttpParams();
+
+    return firstValueFrom(
+      this.http.get<ApprovalLimit[]>(`${this.base}/approval-limits`, { params }),
+    );
+  }
+
+  /** Sets what one person may approve. */
+  setApprovalLimit(limit: ApprovalLimit): Promise<ApprovalLimit> {
+    return firstValueFrom(
+      this.http.post<ApprovalLimit>(`${this.base}/approval-limits`, limit),
+    );
+  }
+
+  /**
+   * Signs for an order.
+   *
+   * Refused where the order is one you raised, whatever your limit says: the point of the step is
+   * that a second person looked.
+   */
+  approveOrder(orderNo: string): Promise<unknown> {
+    return firstValueFrom(
+      this.http.post(`${this.base}/orders/${encodeURIComponent(orderNo)}/approve`, {}),
+    );
+  }
+
+  /** Turns an order down, with a reason the buyer will read. */
+  rejectOrder(orderNo: string, reason: string): Promise<unknown> {
+    return firstValueFrom(
+      this.http.post(`${this.base}/orders/${encodeURIComponent(orderNo)}/reject`, { reason }),
     );
   }
 }

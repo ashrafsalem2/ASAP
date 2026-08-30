@@ -47,6 +47,7 @@ public readonly record struct PurchaseOrderLineRequest(
 /// <param name="setup">Supplies the number series to use.</param>
 /// <param name="tenantContext">Supplies the company.</param>
 /// <param name="userContext">Records who raised it.</param>
+/// <param name="approvals">Decides whether an order needs signing for, and by whom.</param>
 /// <param name="clock">Supplies today.</param>
 /// <param name="logger">Records orders raised.</param>
 public sealed class PurchaseOrderService(
@@ -58,6 +59,7 @@ public sealed class PurchaseOrderService(
     ITenantContext tenantContext,
     IUserContext userContext,
     IClock clock,
+    Approvals.PurchaseApprovalService approvals,
     ILogger<PurchaseOrderService> logger)
 {
     /// <summary>
@@ -150,6 +152,11 @@ public sealed class PurchaseOrderService(
             VendorOrderNo = vendorOrderNo,
             Description = description,
             CreatedBy = userContext.UserId,
+
+            // Its own field rather than the audit column. Who raised an order is a business fact
+            // the approval rule turns on, and CreatedBy can be written by a sync or a job; hanging
+            // segregation of duties off an audit column would make it mean whatever that means.
+            RaisedByUserId = userContext.UserId,
         };
 
         var lineNo = 0;
@@ -206,6 +213,12 @@ public sealed class PurchaseOrderService(
     /// <param name="orderNo">The order to release.</param>
     /// <param name="cancellationToken">Cancels the work.</param>
     /// <returns>The order, or the reason it could not be released.</returns>
+    /// <remarks>
+    /// Where the order is worth more than the company lets through unsigned, this sends it for
+    /// approval instead of to the vendor. Nothing is committed either way until somebody with the
+    /// authority signs, and the message says who that could be -- a refusal that does not name a
+    /// next step is a dead end for the person holding the order.
+    /// </remarks>
     public async Task<Result<PurchaseOrder>> ReleaseAsync(
         string orderNo,
         CancellationToken cancellationToken = default)
@@ -217,13 +230,77 @@ public sealed class PurchaseOrderService(
             return NotFound(orderNo);
         }
 
-        if (order.Status is PurchaseOrderStatus.Open)
+        if (order.Status is not PurchaseOrderStatus.Open)
         {
-            order.Status = PurchaseOrderStatus.Released;
-            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            return Result<PurchaseOrder>.Success(order);
         }
 
+        var total = order.TotalAmount;
+
+        if (await approvals.NeedsApprovalAsync(total, cancellationToken).ConfigureAwait(false))
+        {
+            order.Status = PurchaseOrderStatus.PendingApproval;
+
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+            var threshold = await setup
+                .GetAsync<decimal>(Approvals.PurchaseApprovalService.ThresholdKey, cancellationToken)
+                .ConfigureAwait(false);
+
+            var whoCan = await WhoCanApproveAsync(total, order.RaisedByUserId, cancellationToken)
+                .ConfigureAwait(false);
+
+            var said = new List<AsapMessage>
+            {
+                messages.Render(
+                    PurchasingMessages.OrderSentForApproval,
+                    new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["OrderNo"] = order.No,
+                        ["Amount"] = total,
+                        ["Threshold"] = threshold,
+                    }),
+            };
+
+            // An order nobody can approve looks exactly like one nobody has got to yet. Saying so
+            // now is the difference between waiting and knowing.
+            if (whoCan.Length == 0)
+            {
+                said.Add(messages.Render(
+                    PurchasingMessages.NobodyCanApproveThis,
+                    new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["OrderNo"] = order.No,
+                        ["Amount"] = total,
+                    }));
+            }
+
+            return Result<PurchaseOrder>.Success(order, said);
+        }
+
+        order.Status = PurchaseOrderStatus.Released;
+
+        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
         return Result<PurchaseOrder>.Success(order);
+    }
+
+    /// <summary>Who could sign for an order of this size, other than whoever raised it.</summary>
+    private async Task<string> WhoCanApproveAsync(
+        decimal amount,
+        Guid? raisedBy,
+        CancellationToken cancellationToken)
+    {
+        var names = await context.Set<Approvals.PurchaseApprovalLimit>()
+            .AsNoTracking()
+            .Where(l => l.IsActive && l.MaximumAmount >= amount && l.UserId != raisedBy)
+            .OrderBy(l => l.MaximumAmount)
+            .Select(static l => l.DisplayName ?? l.UserName)
+            .Take(3)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return names.Count == 0 ? string.Empty : string.Join(", ", names);
     }
 
     /// <summary>Loads an order and its lines.</summary>

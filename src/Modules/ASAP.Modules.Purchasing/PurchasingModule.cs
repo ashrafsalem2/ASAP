@@ -55,6 +55,9 @@ public sealed class PurchasingModule : IAsapModule
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddScoped<Orders.PurchaseOrderService>();
+
+
+        services.AddScoped<Approvals.PurchaseApprovalService>();
         services.AddScoped<Orders.PurchaseReceiptService>();
         services.AddScoped<Orders.PurchaseInvoiceService>();
     }
@@ -62,6 +65,30 @@ public sealed class PurchasingModule : IAsapModule
     /// <inheritdoc />
     public IReadOnlyCollection<PermissionDescriptor> Permissions =>
     [
+        PermissionDescriptor.Define(
+            Id, "Approval", PermissionAction.Read,
+            new LocalizedText("View approval limits", "عرض حدود الاعتماد")),
+
+        PermissionDescriptor.Define(
+            Id, "Approval", PermissionAction.Update,
+            new LocalizedText("Set approval limits", "تحديد حدود الاعتماد"),
+            new LocalizedText(
+                "Say how much each person may sign a purchase order for. This is the authority "
+                + "itself, so whoever holds it can grant themselves any amount -- keep it with "
+                + "whoever would sign for the limits on paper.",
+                "تحديد المبلغ الذي يجوز لكل شخص التوقيع به على أمر شراء. وهذه هي الصلاحية نفسها، "
+                + "فمن يملكها يستطيع منح نفسه أي مبلغ — فلتكن مع من يوقّع على الحدود ورقًا."),
+            isSensitive: true),
+
+        PermissionDescriptor.Define(
+            Id, "Approval", PermissionAction.Post,
+            new LocalizedText("Approve purchase orders", "اعتماد أوامر الشراء"),
+            new LocalizedText(
+                "Sign for an order, up to your own limit and never one you raised yourself.",
+                "التوقيع على أمر، في حدود صلاحيتك، ولا يكون أمرًا أصدرته بنفسك."),
+            isSensitive: true),
+
+
         PermissionDescriptor.Define(
             Id, "Order", PermissionAction.Read,
             new LocalizedText("View purchase orders", "عرض أوامر الشراء")),
@@ -119,6 +146,30 @@ public sealed class PurchasingModule : IAsapModule
     /// <inheritdoc />
     public IReadOnlyCollection<SetupDescriptor> Setups =>
     [
+        new()
+        {
+            Key = $"{Id}.Approval.Threshold",
+            Module = Id,
+            Group = new LocalizedText("Approvals", "الاعتمادات"),
+            DisplayName = new LocalizedText(
+                "Goes to the vendor unsigned up to",
+                "يُرسل إلى المورّد بلا توقيع حتى"),
+            Description = new LocalizedText(
+                "An order worth more than this waits for somebody whose approval limit covers it, "
+                + "and never for the person who raised it. Nought means everything is signed for. "
+                + "There is no way to switch approvals off other than setting this high, which is "
+                + "deliberate: it leaves the decision visible as a number somebody chose rather "
+                + "than as a feature nobody turned on.",
+                "الأمر الذي تزيد قيمته على هذا ينتظر من يغطي حد اعتماده المبلغ، ولا ينتظر أبدًا "
+                + "من أصدره. والصفر يعني التوقيع على كل شيء. ولا سبيل لإيقاف الاعتمادات إلا برفع "
+                + "هذا الرقم، وهذا مقصود: فهو يُبقي القرار ظاهرًا رقمًا اختاره أحدهم لا خاصية لم "
+                + "يشغّلها أحد."),
+            ValueType = SetupValueType.Decimal,
+            Scope = SetupScope.Company,
+            DefaultValue = "10000",
+            RequiresPermission = $"{Id}.Approval.Update",
+            HelpTopic = "purchasing/approval-limits",
+        },
         new()
         {
             Key = $"{Id}.Posting.AccrualAccount",
@@ -198,6 +249,17 @@ public sealed class PurchasingModule : IAsapModule
             Route = "/purchasing/orders",
             RequiresPermission = $"{Id}.Order.Read",
             Order = 10,
+        },
+        new()
+        {
+            Id = "Purchasing.ApprovalLimits",
+            Module = Id,
+            ParentId = "Purchasing.Root",
+            DisplayName = new LocalizedText("Approval limits", "حدود الاعتماد"),
+            Kind = NavigationKind.Page,
+            Route = "/purchasing/approval-limits",
+            RequiresPermission = $"{Id}.Approval.Read",
+            Order = 80,
         },
     ];
 }

@@ -39,7 +39,8 @@ public sealed record PosLinePayload(
     decimal DiscountPercent = 0m,
     string? Description = null,
     string? TaxCode = null,
-    string? UnitCode = null);
+    string? UnitCode = null,
+    string? VariantCode = null);
 
 /// <summary>Money put towards a receipt, as a client sends it.</summary>
 /// <param name="Kind">What kind of money it is.</param>
@@ -780,7 +781,8 @@ public static class PosEndpoints
             payload.DiscountPercent,
             payload.Description,
             payload.TaxCode,
-            payload.UnitCode);
+            payload.UnitCode,
+            payload.VariantCode);
 
     private static ParkedSaleView View(PosReceipt receipt)
         => new(

@@ -32,7 +32,8 @@ public readonly record struct SalesOrderLineRequest(
     decimal DiscountPercent = 0m,
     string? Description = null,
     string? TaxCode = null,
-    string? LocationCode = null);
+    string? LocationCode = null,
+    string? VariantCode = null);
 
 /// <summary>
 /// Takes and amends sales orders.
@@ -170,6 +171,7 @@ public sealed class SalesOrderService(
                 LineNo = ++lineNo * 10,
                 Type = line.Type,
                 ItemNo = line.Type is SalesLineType.Item ? line.No : null,
+                VariantCode = line.Type is SalesLineType.Item ? line.VariantCode : null,
                 AccountNo = line.Type is SalesLineType.GlAccount ? line.No : null,
                 Description = line.Description ?? item?.Description ?? line.No,
                 LocationCode = line.LocationCode,

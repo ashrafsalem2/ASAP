@@ -208,6 +208,13 @@ public sealed class PosReceiptLine : CompanyEntity
     /// <summary>The unit it was rung in, when that was not the base unit.</summary>
     public string? UnitCode { get; set; }
 
+    /// <summary>The variant sold, on an item that has them.</summary>
+    /// <remarks>
+    /// On the receipt line rather than inferred from the barcode afterwards, because a return
+    /// counter has to know which size came back and the barcode may have been reassigned since.
+    /// </remarks>
+    public string? VariantCode { get; set; }
+
     /// <summary>
     /// How many base units that unit held at the moment of sale.
     /// </summary>

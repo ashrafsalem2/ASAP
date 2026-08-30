@@ -184,6 +184,7 @@ public sealed partial class PosSchema : IModuleSchema
 
             builder.Property(l => l.Quantity).HasColumnType(DecimalPrecisionConventions.Quantity);
             builder.Property(l => l.UnitCode).HasMaxLength(10);
+            builder.Property(l => l.VariantCode).HasMaxLength(32);
             builder.Property(l => l.QuantityPerUnit).HasColumnType(DecimalPrecisionConventions.Quantity);
             builder.Property(l => l.UnitPrice).HasColumnType(DecimalPrecisionConventions.UnitAmount);
             builder.Property(l => l.DiscountPercent).HasColumnType(DecimalPrecisionConventions.Percentage);

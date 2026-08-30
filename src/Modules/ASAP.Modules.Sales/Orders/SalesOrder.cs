@@ -121,6 +121,16 @@ public sealed class SalesOrderLine : CompanyEntity
     /// <summary>The item number, on an item line.</summary>
     public string? ItemNo { get; set; }
 
+    /// <summary>
+    /// Which variant, on an item stocked as separate colours or sizes.
+    /// </summary>
+    /// <remarks>
+    /// A sales order for shirts that does not say which size cannot be shipped, and the picking
+    /// shelf is a poor place to find that out. Required on a variant item and refused elsewhere,
+    /// exactly as it is on the stock movement the shipment eventually posts.
+    /// </remarks>
+    public string? VariantCode { get; set; }
+
     /// <summary>The account number, on a charge line.</summary>
     public string? AccountNo { get; set; }
 

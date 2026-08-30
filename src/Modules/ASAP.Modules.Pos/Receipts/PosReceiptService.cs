@@ -30,6 +30,10 @@ namespace ASAP.Modules.Pos.Receipts;
 /// <param name="UnitCode">
 /// The unit the quantity was rung in, or null for the item's base unit.
 /// </param>
+/// <param name="VariantCode">
+/// Which colour, size or flavour, on an item that has them. A scan usually supplies it: a variant
+/// carries its own barcode precisely so the label on the garment says which size.
+/// </param>
 public readonly record struct PosLineRequest(
     PosLineType Type,
     string No,
@@ -38,7 +42,8 @@ public readonly record struct PosLineRequest(
     decimal DiscountPercent = 0m,
     string? Description = null,
     string? TaxCode = null,
-    string? UnitCode = null);
+    string? UnitCode = null,
+    string? VariantCode = null);
 
 /// <summary>Money put towards a receipt.</summary>
 /// <param name="Kind">What kind of money it is.</param>
@@ -432,6 +437,7 @@ public sealed class PosReceiptService(
                 Description = line.Description,
                 Quantity = line.Quantity,
                 UnitCode = line.UnitCode,
+                VariantCode = line.VariantCode,
                 QuantityPerUnit = line.QuantityPerUnit,
                 UnitPrice = line.UnitPrice,
                 DiscountPercent = line.DiscountPercent,
@@ -687,6 +693,9 @@ public sealed class PosReceiptService(
         /// <summary>The unit it was rung in, which is what the receipt prints.</summary>
         public string? UnitCode { get; init; }
 
+        /// <summary>The variant sold, on an item that has them.</summary>
+        public string? VariantCode { get; init; }
+
         /// <summary>
         /// How many base units that unit held when it was rung.
         /// </summary>
@@ -863,6 +872,7 @@ public sealed class PosReceiptService(
                 UnitCostAtSale = item?.UnitCost,
                 UnitCode = unitCode,
                 QuantityPerUnit = perUnit,
+                VariantCode = line.VariantCode,
             });
         }
 
@@ -1106,7 +1116,11 @@ public sealed class PosReceiptService(
                 // paying for the goods and the company recording that as what they cost.
                 UnitCost: 0m,
                 EntryType: l.Quantity > 0m ? ItemLedgerEntryType.Sale : ItemLedgerEntryType.SalesReturn,
-                SalesAmount: l.LineAmount))
+                SalesAmount: l.LineAmount,
+
+                // Carried from the line. A till that could not say which size would be unable to
+                // sell anything an item has variants for.
+                VariantCode: l.VariantCode))
             .ToList();
 
         if (movements.Count == 0)
@@ -1427,6 +1441,7 @@ public sealed class PosReceiptService(
                 Description = line.Description,
                 Quantity = line.Quantity,
                 UnitCode = line.UnitCode,
+                VariantCode = line.VariantCode,
                 QuantityPerUnit = line.QuantityPerUnit,
                 UnitPrice = line.UnitPrice,
                 DiscountPercent = line.DiscountPercent,

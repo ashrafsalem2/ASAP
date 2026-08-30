@@ -124,7 +124,10 @@ public sealed class SalesShipmentService(
 
                 // What it sold for, carried onto the entry so a margin report can be built from
                 // the item ledger without joining back to a sales document.
-                SalesAmount: g.Quantity * g.Line.NetUnitPrice))
+                SalesAmount: g.Quantity * g.Line.NetUnitPrice,
+
+                // Carried from the order line. Without it a variant item cannot be shipped at all.
+                VariantCode: g.Line.VariantCode))
             .ToList();
 
         var transactionNo = 0L;

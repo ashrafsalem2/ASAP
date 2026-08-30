@@ -24,7 +24,8 @@ public sealed record SalesLinePayload(
     decimal DiscountPercent = 0m,
     string? Description = null,
     string? TaxCode = null,
-    string? LocationCode = null);
+    string? LocationCode = null,
+    string? VariantCode = null);
 
 /// <summary>What a client sends to take a sales order.</summary>
 /// <param name="CustomerNo">Who it is for.</param>
@@ -233,7 +234,8 @@ public static class SalesEndpoints
                     l.DiscountPercent,
                     l.Description,
                     l.TaxCode,
-                    l.LocationCode))],
+                    l.LocationCode,
+                    l.VariantCode))],
                 request.LocationCode,
                 request.RequestedDeliveryDate,
                 request.Description,

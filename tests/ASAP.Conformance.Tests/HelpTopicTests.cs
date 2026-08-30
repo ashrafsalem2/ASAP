@@ -102,7 +102,11 @@ public sealed class HelpTopicTests
             .Select(static d => d.HelpTopic)
             .Concat(Modules.SelectMany(static m => m.Messages
                 .Select(static d => d.HelpTopic)
-                .Concat(m.Setups.Select(static s => s.HelpTopic))))
+                .Concat(m.Setups.Select(static s => s.HelpTopic))
+
+                // Screens too, not only refusals. A report explains what its figures mean and
+                // never says no to anybody, so nothing else would ever point at its topic.
+                .Concat(m.Navigation.Select(static n => n.HelpTopic))))
             .Where(static t => !string.IsNullOrWhiteSpace(t))
             .Select(static t => t!.Trim())
             .Distinct(StringComparer.OrdinalIgnoreCase)

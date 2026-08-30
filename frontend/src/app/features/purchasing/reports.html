@@ -1,0 +1,172 @@
+<div class="page">
+  <h1>{{ t('purchasing.reports.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('purchasing.reports.intro') }}</p>
+
+    <div class="panel__body form-row">
+      <label>
+        {{ t('purchasing.reports.from') }}
+        <input type="date" [(ngModel)]="from" name="from" (change)="refresh()" />
+      </label>
+      <label>
+        {{ t('purchasing.reports.to') }}
+        <input type="date" [(ngModel)]="to" name="to" (change)="refresh()" />
+      </label>
+    </div>
+  </section>
+
+  @if (loading()) {
+    <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+  } @else {
+    <section class="panel">
+      <h2 class="panel__title">{{ t('purchasing.reports.openTitle') }}</h2>
+
+      <div class="panel__body form-row">
+        <label class="check">
+          <input type="checkbox" [(ngModel)]="overdueOnly" name="overdueOnly" (change)="refresh()" />
+          {{ t('purchasing.reports.overdueOnly') }}
+        </label>
+      </div>
+
+      @if (openOrders().length === 0) {
+        <p class="empty">{{ t('purchasing.reports.nothingOutstanding') }}</p>
+      } @else {
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('purchasing.reports.order') }}</th>
+                <th>{{ t('purchasing.reports.vendor') }}</th>
+                <th>{{ t('purchasing.reports.due') }}</th>
+                <th class="numeric">{{ t('purchasing.reports.overdue') }}</th>
+                <th class="numeric">{{ t('purchasing.reports.outstanding') }}</th>
+                <th class="numeric">{{ t('purchasing.reports.value') }}</th>
+                <th>{{ t('purchasing.reports.status') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of openOrders(); track row.orderNo) {
+                <tr>
+                  <td class="code">{{ row.orderNo }}</td>
+                  <td>{{ row.vendorName }}</td>
+                  <td>{{ row.expectedReceiptDate }}</td>
+                  <td class="numeric">
+                    @if (row.daysOverdue !== null && row.daysOverdue > 0) {
+                      {{ row.daysOverdue }}
+                    }
+                  </td>
+                  <td class="numeric">{{ row.quantityOutstanding }}</td>
+                  <td class="numeric">{{ row.valueOutstanding }}</td>
+                  <td>{{ row.status }}</td>
+                </tr>
+              }
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="5">{{ t('purchasing.reports.outstandingTotal') }}</td>
+                <td class="numeric">{{ outstandingTotal() }}</td>
+                <td></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      }
+
+      <p class="panel__body hint">{{ t('purchasing.reports.openHint') }}</p>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">{{ t('purchasing.reports.vendorTitle') }}</h2>
+
+      @if (vendors().length === 0) {
+        <p class="empty">{{ t('purchasing.reports.nothingDelivered') }}</p>
+      } @else {
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('purchasing.reports.vendor') }}</th>
+                <th class="numeric">{{ t('purchasing.reports.deliveries') }}</th>
+                <th class="numeric">{{ t('purchasing.reports.onTime') }}</th>
+                <th class="numeric">{{ t('purchasing.reports.late') }}</th>
+                <th class="numeric">{{ t('purchasing.reports.unpromised') }}</th>
+                <th class="numeric">{{ t('purchasing.reports.averageLate') }}</th>
+                <th class="numeric">{{ t('purchasing.reports.worstLate') }}</th>
+                <th class="numeric">{{ t('purchasing.reports.received') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of vendors(); track row.vendorNo) {
+                <tr>
+                  <td>
+                    <span class="code">{{ row.vendorNo }}</span>
+                    {{ row.vendorName }}
+                  </td>
+                  <td class="numeric">{{ row.deliveries }}</td>
+                  <td class="numeric">{{ row.onTime }}</td>
+                  <td class="numeric">{{ row.late }}</td>
+                  <td class="numeric">{{ row.unpromised }}</td>
+                  <td class="numeric">{{ row.averageDaysLate }}</td>
+                  <td class="numeric">{{ row.worstDaysLate }}</td>
+                  <td class="numeric">{{ row.valueReceived }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+
+      <p class="panel__body hint">{{ t('purchasing.reports.vendorHint') }}</p>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">{{ t('purchasing.reports.analysisTitle') }}</h2>
+
+      <div class="panel__body form-row">
+        <label class="check">
+          <input type="checkbox" [(ngModel)]="byItem" name="byItem" (change)="refresh()" />
+          {{ t('purchasing.reports.byItem') }}
+        </label>
+      </div>
+
+      @if (analysis().length === 0) {
+        <p class="empty">{{ t('purchasing.reports.nothingBought') }}</p>
+      } @else {
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ byItem ? t('purchasing.reports.item') : t('purchasing.reports.vendor') }}</th>
+                <th class="numeric">{{ t('purchasing.reports.quantity') }}</th>
+                <th class="numeric">{{ t('purchasing.reports.deliveries') }}</th>
+                <th class="numeric">{{ t('purchasing.reports.value') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of analysis(); track row.key) {
+                <tr>
+                  <td>
+                    <span class="code">{{ row.key }}</span>
+                    {{ row.name }}
+                  </td>
+                  <td class="numeric">{{ row.quantity }}</td>
+                  <td class="numeric">{{ row.deliveries }}</td>
+                  <td class="numeric">{{ row.value }}</td>
+                </tr>
+              }
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="3">{{ t('purchasing.reports.spendTotal') }}</td>
+                <td class="numeric">{{ spendTotal() }}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      }
+
+      <p class="panel__body hint">{{ t('purchasing.reports.analysisHint') }}</p>
+    </section>
+  }
+</div>

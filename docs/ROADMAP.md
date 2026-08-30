@@ -230,7 +230,15 @@ Everything else posts here, so it goes first.
 - **done** Posting into inventory and the vendor ledger, through a goods-received-not-invoiced
   accrual so the company owes for stock from the day it lands rather than the day the post does
 - **done** Client screens: purchase orders, goods receipt and vendor invoice
-- Reports: purchase analysis, vendor performance, open orders
+- **done** Reports: open orders, vendor performance, purchase analysis. All read from what
+  happened rather than a summary kept beside it -- a delivery date is the posting date of the stock
+  that arrived. The judgment is in vendor performance and not in the arithmetic: lateness is
+  averaged over the late deliveries only, because a vendor a fortnight late half the time and a
+  fortnight early the rest would otherwise read as punctual, and an erratic supplier is worse than a
+  consistently slow one. A vendor who never promised a date is counted separately rather than scored
+  on time, or the supplier who commits to nothing tops the table. One arrival is one delivery
+  however many lines came on it. In-full delivery, price accuracy per vendor, and guarding against a
+  promised date being changed still to come
 
 ## Phase 4 — Sales
 

@@ -3,7 +3,9 @@ using ASAP.Modules.Purchasing;
 using ASAP.Modules.Purchasing.Approvals;
 using ASAP.Modules.Purchasing.Costing;
 using ASAP.Modules.Purchasing.Orders;
+using ASAP.Modules.Purchasing.Reporting;
 using ASAP.Platform.Kernel.Security;
+using ASAP.Platform.Kernel.Time;
 using ASAP.Platform.Persistence;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -251,6 +253,18 @@ public static class PurchasingEndpoints
              .WithName("ApplyLandedCost")
              .WithSummary("Adds freight or duty to the cost of the goods received against an order.");
 
+        group.MapGet("/reports/open-orders", OpenOrdersAsync)
+             .WithName("OpenPurchaseOrders")
+             .WithSummary("What is on order and has not arrived, latest first.");
+
+        group.MapGet("/reports/vendor-performance", VendorPerformanceAsync)
+             .WithName("VendorPerformance")
+             .WithSummary("How each vendor has actually behaved over a period.");
+
+        group.MapGet("/reports/purchase-analysis", PurchaseAnalysisAsync)
+             .WithName("PurchaseAnalysis")
+             .WithSummary("What was bought over a period, by vendor or by item.");
+
         group.MapPost("/orders/{orderNo}/receive", ReceiveAsync)
              .WithName("ReceiveGoods")
              .WithSummary("Records that goods arrived: moves stock and accrues what is owed.");
@@ -355,6 +369,67 @@ public static class PurchasingEndpoints
                 messages = MessagePayload.FromAll(result.Messages),
             });
     }
+    private static async Task<IResult> OpenOrdersAsync(
+        PurchaseReportService reports,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken,
+        string? vendorNo = null,
+        bool overdueOnly = false)
+    {
+        if (!Can(user, ReadPermission))
+        {
+            return Forbidden(ReadPermission, "read open purchase orders", http);
+        }
+
+        return Results.Ok(await reports
+            .OpenOrdersAsync(vendorNo, overdueOnly, cancellationToken)
+            .ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> VendorPerformanceAsync(
+        PurchaseReportService reports,
+        IUserContext user,
+        IClock clock,
+        HttpContext http,
+        CancellationToken cancellationToken,
+        DateOnly? from = null,
+        DateOnly? to = null)
+    {
+        if (!Can(user, ReadPermission))
+        {
+            return Forbidden(ReadPermission, "read vendor performance", http);
+        }
+
+        var last = to ?? clock.Today;
+
+        return Results.Ok(await reports
+            .VendorPerformanceAsync(from ?? last.AddMonths(-3), last, cancellationToken)
+            .ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> PurchaseAnalysisAsync(
+        PurchaseReportService reports,
+        IUserContext user,
+        IClock clock,
+        HttpContext http,
+        CancellationToken cancellationToken,
+        DateOnly? from = null,
+        DateOnly? to = null,
+        bool byItem = false)
+    {
+        if (!Can(user, ReadPermission))
+        {
+            return Forbidden(ReadPermission, "read purchase analysis", http);
+        }
+
+        var last = to ?? clock.Today;
+
+        return Results.Ok(await reports
+            .AnalysisAsync(from ?? last.AddMonths(-3), last, byItem, cancellationToken)
+            .ConfigureAwait(false));
+    }
+
     private static async Task<IResult> LandedCostAsync(
         string orderNo,
         LandedCostRequest request,

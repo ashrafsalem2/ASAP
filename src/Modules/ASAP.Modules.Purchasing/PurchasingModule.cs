@@ -59,6 +59,7 @@ public sealed class PurchasingModule : IAsapModule
 
         services.AddScoped<Approvals.PurchaseApprovalService>();
         services.AddScoped<Costing.LandedCostService>();
+        services.AddScoped<Reporting.PurchaseReportService>();
         services.AddScoped<Orders.PurchaseReceiptService>();
         services.AddScoped<Orders.PurchaseInvoiceService>();
     }
@@ -261,6 +262,20 @@ public sealed class PurchasingModule : IAsapModule
             Route = "/purchasing/orders",
             RequiresPermission = $"{Id}.Order.Read",
             Order = 10,
+        },
+        new()
+        {
+            Id = "Purchasing.Reports",
+            Module = Id,
+            ParentId = "Purchasing.Root",
+            DisplayName = new LocalizedText("Purchase reports", "تقارير المشتريات"),
+            Kind = NavigationKind.Page,
+            Route = "/purchasing/reports",
+            RequiresPermission = $"{Id}.Order.Read",
+            Order = 70,
+
+            // A report refuses nothing, so it has no message to hang its documentation off.
+            HelpTopic = "purchasing/reports",
         },
         new()
         {

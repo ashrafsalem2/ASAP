@@ -71,6 +71,17 @@ public sealed record NavigationItem
     /// <summary>Sort order within the parent, lowest first.</summary>
     public int Order { get; init; }
 
+    /// <summary>
+    /// The help topic this screen is documented by.
+    /// </summary>
+    /// <remarks>
+    /// A screen with nothing to refuse has no message to hang its documentation off, and a report
+    /// is exactly that: it explains what its figures mean and it never says no to anybody. Without
+    /// somewhere to name the topic, the only pages that could be documented would be the ones that
+    /// go wrong.
+    /// </remarks>
+    public string? HelpTopic { get; init; }
+
     /// <inheritdoc />
     public override string ToString() => Id;
 }

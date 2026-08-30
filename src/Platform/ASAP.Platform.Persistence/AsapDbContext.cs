@@ -13,6 +13,7 @@ using ASAP.Platform.Kernel.Tenancy;
 using ASAP.Platform.Kernel.Time;
 using ASAP.Platform.Persistence.Conventions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 
 namespace ASAP.Platform.Persistence;
@@ -52,6 +53,18 @@ public sealed class AsapDbContext(
     SyncRegistry? syncRegistry = null) : DbContext(options)
 {
     private readonly IEnumerable<IModuleSchema> _moduleSchemas = moduleSchemas;
+
+    /// <summary>
+    /// Which modules this context was built with, as a string the model cache can key on.
+    /// </summary>
+    /// <remarks>
+    /// Ordered, so the same set handed over in a different order is still the same model. Without
+    /// this the first context created in a process decides which entity types exist for every
+    /// context after it, and a host or a test with a different module set gets somebody else's
+    /// model along with an error that names neither.
+    /// </remarks>
+    internal string ModuleSchemaSignature { get; }
+        = string.Join('|', moduleSchemas.Select(static s => s.GetType().FullName).Order(StringComparer.Ordinal));
 
     /// <summary>
     /// Tenant the query filters narrow to. Read as a property on each query rather than captured
@@ -135,6 +148,18 @@ public sealed class AsapDbContext(
     public DbSet<SyncInboxEntry> SyncInbox => Set<SyncInboxEntry>();
 
     /// <inheritdoc />
+    /// <inheritdoc />
+    protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)
+    {
+        ArgumentNullException.ThrowIfNull(optionsBuilder);
+
+        base.OnConfiguring(optionsBuilder);
+
+        // The model depends on which modules are installed, and EF has no way to know that on its
+        // own. See AsapModelCacheKeyFactory.
+        optionsBuilder.ReplaceService<IModelCacheKeyFactory, AsapModelCacheKeyFactory>();
+    }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);

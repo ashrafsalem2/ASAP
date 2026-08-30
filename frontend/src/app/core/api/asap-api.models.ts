@@ -174,6 +174,41 @@ export interface StockLocation {
   usesBins: boolean;
 }
 
+/** One order with goods still to come. */
+export interface OpenOrderRow {
+  orderNo: string;
+  vendorNo: string;
+  vendorName: string;
+  orderDate: string;
+  expectedReceiptDate?: string | null;
+  daysOverdue: number | null;
+  quantityOutstanding: number;
+  valueOutstanding: number;
+  status: string;
+}
+
+/** How one vendor has actually behaved. */
+export interface VendorPerformanceRow {
+  vendorNo: string;
+  vendorName: string;
+  deliveries: number;
+  onTime: number;
+  late: number;
+  unpromised: number;
+  averageDaysLate: number | null;
+  worstDaysLate: number;
+  valueReceived: number;
+}
+
+/** What was bought, grouped by vendor or by item. */
+export interface PurchaseAnalysisRow {
+  key: string;
+  name: string;
+  quantity: number;
+  value: number;
+  deliveries: number;
+}
+
 /** How much one person may sign a purchase order for. */
 export interface ApprovalLimit {
   userId: string;

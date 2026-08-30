@@ -4,11 +4,14 @@ import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   ApprovalLimit,
+  OpenOrderRow,
+  PurchaseAnalysisRow,
   CreatePurchaseOrderRequest,
   GoodsReceiptResult,
   PurchaseInvoiceResult,
   PurchaseOrder,
   PurchaseOrderCreated,
+  VendorPerformanceRow,
 } from './asap-api.models';
 
 /** How much of one line arrived, or is being invoiced. */
@@ -132,6 +135,50 @@ export class PurchasingService {
   rejectOrder(orderNo: string, reason: string): Promise<unknown> {
     return firstValueFrom(
       this.http.post(`${this.base}/orders/${encodeURIComponent(orderNo)}/reject`, { reason }),
+    );
+  }
+
+  /** What is on order and has not arrived, most overdue first. */
+  openOrders(overdueOnly = false, vendorNo?: string): Promise<OpenOrderRow[]> {
+    let params = new HttpParams();
+
+    if (overdueOnly) {
+      params = params.set('overdueOnly', 'true');
+    }
+
+    if (vendorNo) {
+      params = params.set('vendorNo', vendorNo);
+    }
+
+    return firstValueFrom(
+      this.http.get<OpenOrderRow[]>(`${this.base}/reports/open-orders`, { params }),
+    );
+  }
+
+  /**
+   * How each vendor has actually behaved.
+   *
+   * Lateness is averaged over the late deliveries only, and a vendor who never promised a date is
+   * counted separately rather than scored on time.
+   */
+  vendorPerformance(from: string, to: string): Promise<VendorPerformanceRow[]> {
+    const params = new HttpParams().set('from', from).set('to', to);
+
+    return firstValueFrom(
+      this.http.get<VendorPerformanceRow[]>(`${this.base}/reports/vendor-performance`, { params }),
+    );
+  }
+
+  /** What was bought over a period, by vendor or by item. */
+  purchaseAnalysis(from: string, to: string, byItem = false): Promise<PurchaseAnalysisRow[]> {
+    let params = new HttpParams().set('from', from).set('to', to);
+
+    if (byItem) {
+      params = params.set('byItem', 'true');
+    }
+
+    return firstValueFrom(
+      this.http.get<PurchaseAnalysisRow[]>(`${this.base}/reports/purchase-analysis`, { params }),
     );
   }
 }

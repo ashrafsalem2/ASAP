@@ -5,6 +5,12 @@ namespace ASAP.Modules.Sales;
 /// <summary>Everything the Sales module can tell the user.</summary>
 public static class SalesMessages
 {
+    /// <summary>A return names nothing that could come back.</summary>
+    public static readonly MessageCode NothingToReturn = new("SAL.RETURN.NOTHING");
+
+    /// <summary>More is coming back than was ever invoiced.</summary>
+    public static readonly MessageCode ReturnExceedsInvoiced = new("SAL.RETURN.EXCEEDS_INVOICED");
+
     /// <summary>Two equally specific price list lines cover the same sale.</summary>
     public static readonly MessageCode PriceIsAmbiguous = new("SAL.PRICE.AMBIGUOUS");
 
@@ -56,6 +62,43 @@ public static class SalesMessages
     /// <summary>Every message the module declares.</summary>
     public static IReadOnlyCollection<MessageDefinition> All { get; } =
     [
+        new()
+        {
+            Code = NothingToReturn,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Nothing to take back", "لا شيء يُستعاد"),
+            Detail = new LocalizedText(
+                "Nothing on {OrderNo} has been invoiced and not yet returned.",
+                "لا يوجد في {OrderNo} ما فُوتر ولم يُستعد بعد."),
+            Resolution = new LocalizedText(
+                "Goods that shipped and were never billed have nothing to credit -- correct the "
+                + "shipment instead. Where they were billed, check whether the return was already "
+                + "posted.",
+                "البضاعة التي شُحنت ولم تُفوتر لا شيء فيها ليُقيَّد دائنًا — صحّح الشحنة بدلًا من "
+                + "ذلك. وإن كانت قد فُوترت فتحقق مما إذا كان الاسترجاع قد رُحِّل من قبل."),
+            HelpTopic = "sales/returns",
+        },
+        new()
+        {
+            Code = ReturnExceedsInvoiced,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("More than went out", "أكثر مما خرج"),
+            Detail = new LocalizedText(
+                "Line {LineNo} takes back {Returned:0.#####} of {ItemNo}, and only "
+                + "{OutstandingQuantity:0.#####} of the {Invoiced:0.#####} invoiced could still "
+                + "come back.",
+                "يستعيد السطر {LineNo} كمية {Returned:0.#####} من {ItemNo}، ولا يمكن أن يعود إلا "
+                + "{OutstandingQuantity:0.#####} من {Invoiced:0.#####} المفوترة."),
+            Resolution = new LocalizedText(
+                "Take back what was billed, or less. Crediting a customer for goods they were "
+                + "never charged for is not a decision anybody is entitled to make: it puts stock "
+                + "on the shelf that never existed and money on their account that was never "
+                + "owed.",
+                "استعد ما فُوتر أو أقل منه. فتقييد العميل دائنًا ببضاعة لم تُحمَّل عليه ليس قرارًا "
+                + "من حق أحد اتخاذه: فهو يضع في الرف مخزونًا لم يوجد قط، وفي حسابه مالًا لم "
+                + "يُستحق."),
+            HelpTopic = "sales/returns",
+        },
         new()
         {
             Code = PriceIsAmbiguous,

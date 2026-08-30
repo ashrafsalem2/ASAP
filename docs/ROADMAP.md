@@ -258,7 +258,18 @@ Everything else posts here, so it goes first.
   warning exists for. The assignment is held by Sales rather than on the party, because a customer
   belongs to Finance and what they pay for goods is a sales arrangement. Customer groups and
   offers-on-top still to come
-- *in progress* **Order, shipment and invoice done**; quote, return and credit memo to come
+- *in progress* **Order, shipment, invoice, return and credit memo done**; quote to come
+- **done** Returns and credit memos. A return is two postings that are right for different reasons:
+  the stock comes back at what it cost on the way out, which is why the return names the order,
+  and the credit memo is the invoice run backwards at the prices the customer was actually
+  charged. A credit that could disagree with what was billed would make an invoice and a credit
+  memo together a way of moving money no report could explain. What can come back is bounded by
+  what was *invoiced* rather than shipped, less what has already come back -- goods that shipped
+  and were never billed have no debt to reverse -- and taking back more is refused and cannot be
+  overridden, because it is not a judgment but arithmetic that does not add up. The tax is
+  credited at the rate the sale was made at, read from the order date, or a rate change between
+  the invoice and the return leaves a difference in the tax account with nothing to explain it.
+  Returning a named serial number, and a standalone return that names no order, still to come
 - **done** Availability decided at shipment, by the costing engine, which is the only thing that
   knows what is on the shelf at the moment somebody reaches for it. Reservation to come
 - **done** Goods coming back are restored at what they cost when they left, where the return names
@@ -276,6 +287,11 @@ Everything else posts here, so it goes first.
   the tax lands on what the customer actually pays and the discount stays visible in the P&L
 - **done** The location is asked about when the order is taken, not at the despatch bay
 - **done** Client screens: sales orders, shipment and invoice
+- **done** A sale's revenue is recorded once however many cost layers it comes off. It was written
+  once per layer, so a sale of ten that took eight from one receipt and two from another reported
+  twice what the customer was charged -- invisible in every unit test, because a test posts a
+  clean sequence and its sales come off a single layer. Found by driving a real order across two
+  receipts and reading the value entries back
 - **done** Reports: margin by item and by customer, and open orders. Margin comes from the item
   ledger rather than sales documents, which is what the sales amount on every outbound value entry
   was for -- so a till sale and an invoice are the same rows and the report cannot tell which door

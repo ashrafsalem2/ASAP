@@ -351,7 +351,12 @@ public sealed partial class StockPostingService(
             request.Quantity,
             unitCost,
             costAmount,
-            isExpected: false));
+            isExpected: false,
+
+            // Carried on the way in as well as on the way out, because a return is a sale coming
+            // off. Without it an order returned in full keeps the margin it had the day it
+            // shipped, and the report says the company made money it gave back.
+            salesAmount: request.SalesAmount));
 
         // A receipt is what the item last actually cost, and on an average-costed item it moves
         // the running unit cost. Both are read later to value an issue that has nothing to draw on.
@@ -418,8 +423,30 @@ public sealed partial class StockPostingService(
         entry.IsApplied = !outcome.WentNegative;
         entry.WentNegative = outcome.WentNegative;
 
+        // The sales amount belongs to the movement, and the movement can be split across several
+        // cost layers. Writing the whole figure on each of them counts the revenue once per layer:
+        // a sale of ten that took eight from one receipt and two from another reported twice what
+        // the customer was charged. It never showed up in a test, because a test posts a clean
+        // sequence and its sales come off one layer.
+        var totalApplied = outcome.Applications.Sum(static a => a.Quantity);
+        var salesApportioned = 0m;
+        var applicationIndex = 0;
+
         foreach (var application in outcome.Applications)
         {
+            applicationIndex++;
+
+            // The last slice takes whatever rounding left behind, so the parts add back to the
+            // whole and revenue does not drift a penny per layer.
+            var salesShare = applicationIndex == outcome.Applications.Count || totalApplied == 0m
+                ? request.SalesAmount - salesApportioned
+                : Math.Round(
+                    request.SalesAmount * (application.Quantity / totalApplied),
+                    2,
+                    MidpointRounding.AwayFromZero);
+
+            salesApportioned += salesShare;
+
             if (application.InboundEntryId is { } inboundId)
             {
                 openLayers.First(l => l.Id == inboundId).RemainingQuantity -= application.Quantity;
@@ -449,7 +476,7 @@ public sealed partial class StockPostingService(
                 application.UnitCost,
                 -application.CostAmount,
                 isExpected: application.IsEstimate,
-                salesAmount: request.SalesAmount));
+                salesAmount: salesShare));
         }
 
         return (outcome.TotalCost, -outcome.EstimatedCost);

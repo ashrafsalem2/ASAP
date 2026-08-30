@@ -811,6 +811,8 @@ export interface SalesOrderLine {
 
   /** Gone and still unbilled. Revenue the company has earned and not yet asked for. */
   shippedNotInvoiced: number;
+  quantityReturned: number;
+  returnableQuantity: number;
 }
 
 /** An order taken from a customer. */
@@ -874,6 +876,21 @@ export interface SalesInvoiceResult {
   taxAmount: number;
   totalAmount: number;
   status: SalesOrderStatus;
+  messages?: AsapMessage[];
+}
+
+/** What a return put back and credited. */
+export interface SalesReturnResult {
+  orderNo: string;
+  creditMemoNo: string;
+  stockTransactionNo: number;
+  ledgerTransactionNo: number;
+  lineCount: number;
+  costAmount: number;
+  netAmount: number;
+  discountAmount: number;
+  taxAmount: number;
+  totalAmount: number;
   messages?: AsapMessage[];
 }
 

@@ -156,6 +156,7 @@ public sealed class SalesSchema : IModuleSchema
             builder.Property(l => l.Quantity).HasColumnType(DecimalPrecisionConventions.Quantity);
             builder.Property(l => l.QuantityShipped).HasColumnType(DecimalPrecisionConventions.Quantity);
             builder.Property(l => l.QuantityInvoiced).HasColumnType(DecimalPrecisionConventions.Quantity);
+            builder.Property(l => l.QuantityReturned).HasColumnType(DecimalPrecisionConventions.Quantity);
             builder.Property(l => l.UnitPrice).HasColumnType(DecimalPrecisionConventions.UnitAmount);
             builder.Property(l => l.DiscountPercent).HasColumnType(DecimalPrecisionConventions.Percentage);
 
@@ -168,6 +169,7 @@ public sealed class SalesSchema : IModuleSchema
             builder.Ignore(l => l.DiscountAmount);
             builder.Ignore(l => l.OutstandingToShip);
             builder.Ignore(l => l.ShippedNotInvoiced);
+            builder.Ignore(l => l.ReturnableQuantity);
         });
     }
 }

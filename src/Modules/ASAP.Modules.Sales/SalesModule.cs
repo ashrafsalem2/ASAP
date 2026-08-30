@@ -56,6 +56,7 @@ public sealed class SalesModule : IAsapModule
 
 
         services.AddScoped<Pricing.PricingService>();
+        services.AddScoped<Orders.SalesReturnService>();
         services.AddScoped<Reporting.SalesReportService>();
         services.AddScoped<ASAP.Platform.Kernel.Documents.IDocumentParties, Reporting.SalesDocumentParties>();
         services.AddScoped<Orders.SalesShipmentService>();
@@ -65,6 +66,17 @@ public sealed class SalesModule : IAsapModule
     /// <inheritdoc />
     public IReadOnlyCollection<PermissionDescriptor> Permissions =>
     [
+        PermissionDescriptor.Define(
+            Id, "Return", PermissionAction.Post,
+            new LocalizedText("Take goods back and credit the customer", "استعادة البضاعة وتقييد العميل دائنًا"),
+            new LocalizedText(
+                "A credit memo takes money off what a customer owes and puts stock back on the "
+                + "shelf. Both are worth separating from whoever raised the invoice.",
+                "إشعار الدائن يخصم من مديونية العميل ويعيد المخزون إلى الرف. وكلاهما جدير "
+                + "بالفصل عمن أصدر الفاتورة."),
+            isSensitive: true),
+
+
         PermissionDescriptor.Define(
             Id, "PriceList", PermissionAction.Read,
             new LocalizedText("View price lists", "عرض قوائم الأسعار")),
@@ -203,6 +215,25 @@ public sealed class SalesModule : IAsapModule
             ValueType = SetupValueType.Text,
             Scope = SetupScope.Company,
             DefaultValue = "SALES-INV",
+            RequiresPermission = $"{Id}.Order.Update",
+            HelpTopic = "sales/setup",
+        },
+        new()
+        {
+            Key = $"{Id}.CreditMemos.NumberSeries",
+            Module = Id,
+            Group = new LocalizedText("Numbering", "الترقيم"),
+            DisplayName = new LocalizedText("Credit memo numbers", "ترقيم إشعارات الدائن"),
+            Description = new LocalizedText(
+                "The series credit memo numbers are issued from. Keep it separate from the invoice "
+                + "series and keep it gapless for the same reason: a credit memo is a tax document "
+                + "too, and a sequence with holes in it is a question from the authority.",
+                "المسلسل الذي تصدر منه أرقام إشعارات الدائن. اجعله منفصلًا عن مسلسل الفواتير "
+                + "وبلا فجوات للسبب نفسه: فإشعار الدائن مستند ضريبي أيضًا، والتسلسل المتقطع "
+                + "يستدعي استفسارًا من الهيئة."),
+            ValueType = SetupValueType.Text,
+            Scope = SetupScope.Company,
+            DefaultValue = "SALES-CM",
             RequiresPermission = $"{Id}.Order.Update",
             HelpTopic = "sales/setup",
         },

@@ -53,6 +53,15 @@ public sealed record ShipGoodsRequest(
     IReadOnlyList<ShipmentLineRequest>? Lines = null,
     string? OverrideReason = null);
 
+/// <summary>What a client sends to take goods back.</summary>
+/// <param name="Lines">How much of each line came back, or null for everything that still could.</param>
+/// <param name="Reason">Why they came back, which goes on both postings.</param>
+/// <param name="OverrideReason">Why a protection is being pushed past.</param>
+public sealed record SalesReturnRequest(
+    IReadOnlyList<SalesReturnLineRequest>? Lines = null,
+    string? Reason = null,
+    string? OverrideReason = null);
+
 /// <summary>What a client sends to post a sales invoice.</summary>
 /// <param name="Lines">What the invoice covers, or null for everything shipped and unbilled.</param>
 /// <param name="OverrideReason">Why a protection is being pushed past.</param>
@@ -75,6 +84,8 @@ public sealed record PostSalesInvoiceRequest(
 /// <param name="QuantityInvoiced">How much has been invoiced.</param>
 /// <param name="OutstandingToShip">How much is still to go.</param>
 /// <param name="ShippedNotInvoiced">How much has gone and is still unbilled.</param>
+/// <param name="QuantityReturned">How much has come back.</param>
+/// <param name="ReturnableQuantity">How much could still come back.</param>
 public sealed record SalesOrderLineView(
     int LineNo,
     string Type,
@@ -89,7 +100,9 @@ public sealed record SalesOrderLineView(
     decimal QuantityShipped,
     decimal QuantityInvoiced,
     decimal OutstandingToShip,
-    decimal ShippedNotInvoiced);
+    decimal ShippedNotInvoiced,
+    decimal QuantityReturned,
+    decimal ReturnableQuantity);
 
 /// <summary>A sales order as it is reported back.</summary>
 /// <param name="No">Its number.</param>
@@ -172,6 +185,7 @@ public static class SalesEndpoints
     private const string CreatePermission = "Sales.Order.Create";
     private const string ShipPermission = "Sales.Shipment.Post";
     private const string InvoicePermission = "Sales.Invoice.Post";
+    private const string ReturnPermission = "Sales.Return.Post";
 
     /// <summary>Maps the Sales endpoints.</summary>
     /// <param name="app">The route builder.</param>
@@ -218,6 +232,10 @@ public static class SalesEndpoints
              .WithName("OpenSalesOrders")
              .WithSummary("What is ordered and has not shipped, latest first.");
 
+        group.MapPost("/orders/{orderNo}/return", ReturnAsync)
+             .WithName("PostSalesReturn")
+             .WithSummary("Takes goods back at what they cost and credits the customer.");
+
         group.MapGet("/price-lists", ListPriceListsAsync)
              .WithName("ListPriceLists")
              .WithSummary("The agreed price lists and everything on them.");
@@ -243,6 +261,49 @@ public static class SalesEndpoints
              .WithSummary("Puts a customer on a price list, or takes them off one.");
 
         return app;
+    }
+
+    private static async Task<IResult> ReturnAsync(
+        string orderNo,
+        SalesReturnRequest request,
+        SalesReturnService returns,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, ReturnPermission))
+        {
+            return Forbidden(ReturnPermission, "take goods back", http);
+        }
+
+        var result = await returns
+            .ReturnAsync(
+                orderNo,
+                request.Lines,
+                request.Reason,
+                Overrides(user),
+                request.OverrideReason,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed
+            ? Refused(result, http)
+            : Results.Ok(new
+            {
+                orderNo = result.Value.OrderNo,
+                creditMemoNo = result.Value.CreditMemoNo,
+                stockTransactionNo = result.Value.StockTransactionNo,
+                ledgerTransactionNo = result.Value.LedgerTransactionNo,
+                lineCount = result.Value.LineCount,
+                costAmount = result.Value.CostAmount,
+                netAmount = result.Value.NetAmount,
+                discountAmount = result.Value.DiscountAmount,
+                taxAmount = result.Value.TaxAmount,
+                totalAmount = result.Value.TotalAmount,
+                messages = result.Messages,
+            });
     }
 
     private static async Task<IResult> ListPriceListsAsync(
@@ -669,7 +730,9 @@ public static class SalesEndpoints
                     l.QuantityShipped,
                     l.QuantityInvoiced,
                     l.OutstandingToShip,
-                    l.ShippedNotInvoiced))]);
+                    l.ShippedNotInvoiced,
+                    l.QuantityReturned,
+                    l.ReturnableQuantity))]);
 
     /// <summary>
     /// The overrides this caller holds.

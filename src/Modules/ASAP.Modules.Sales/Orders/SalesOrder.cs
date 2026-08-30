@@ -164,6 +164,16 @@ public sealed class SalesOrderLine : CompanyEntity
     /// <summary>How much has been invoiced.</summary>
     public decimal QuantityInvoiced { get; set; }
 
+    /// <summary>
+    /// How much has come back.
+    /// </summary>
+    /// <remarks>
+    /// Tracked so a second return cannot take back more than went out, which is the only thing
+    /// standing between a mistyped quantity and stock the company never had, credited to a
+    /// customer who never had it either.
+    /// </remarks>
+    public decimal QuantityReturned { get; set; }
+
     /// <summary>What one unit comes to after its discount.</summary>
     public decimal NetUnitPrice => UnitPrice * (1m - (DiscountPercent / 100m));
 
@@ -185,4 +195,14 @@ public sealed class SalesOrderLine : CompanyEntity
     /// tracked apart rather than as one act.
     /// </remarks>
     public decimal ShippedNotInvoiced => QuantityShipped - QuantityInvoiced;
+
+    /// <summary>
+    /// The most that could still come back on this line.
+    /// </summary>
+    /// <remarks>
+    /// What was invoiced, less what has already been returned. Invoiced rather than shipped,
+    /// because there is nothing to credit for goods the customer was never billed for -- those go
+    /// back by cancelling the shipment, not by raising a credit memo for nothing.
+    /// </remarks>
+    public decimal ReturnableQuantity => QuantityInvoiced - QuantityReturned;
 }

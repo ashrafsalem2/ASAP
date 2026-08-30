@@ -12,6 +12,7 @@ import {
   SalesInvoiceResult,
   SalesOrder,
   SalesOrderCreated,
+  SalesReturnResult,
   SalesShipmentResult,
 } from './asap-api.models';
 
@@ -90,6 +91,26 @@ export class SalesService {
       this.http.post<SalesInvoiceResult>(
         `${this.base}/orders/${encodeURIComponent(orderNo)}/invoice`,
         { lines, overrideReason },
+      ),
+    );
+  }
+
+  /**
+   * Takes goods back at what they cost and credits the customer.
+   *
+   * Nothing keyed means everything that could still come back, which is the ordinary case: a
+   * customer returning the lot.
+   */
+  takeBack(
+    orderNo: string,
+    lines?: SalesLineQuantity[],
+    reason?: string,
+    overrideReason?: string,
+  ): Promise<SalesReturnResult> {
+    return firstValueFrom(
+      this.http.post<SalesReturnResult>(
+        `${this.base}/orders/${encodeURIComponent(orderNo)}/return`,
+        { lines, reason, overrideReason },
       ),
     );
   }

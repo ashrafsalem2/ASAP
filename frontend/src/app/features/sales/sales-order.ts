@@ -37,6 +37,7 @@ export class SalesOrderDetail implements OnInit {
 
   protected orderNo = '';
   protected overrideReason = '';
+  protected returnReason = '';
 
   /**
    * What has been keyed per line, kept outside the order so reloading it does not discard a
@@ -44,6 +45,7 @@ export class SalesOrderDetail implements OnInit {
    */
   private readonly shipmentEntries = new Map<number, number | null>();
   private readonly invoiceEntries = new Map<number, number | null>();
+  private readonly returnEntries = new Map<number, number | null>();
 
   protected readonly canShipAnything = computed(
     () => (this.order()?.lines ?? []).some((line) => line.outstandingToShip > 0),
@@ -51,6 +53,16 @@ export class SalesOrderDetail implements OnInit {
 
   protected readonly canInvoiceAnything = computed(
     () => (this.order()?.lines ?? []).some((line) => line.shippedNotInvoiced > 0),
+  );
+
+  /**
+   * Whether anything on this order could still come back.
+   *
+   * Invoiced, not shipped: goods the customer was never billed for have no debt to reverse, and
+   * go back by correcting the shipment rather than by a credit memo for nothing.
+   */
+  protected readonly canReturnAnything = computed(
+    () => (this.order()?.lines ?? []).some((line) => line.returnableQuantity > 0),
   );
 
   /** What has been given away on this order, which a netted-down price could not answer. */
@@ -78,6 +90,10 @@ export class SalesOrderDetail implements OnInit {
     return this.auth.can('Sales.Invoice.Post');
   }
 
+  protected canReturn(): boolean {
+    return this.auth.can('Sales.Return.Post');
+  }
+
   protected canRelease(): boolean {
     return this.auth.can('Sales.Order.Create') && this.order()?.status === 'Open';
   }
@@ -96,6 +112,14 @@ export class SalesOrderDetail implements OnInit {
 
   protected setShipment(line: SalesOrderLine, value: number | null): void {
     this.shipmentEntries.set(line.lineNo, value);
+  }
+
+  protected returnQuantityOf(line: SalesOrderLine): number | null {
+    return this.returnEntries.get(line.lineNo) ?? null;
+  }
+
+  protected setReturnQuantity(line: SalesOrderLine, value: number | null): void {
+    this.returnEntries.set(line.lineNo, value);
   }
 
   protected invoiceQuantityOf(line: SalesOrderLine): number | null {
@@ -194,6 +218,49 @@ export class SalesOrderDetail implements OnInit {
       await this.load();
     } catch (error) {
       this.messages.showError(error, this.t('sales.invoice.action'));
+    } finally {
+      this.busy.set(null);
+    }
+  }
+
+  /**
+   * Takes goods back and credits the customer.
+   *
+   * Nothing keyed means everything that could still come back, which is the ordinary case: a
+   * customer returning the lot.
+   */
+  protected async takeBack(): Promise<void> {
+    if (this.busy()) {
+      return;
+    }
+
+    this.messages.clear();
+    this.busy.set('return');
+
+    try {
+      const result = await this.sales.takeBack(
+        this.orderNo,
+        this.linesFrom(this.returnEntries),
+        this.returnReason.trim() || undefined,
+        this.overrideReason.trim() || undefined,
+      );
+
+      this.report(result.messages);
+      this.messages.showSuccess(
+        this.t('sales.return.done', {
+          No: result.creditMemoNo,
+          Total: this.i18n.total(result.totalAmount),
+          Cost: this.i18n.total(result.costAmount),
+        }),
+      );
+
+      this.returnEntries.clear();
+      this.returnReason = '';
+      this.overrideReason = '';
+
+      await this.load();
+    } catch (error) {
+      this.messages.showError(error, this.t('sales.return.action'));
     } finally {
       this.busy.set(null);
     }

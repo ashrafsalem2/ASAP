@@ -71,6 +71,7 @@ public sealed class PosModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISyncCont
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddScoped<Stations.StationBranchLookup>();
+        services.AddScoped<Stations.DeviceService>();
         services.AddScoped<Printing.ReceiptPrintService>();
         services.AddScoped<Seed.PosSeeder>();
         services.AddScoped<Sessions.PosSessionService>();

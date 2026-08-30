@@ -26,6 +26,31 @@ public sealed partial class PosSchema : IModuleSchema
 
         ArgumentNullException.ThrowIfNull(modelBuilder);
 
+        modelBuilder.Entity<PosDevice>(builder =>
+        {
+            builder.ToTable("PosDevices", SchemaName);
+
+            builder.Property(d => d.Code).HasMaxLength(20).IsRequired();
+            builder.Property(d => d.Name).HasMaxLength(200).IsRequired();
+            builder.Property(d => d.NameArabic).HasMaxLength(200);
+            builder.Property(d => d.Address).HasMaxLength(250);
+            builder.Property(d => d.PrintTemplateCode).HasMaxLength(40);
+            builder.Property(d => d.RowVersion).IsRowVersion();
+
+            // A device's code identifies it within its till, not across the company. Two shops
+            // both calling their receipt printer RCP is ordinary and should not be a conflict.
+            builder.HasIndex(d => new { d.StationId, d.Code })
+                   .IsUnique()
+                   .HasFilter("[IsDeleted] = 0");
+
+            builder.HasOne(d => d.Station)
+                   .WithMany()
+                   .HasForeignKey(d => d.StationId)
+                   .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Ignore(d => d.NeedsBridge);
+        });
+
         modelBuilder.Entity<PosStation>(builder =>
         {
             builder.ToTable("PosStations", SchemaName);

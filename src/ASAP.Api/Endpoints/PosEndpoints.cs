@@ -131,10 +131,56 @@ public sealed record PreviewPrintTemplateRequest(
     int WidthInCharacters = 42,
     string? ReceiptNo = null);
 
+/// <summary>One device at a till, as it is written and read back.</summary>
+/// <param name="Code">Its code, which identifies it within the till.</param>
+/// <param name="Name">What it is called.</param>
+/// <param name="Kind">
+/// ReceiptPrinter, LabelPrinter, Scanner, CashDrawer, CustomerDisplay, Scale or PaymentTerminal.
+/// </param>
+/// <param name="Connection">
+/// Browser, Network or Bridge. Only Bridge needs a program installed on the till, and that is the
+/// distinction the whole record exists to make.
+/// </param>
+/// <param name="NameArabic">What it is called in Arabic.</param>
+/// <param name="Address">Where to find it. Required for anything but Browser.</param>
+/// <param name="PrintTemplateCode">The layout it prints with, when it prints.</param>
+/// <param name="IsDefault">Whether it is the one meant when a till has two of a kind.</param>
+/// <param name="IsActive">Whether it may still be used.</param>
+/// <param name="StationCode">The till it belongs to. Read back only.</param>
+/// <param name="NeedsBridge">Whether it needs the agent. Read back only.</param>
+public sealed record PosDeviceView(
+    string Code,
+    string Name,
+    string Kind,
+    string Connection,
+    string? NameArabic = null,
+    string? Address = null,
+    string? PrintTemplateCode = null,
+    bool IsDefault = false,
+    bool IsActive = true,
+    string? StationCode = null,
+    bool NeedsBridge = false);
+
+/// <summary>What a till needs installed on it before it can trade.</summary>
+/// <param name="StationCode">The till.</param>
+/// <param name="Devices">How many devices it has.</param>
+/// <param name="NeedsBridge">Whether any of them needs the bridge agent.</param>
+/// <param name="BridgeDevices">Which ones, so the answer can be checked rather than believed.</param>
+public sealed record StationReadinessView(
+    string StationCode,
+    int Devices,
+    bool NeedsBridge,
+    IReadOnlyList<string> BridgeDevices);
+
 /// <summary>Point of sale: tills, sessions and receipts.</summary>
 public static class PosEndpoints
 {
     private const string StationReadPermission = "Pos.Station.Read";
+
+    // Devices belong to a till, so seeing and setting them up is seeing and setting up the till.
+    // A separate pair would be two permissions that are always granted together.
+    private const string DeviceReadPermission = StationReadPermission;
+    private const string DeviceUpdatePermission = "Pos.Station.Update";
     private const string SessionReadPermission = "Pos.Session.Read";
     private const string SessionOpenPermission = "Pos.Session.Create";
     private const string SessionClosePermission = "Pos.Session.Post";
@@ -150,6 +196,22 @@ public static class PosEndpoints
         ArgumentNullException.ThrowIfNull(app);
 
         var group = app.MapGroup("/api/pos").RequireAuthorization().WithTags("Point of sale");
+
+        group.MapGet("/devices", DevicesAsync)
+             .WithName("PosDevices")
+             .WithSummary("Lists the devices at a till, or at every till.");
+
+        group.MapGet("/stations/{stationCode}/readiness", ReadinessAsync)
+             .WithName("PosStationReadiness")
+             .WithSummary("Says what a till needs installed on it, which for most tills is nothing.");
+
+        group.MapPut("/stations/{stationCode}/devices/{code}", SaveDeviceAsync)
+             .WithName("SavePosDevice")
+             .WithSummary("Adds a device to a till or replaces one.");
+
+        group.MapDelete("/stations/{stationCode}/devices/{code}", RemoveDeviceAsync)
+             .WithName("RemovePosDevice")
+             .WithSummary("Takes a device off a till.");
 
         group.MapGet("/stations", StationsAsync)
              .WithName("PosStations")
@@ -217,6 +279,125 @@ public static class PosEndpoints
 
         return app;
     }
+
+    private static async Task<IResult> DevicesAsync(
+        DeviceService devices,
+        IUserContext user,
+        HttpContext http,
+        [FromQuery] string? stationCode,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, DeviceReadPermission))
+        {
+            return Forbidden(DeviceReadPermission, "see till devices", http);
+        }
+
+        var found = await devices.ListAsync(stationCode, cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(found.Select(Render));
+    }
+
+    private static async Task<IResult> ReadinessAsync(
+        string stationCode,
+        DeviceService devices,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, DeviceReadPermission))
+        {
+            return Forbidden(DeviceReadPermission, "see till devices", http);
+        }
+
+        var result = await devices.ReadinessAsync(stationCode, cancellationToken).ConfigureAwait(false);
+
+        return result.Failed
+            ? Refused(result, http)
+            : Results.Ok(new StationReadinessView(
+                result.Value.StationCode,
+                result.Value.Devices,
+                result.Value.NeedsBridge,
+                result.Value.BridgeDevices));
+    }
+
+    private static async Task<IResult> SaveDeviceAsync(
+        string stationCode,
+        string code,
+        PosDeviceView request,
+        DeviceService devices,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, DeviceUpdatePermission))
+        {
+            return Forbidden(DeviceUpdatePermission, "set up till devices", http);
+        }
+
+        var result = await devices
+            .SaveAsync(
+                stationCode,
+                new PosDevice
+                {
+                    Code = code,
+                    Name = request.Name,
+                    NameArabic = request.NameArabic,
+                    Kind = Enum.TryParse<DeviceKind>(request.Kind, true, out var kind)
+                        ? kind
+                        : DeviceKind.ReceiptPrinter,
+                    Connection = Enum.TryParse<DeviceConnection>(request.Connection, true, out var connection)
+                        ? connection
+                        : DeviceConnection.Browser,
+                    Address = request.Address,
+                    PrintTemplateCode = request.PrintTemplateCode,
+                    IsDefault = request.IsDefault,
+                    IsActive = request.IsActive,
+                },
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed
+            ? Refused(result, http)
+            : Results.Ok(new
+            {
+                device = Render(result.Value),
+                messages = MessagePayload.FromAll(result.Messages),
+            });
+    }
+
+    private static async Task<IResult> RemoveDeviceAsync(
+        string stationCode,
+        string code,
+        DeviceService devices,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, DeviceUpdatePermission))
+        {
+            return Forbidden(DeviceUpdatePermission, "set up till devices", http);
+        }
+
+        var result = await devices.RemoveAsync(stationCode, code, cancellationToken).ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.Ok(new { removed = code });
+    }
+
+    private static PosDeviceView Render(PosDevice device)
+        => new(
+            device.Code,
+            device.Name,
+            device.Kind.ToString(),
+            device.Connection.ToString(),
+            device.NameArabic,
+            device.Address,
+            device.PrintTemplateCode,
+            device.IsDefault,
+            device.IsActive,
+            device.Station?.Code,
+            device.NeedsBridge);
 
     private static async Task<IResult> StationsAsync(
         AsapDbContext context,

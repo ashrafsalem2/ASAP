@@ -13,6 +13,18 @@ namespace ASAP.Modules.Pos;
 /// </remarks>
 public static class PosMessages
 {
+    /// <summary>A device names a till the company does not have.</summary>
+    public static readonly MessageCode DeviceStationNotFound = new("POS.DEVICE.STATION_NOT_FOUND");
+
+    /// <summary>No device by that code at that till.</summary>
+    public static readonly MessageCode DeviceNotFound = new("POS.DEVICE.NOT_FOUND");
+
+    /// <summary>A device not reached through the browser has to say where it is.</summary>
+    public static readonly MessageCode DeviceNeedsAddress = new("POS.DEVICE.NEEDS_ADDRESS");
+
+    /// <summary>Another device of the same kind stopped being the default.</summary>
+    public static readonly MessageCode DeviceDefaultMoved = new("POS.DEVICE.DEFAULT_MOVED");
+
     /// <summary>The station named does not exist.</summary>
     public static readonly MessageCode StationNotFound = new("POS.STATION.NOT_FOUND");
 
@@ -88,6 +100,70 @@ public static class PosMessages
     /// <summary>Every message the module can raise.</summary>
     public static IReadOnlyCollection<MessageDefinition> All { get; } =
     [
+        new()
+        {
+            Code = DeviceStationNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such till", "لا توجد نقطة بيع بهذا الرمز"),
+            Detail = new LocalizedText(
+                "Nothing in this company is set up as till {Station}.",
+                "لا يوجد في هذه الشركة نقطة بيع بالرمز {Station}."),
+            Resolution = new LocalizedText(
+                "Choose a till from the list, or add {Station} first. A device belongs to a till, "
+                + "which is what lets a broken one be swapped without anybody reconfiguring "
+                + "anything.",
+                "اختر نقطة بيع من القائمة، أو أضف {Station} أولًا. فالجهاز يتبع نقطة بيع، وهذا ما "
+                + "يتيح استبدال جهاز معطوب دون إعادة ضبط أي شيء."),
+            HelpTopic = "pos/devices",
+        },
+        new()
+        {
+            Code = DeviceNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such device", "لا يوجد جهاز بهذا الرمز"),
+            Detail = new LocalizedText(
+                "Till {Station} has no device {Device}.",
+                "لا يوجد بنقطة البيع {Station} جهاز بالرمز {Device}."),
+            Resolution = new LocalizedText(
+                "Choose one from the till's own list of devices.",
+                "اختر واحدًا من قائمة أجهزة نقطة البيع نفسها."),
+            HelpTopic = "pos/devices",
+        },
+        new()
+        {
+            Code = DeviceNeedsAddress,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText(
+                "This device has to say where it is", "يجب تحديد موضع هذا الجهاز"),
+            Detail = new LocalizedText(
+                "{Device} is reached over {Connection}, and nothing says where to find it.",
+                "يُوصل إلى {Device} عبر {Connection}، ولا شيء يحدد أين يوجد."),
+            Resolution = new LocalizedText(
+                "Give it an address: a host and port for a network device, a port name for a "
+                + "wired one. A device reached through the browser needs none, because the print "
+                + "dialog asks the person standing at the till — which is the right place for "
+                + "that question and the reason a receipt printer needs no setup at all.",
+                "حدّد له عنوانًا: مضيفًا ومنفذًا للجهاز الشبكي، واسم منفذ للجهاز السلكي. أما "
+                + "الجهاز الذي يُوصل إليه عبر المتصفح فلا يحتاج شيئًا، لأن نافذة الطباعة تسأل من "
+                + "يقف عند نقطة البيع، وهذا هو الموضع الصحيح لذلك السؤال والسبب في أن طابعة "
+                + "الإيصالات لا تحتاج أي إعداد."),
+            HelpTopic = "pos/devices",
+        },
+        new()
+        {
+            Code = DeviceDefaultMoved,
+            Severity = MessageSeverity.Information,
+            Title = new LocalizedText("The default moved", "تغيّر الجهاز الافتراضي"),
+            Detail = new LocalizedText(
+                "{Device} is no longer the default {Kind} for this till.",
+                "لم يعد {Device} هو الجهاز الافتراضي من نوع {Kind} لنقطة البيع هذه."),
+            Resolution = new LocalizedText(
+                "Nothing to do. A till may have two of a kind — a counter printer and a kitchen "
+                + "printer — but only one of them can be the one meant when nothing says.",
+                "لا حاجة لأي إجراء. فقد يكون بنقطة البيع جهازان من نوع واحد، كطابعة للكاونتر "
+                + "وأخرى للمطبخ، لكن واحدًا فقط يكون المقصود حين لا يُحدد شيء."),
+            HelpTopic = "pos/devices",
+        },
         new()
         {
             Code = StationNotFound,

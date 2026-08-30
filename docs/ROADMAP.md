@@ -281,8 +281,15 @@ Everything else posts here, so it goes first.
 
 ## Phase 8 — Hardware stations
 
-- A station is a named set of devices bound to a branch and a till
-- Receipt and label printers, barcode scanners, cash drawers, customer displays, scales
+- **done** A station is a named set of devices bound to a branch and a till, which is what lets a
+  shop be set up once and a broken till be swapped without anybody reconfiguring the software
+- **done** Receipt and label printers, barcode scanners, cash drawers, customer displays, scales
+  and payment terminals, each saying how it is reached. That is the distinction the record exists
+  to make: a receipt printer goes through the browser's print dialog and a scanner types what it
+  read, so most tills need nothing installed at all; a label printer or terminal is addressed over
+  the network; and only the wired devices need a program on the till. Each till can be asked what
+  it needs, and names the devices that make it so. A system that does not draw this line ends up
+  answering "install our agent" to a shop that needed nothing
 - **done** Print templates a user can edit without a developer. Three things in the language: a
   placeholder, a repeated region, and everything else printed exactly as written — spaces
   included, because a receipt is a fixed-width document and the spacing is the layout. Alignment

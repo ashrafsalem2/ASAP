@@ -69,6 +69,8 @@ public sealed class FinanceModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISync
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddScoped<JournalPostingValidator>();
+
+        services.AddScoped<ASAP.Platform.Kernel.Accounting.IChartOfAccounts, Accounts.ChartOfAccountsLookup>();
         services.AddScoped<JournalPostingService>();
         services.AddScoped<Banking.BankReconciliationService>();
         services.AddScoped<Currencies.ExchangeRateService>();

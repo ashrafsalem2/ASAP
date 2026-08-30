@@ -79,6 +79,7 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
         services.AddScoped<Items.UnitSetupService>();
         services.AddScoped<Locations.BinSetupService>();
         services.AddScoped<Adjustments.AdjustmentReasonService>();
+        services.AddScoped<Items.ItemCategoryService>();
         services.AddScoped<Seed.InventorySeeder>();
         services.AddScoped<Transfers.TransferService>();
         services.AddScoped<Counting.StockCountService>();
@@ -163,6 +164,22 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
                 "خفض المخزون تحت الصفر في شركة أو صنف يمنع ذلك، أو الصرف من موقع لم يُفرج عن "
                 + "بضائعه. يتم تدقيق كل استخدام، وتُسوّى التكلفة عند وصول البضاعة."),
             implies: [$"{Id}.Stock.Read"],
+            isSensitive: true),
+
+        PermissionDescriptor.Define(
+            Id, "Category", PermissionAction.Read,
+            new LocalizedText("View item categories", "عرض فئات الأصناف")),
+
+        PermissionDescriptor.Define(
+            Id, "Category", PermissionAction.Update,
+            new LocalizedText("Maintain item categories", "إدارة فئات الأصناف"),
+            new LocalizedText(
+                "Group items and say which accounts each group posts to. A category with no "
+                + "inventory account posts nothing at all, so this is where a frozen inventory "
+                + "account is usually fixed.",
+                "تجميع الأصناف وتحديد الحسابات التي تُرحّل إليها كل مجموعة. والفئة بلا حساب مخزون "
+                + "لا تُرحّل شيئًا إطلاقًا، وهنا يُصلَح عادةً حساب المخزون المتجمد."),
+            implies: [$"{Id}.Category.Read"],
             isSensitive: true),
 
         PermissionDescriptor.Define(
@@ -355,6 +372,12 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
             Order = 200,
         },
         Page("Items", new LocalizedText("Items", "الأصناف"), "/inventory/items", $"{Id}.Item.Read", 10),
+        Page(
+            "Categories",
+            new LocalizedText("Item categories", "فئات الأصناف"),
+            "/inventory/categories",
+            $"{Id}.Category.Read",
+            12),
         Page(
             "AdjustmentReasons",
             new LocalizedText("Adjustment reasons", "أسباب التسوية"),

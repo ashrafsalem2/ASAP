@@ -88,6 +88,27 @@ public static class InventoryMessages
     /// <summary>A reason was saved without a code.</summary>
     public static readonly MessageCode ReasonCodeRequired = new("INV.REASON.CODE_REQUIRED");
 
+    /// <summary>A category was saved without a code.</summary>
+    public static readonly MessageCode CategoryCodeRequired = new("INV.CATEGORY.CODE_REQUIRED");
+
+    /// <summary>No category by that code.</summary>
+    public static readonly MessageCode CategoryNotFound = new("INV.CATEGORY.NOT_FOUND");
+
+    /// <summary>A category was made its own parent.</summary>
+    public static readonly MessageCode CategoryIsItsOwnParent = new("INV.CATEGORY.OWN_PARENT");
+
+    /// <summary>A parent was chosen that sits under the category itself.</summary>
+    public static readonly MessageCode CategoryWouldLoop = new("INV.CATEGORY.WOULD_LOOP");
+
+    /// <summary>A category named an account the chart has not got.</summary>
+    public static readonly MessageCode CategoryAccountNotFound = new("INV.CATEGORY.ACCOUNT_NOT_FOUND");
+
+    /// <summary>A category named a heading or a total, which carries no balance of its own.</summary>
+    public static readonly MessageCode CategoryAccountIsNotForPosting = new("INV.CATEGORY.ACCOUNT_NOT_POSTABLE");
+
+    /// <summary>A category named an account somebody withdrew.</summary>
+    public static readonly MessageCode CategoryAccountBlocked = new("INV.CATEGORY.ACCOUNT_BLOCKED");
+
     /// <summary>Stock would go below zero and the company does not permit it.</summary>
     public static readonly MessageCode NegativeInventoryBlocked = new("INV.STOCK.NEGATIVE_BLOCKED");
 
@@ -597,6 +618,107 @@ public static class InventoryMessages
                 "Give it a short code a report can group by: BREAKAGE, THEFT, EXPIRY.",
                 "أعطه رمزًا قصيرًا يستطيع التقرير التجميع به: BREAKAGE أو THEFT أو EXPIRY."),
             HelpTopic = "inventory/adjustment-reasons",
+        },
+        new()
+        {
+            Code = CategoryCodeRequired,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("A category needs a code", "الفئة تحتاج رمزًا"),
+            Detail = new LocalizedText(
+                "No code was given, and a category is named by its code wherever it appears.",
+                "لم يُعطَ رمز، والفئة تُسمّى برمزها أينما ظهرت."),
+            Resolution = new LocalizedText(
+                "Give it a short code a report can group by.",
+                "أعطها رمزًا قصيرًا يستطيع التقرير التجميع به."),
+            HelpTopic = "inventory/item-categories",
+        },
+        new()
+        {
+            Code = CategoryNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such category", "لا توجد فئة بهذا الرمز"),
+            Detail = new LocalizedText(
+                "Nothing in this company is coded {Code}.",
+                "لا يوجد في هذه الشركة ما يحمل الرمز {Code}."),
+            Resolution = new LocalizedText(
+                "Check the code, or add the category first.",
+                "تحقق من الرمز، أو أضف الفئة أولًا."),
+            HelpTopic = "inventory/item-categories",
+        },
+        new()
+        {
+            Code = CategoryIsItsOwnParent,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("A category cannot sit under itself", "لا يمكن أن تقع الفئة تحت نفسها"),
+            Detail = new LocalizedText(
+                "{Code} was given itself as a parent.",
+                "أُعطيت الفئة {Code} نفسها أبًا لها."),
+            Resolution = new LocalizedText(
+                "Leave the parent empty for a top-level category.",
+                "اترك الأب فارغًا لفئة في المستوى الأعلى."),
+            HelpTopic = "inventory/item-categories",
+        },
+        new()
+        {
+            Code = CategoryWouldLoop,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("That would make a loop", "هذا يُنشئ حلقة مغلقة"),
+            Detail = new LocalizedText(
+                "{ParentCode} already sits under {Code}, so putting {Code} under it would close a "
+                + "circle.",
+                "الفئة {ParentCode} تقع بالفعل تحت {Code}، فوضع {Code} تحتها يُغلق الدائرة."),
+            Resolution = new LocalizedText(
+                "Choose a parent from outside this branch. A circle would make anything that walks "
+                + "the tree run for ever, and walking it is the point of having a parent.",
+                "اختر أبًا من خارج هذا الفرع. فالدائرة تجعل كل ما يمشي في الشجرة يدور بلا نهاية، "
+                + "والمشي فيها هو الغاية من وجود الأب."),
+            HelpTopic = "inventory/item-categories",
+        },
+        new()
+        {
+            Code = CategoryAccountNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such account", "لا يوجد حساب بهذا الرقم"),
+            Detail = new LocalizedText(
+                "{Field} was set to {AccountNo}, and the chart of accounts has no such number.",
+                "ضُبط الحقل {Field} على {AccountNo}، ولا يوجد هذا الرقم في شجرة الحسابات."),
+            Resolution = new LocalizedText(
+                "Check the number against the chart. Saving it anyway would leave a category that "
+                + "looks configured and posts nothing.",
+                "قارن الرقم بشجرة الحسابات. فحفظه رغم ذلك يترك فئة تبدو مضبوطة ولا تُرحّل شيئًا."),
+            HelpTopic = "inventory/item-categories",
+        },
+        new()
+        {
+            Code = CategoryAccountIsNotForPosting,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Nothing ever posts to that account", "لا يُرحّل شيء إلى هذا الحساب أبدًا"),
+            Detail = new LocalizedText(
+                "{Field} was set to {AccountNo} {AccountName}, which is a heading or a total.",
+                "ضُبط الحقل {Field} على {AccountNo} {AccountName}، وهو عنوان أو مجموع."),
+            Resolution = new LocalizedText(
+                "Choose an account entries can land on. A heading is a caption on the chart and a "
+                + "total sums other accounts; neither carries a balance of its own, so a category "
+                + "pointing at one looks configured and posts nothing.",
+                "اختر حسابًا تقع عليه القيود. فالعنوان تسمية في الشجرة، والمجموع يجمع حسابات "
+                + "أخرى؛ ولا يحمل أي منهما رصيدًا خاصًا به، فالفئة المشيرة إليه تبدو مضبوطة ولا "
+                + "تُرحّل شيئًا."),
+            HelpTopic = "inventory/item-categories",
+        },
+        new()
+        {
+            Code = CategoryAccountBlocked,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("That account is withdrawn", "هذا الحساب موقوف"),
+            Detail = new LocalizedText(
+                "{Field} was set to {AccountNo} {AccountName}, which is blocked.",
+                "ضُبط الحقل {Field} على {AccountNo} {AccountName}، وهو موقوف."),
+            Resolution = new LocalizedText(
+                "Unblock it, or choose another. It was withdrawn on purpose, and pointing a "
+                + "category at it would quietly stop that category posting.",
+                "ارفع الإيقاف عنه، أو اختر غيره. فقد أُوقف عن قصد، وتوجيه فئة إليه يوقف ترحيلها "
+                + "بصمت."),
+            HelpTopic = "inventory/item-categories",
         },
         new()
         {

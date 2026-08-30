@@ -4,10 +4,12 @@ import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   AdjustmentReason,
+  CategoryPostingGap,
   Bin,
   BinContent,
   CreateTransferRequest,
   Item,
+  ItemCategory,
   ItemUnit,
   ResolvedQuantity,
   SettlementReceipt,
@@ -310,6 +312,35 @@ export class InventoryService {
 
     return firstValueFrom(
       this.http.get<ShrinkageRow[]>(`${this.base}/reports/shrinkage`, { params }),
+    );
+  }
+
+  /** The categories items are grouped under, and the accounts each posts to. */
+  itemCategories(): Promise<ItemCategory[]> {
+    return firstValueFrom(this.http.get<ItemCategory[]>(`${this.base}/categories`));
+  }
+
+  /** Adds a category, or changes one already there. */
+  saveItemCategory(category: ItemCategory): Promise<ItemCategory> {
+    return firstValueFrom(this.http.post<ItemCategory>(`${this.base}/categories`, category));
+  }
+
+  /** Moves an item into a category. What already posted keeps the accounts it posted to. */
+  setItemCategory(itemNo: string, categoryCode: string | null): Promise<unknown> {
+    return firstValueFrom(
+      this.http.post(`${this.base}/items/${encodeURIComponent(itemNo)}/category`, { categoryCode }),
+    );
+  }
+
+  /**
+   * Which categories are not reaching the ledger, and what that has cost so far.
+   *
+   * A movement under a category with no inventory account posts nothing, on purpose. This is the
+   * only thing that says so.
+   */
+  categoryPostingGaps(): Promise<CategoryPostingGap[]> {
+    return firstValueFrom(
+      this.http.get<CategoryPostingGap[]>(`${this.base}/reports/posting-gaps`),
     );
   }
 }

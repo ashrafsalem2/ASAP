@@ -161,6 +161,17 @@ Everything else posts here, so it goes first.
   sales booked against the revenue they earned. The loss lands on variance rather than cost of
   sales, because nothing was sold. Revaluing a whole category at once, and lower-of-cost-or-market
   as a routine, still to come
+- **done** Item categories a company can manage, with the accounts each posts to. Accounts live on
+  the category rather than the item, so twelve thousand items need six sets of accounts rather than
+  twelve thousand -- that is why the grouping exists at all. Account numbers are checked against the
+  chart through a new kernel port, because Inventory holds no reference to Finance and must not: a
+  heading carries no balance of its own and a blocked account was withdrawn on purpose, and a
+  category pointing at either looks configured and posts nothing. On an installation with no general
+  ledger nothing is checked, because running stock without accounts is a supported way to run. The
+  screen leads with what is not reaching the ledger and the value that has already gone unposted
+  because of it -- a movement under a category with no inventory account posts nothing, deliberately,
+  and until now nothing said so. Inherited accounts, and posting the gap once it is fixed, still to
+  come
 - **done** Adjustment reasons. Without one every write-off is a bare negative adjustment and
   breakage, theft and expiry are indistinguishable -- same effect on quantity, almost nothing else
   in common, and one figure covering all three is a number nobody can act on. A reason carries the

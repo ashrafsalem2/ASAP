@@ -1,0 +1,176 @@
+<div class="page">
+  <h1>{{ t('inventory.categories.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('inventory.categories.intro') }}</p>
+  </section>
+
+  @if (loading()) {
+    <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+  } @else {
+    @if (gaps().length > 0) {
+      <section class="panel">
+        <h2 class="panel__title">{{ t('inventory.categories.gapsTitle') }}</h2>
+        <p class="panel__body">{{ t('inventory.categories.gapsIntro') }}</p>
+
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('inventory.categories.category') }}</th>
+                <th class="numeric">{{ t('inventory.categories.items') }}</th>
+                <th>{{ t('inventory.categories.missing') }}</th>
+                <th class="numeric">{{ t('inventory.categories.unposted') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (gap of gaps(); track gap.code) {
+                <tr>
+                  <td>
+                    @if (gap.code) {
+                      <span class="code">{{ gap.code }}</span>
+                    }
+                    {{ gapName(gap) }}
+                  </td>
+                  <td class="numeric">{{ gap.itemCount }}</td>
+                  <td>{{ missingLabels(gap) }}</td>
+                  <td class="numeric">{{ gap.unpostedValue }}</td>
+                </tr>
+              }
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="3">{{ t('inventory.categories.unpostedTotal') }}</td>
+                <td class="numeric">{{ unpostedTotal() }}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <p class="panel__body hint">{{ t('inventory.categories.gapsHint') }}</p>
+      </section>
+    }
+
+    <section class="panel">
+      <h2 class="panel__title">{{ t('inventory.categories.listTitle') }}</h2>
+
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('inventory.categories.code') }}</th>
+              <th>{{ t('inventory.categories.name') }}</th>
+              <th>{{ t('inventory.categories.parent') }}</th>
+              <th>{{ t('inventory.categories.inventoryAccount') }}</th>
+              <th>{{ t('inventory.categories.cogsAccount') }}</th>
+              <th>{{ t('inventory.categories.salesAccount') }}</th>
+              <th>{{ t('inventory.categories.varianceAccount') }}</th>
+              <th class="numeric">{{ t('inventory.categories.items') }}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (category of categories(); track category.code) {
+              <tr>
+                <td class="code">{{ category.code }}</td>
+                <td>{{ categoryName(category) }}</td>
+                <td class="code">{{ category.parentCode }}</td>
+                <td class="code">{{ category.inventoryAccountNo }}</td>
+                <td class="code">{{ category.costOfGoodsSoldAccountNo }}</td>
+                <td class="code">{{ category.salesAccountNo }}</td>
+                <td class="code">{{ category.varianceAccountNo }}</td>
+                <td class="numeric">{{ category.itemCount }}</td>
+                <td>
+                  <button type="button" class="button button--quiet" (click)="edit(category)">
+                    {{ t('inventory.categories.edit') }}
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel__body form-row">
+        <label>
+          {{ t('inventory.categories.code') }}
+          <input [(ngModel)]="code" name="code" maxlength="32" />
+        </label>
+        <label>
+          {{ t('inventory.categories.name') }}
+          <input [(ngModel)]="name" name="name" />
+        </label>
+        <label>
+          {{ t('inventory.categories.nameArabic') }}
+          <input [(ngModel)]="nameArabic" name="nameArabic" dir="rtl" />
+        </label>
+        <label>
+          {{ t('inventory.categories.parent') }}
+          <select [(ngModel)]="parentCode" name="parentCode">
+            <option value=""></option>
+            @for (category of categories(); track category.code) {
+              <option [value]="category.code">{{ category.code }}</option>
+            }
+          </select>
+        </label>
+      </div>
+
+      <div class="panel__body form-row">
+        <label>
+          {{ t('inventory.categories.inventoryAccount') }}
+          <input [(ngModel)]="inventoryAccountNo" name="inventoryAccountNo" maxlength="20" />
+        </label>
+        <label>
+          {{ t('inventory.categories.cogsAccount') }}
+          <input [(ngModel)]="costOfGoodsSoldAccountNo" name="cogsAccount" maxlength="20" />
+        </label>
+        <label>
+          {{ t('inventory.categories.salesAccount') }}
+          <input [(ngModel)]="salesAccountNo" name="salesAccountNo" maxlength="20" />
+        </label>
+        <label>
+          {{ t('inventory.categories.varianceAccount') }}
+          <input [(ngModel)]="varianceAccountNo" name="varianceAccountNo" maxlength="20" />
+        </label>
+        <button type="button" class="button" [disabled]="busy()" (click)="save()">
+          {{ t('inventory.categories.save') }}
+        </button>
+        <button type="button" class="button button--quiet" (click)="clear()">
+          {{ t('inventory.categories.clear') }}
+        </button>
+      </div>
+
+      <p class="panel__body hint">{{ t('inventory.categories.listHint') }}</p>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">{{ t('inventory.categories.moveTitle') }}</h2>
+
+      <div class="panel__body form-row">
+        <label>
+          {{ t('inventory.categories.item') }}
+          <select [(ngModel)]="itemNo" name="itemNo">
+            <option value=""></option>
+            @for (item of items(); track item.no) {
+              <option [value]="item.no">{{ item.no }} — {{ item.description }}</option>
+            }
+          </select>
+        </label>
+        <label>
+          {{ t('inventory.categories.category') }}
+          <select [(ngModel)]="itemCategoryCode" name="itemCategoryCode">
+            <option value="">{{ t('inventory.categories.none') }}</option>
+            @for (category of categories(); track category.code) {
+              <option [value]="category.code">{{ category.code }}</option>
+            }
+          </select>
+        </label>
+        <button type="button" class="button" [disabled]="busy()" (click)="moveItem()">
+          {{ t('inventory.categories.move') }}
+        </button>
+      </div>
+
+      <p class="panel__body hint">{{ t('inventory.categories.moveHint') }}</p>
+    </section>
+  }
+</div>

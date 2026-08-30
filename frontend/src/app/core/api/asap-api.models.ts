@@ -174,6 +174,30 @@ export interface StockLocation {
   usesBins: boolean;
 }
 
+/** One category items are grouped under. */
+export interface ItemCategory {
+  code: string;
+  name: string;
+  nameArabic?: string | null;
+  parentCode?: string | null;
+  inventoryAccountNo?: string | null;
+  costOfGoodsSoldAccountNo?: string | null;
+  salesAccountNo?: string | null;
+  varianceAccountNo?: string | null;
+  itemCount: number;
+}
+
+/** What a category is not posting, and what that has cost. */
+export interface CategoryPostingGap {
+  code: string;
+  name: string;
+  nameArabic?: string | null;
+  itemCount: number;
+  missingAccounts: string[];
+  unpostedValue: number;
+  unpostedEntryCount: number;
+}
+
 /** One reason stock may be adjusted for. */
 export interface AdjustmentReason {
   code: string;

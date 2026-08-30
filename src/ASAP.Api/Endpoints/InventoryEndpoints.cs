@@ -125,6 +125,67 @@ public sealed record SaveItemUnitRequest(
     string? Barcode = null,
     bool IsActive = true);
 
+/// <summary>One category items are grouped under.</summary>
+/// <param name="Code">Its code.</param>
+/// <param name="Name">What it is called.</param>
+/// <param name="NameArabic">What it is called in Arabic.</param>
+/// <param name="ParentCode">The category it sits under.</param>
+/// <param name="InventoryAccountNo">Where the value of its stock is held.</param>
+/// <param name="CostOfGoodsSoldAccountNo">Where the cost of what it sells is charged.</param>
+/// <param name="SalesAccountNo">Where revenue from it is credited.</param>
+/// <param name="VarianceAccountNo">Where an adjustment or a settled estimate lands.</param>
+/// <param name="ItemCount">How many items sit under it.</param>
+public sealed record ItemCategoryView(
+    string Code,
+    string Name,
+    string? NameArabic,
+    string? ParentCode,
+    string? InventoryAccountNo,
+    string? CostOfGoodsSoldAccountNo,
+    string? SalesAccountNo,
+    string? VarianceAccountNo,
+    int ItemCount);
+
+/// <summary>A category as a client sends it.</summary>
+/// <param name="Code">Its code.</param>
+/// <param name="Name">What it is called.</param>
+/// <param name="NameArabic">What it is called in Arabic.</param>
+/// <param name="ParentCode">The category it sits under.</param>
+/// <param name="InventoryAccountNo">Where the value of its stock is held.</param>
+/// <param name="CostOfGoodsSoldAccountNo">Where the cost of what it sells is charged.</param>
+/// <param name="SalesAccountNo">Where revenue from it is credited.</param>
+/// <param name="VarianceAccountNo">Where an adjustment or a settled estimate lands.</param>
+public sealed record SaveItemCategoryRequest(
+    string Code,
+    string Name,
+    string? NameArabic = null,
+    string? ParentCode = null,
+    string? InventoryAccountNo = null,
+    string? CostOfGoodsSoldAccountNo = null,
+    string? SalesAccountNo = null,
+    string? VarianceAccountNo = null);
+
+/// <summary>Which category an item belongs to.</summary>
+/// <param name="CategoryCode">The category, or null to take it out of any.</param>
+public sealed record SetItemCategoryRequest(string? CategoryCode);
+
+/// <summary>What a category is not posting, and what that has cost.</summary>
+/// <param name="Code">The category, or empty for items in none.</param>
+/// <param name="Name">What it is called.</param>
+/// <param name="NameArabic">The same in Arabic.</param>
+/// <param name="ItemCount">How many items sit under it.</param>
+/// <param name="MissingAccounts">Which of its accounts have not been set.</param>
+/// <param name="UnpostedValue">The value of movements that could not reach the ledger.</param>
+/// <param name="UnpostedEntryCount">How many movements that was.</param>
+public sealed record CategoryPostingGapView(
+    string Code,
+    string Name,
+    string? NameArabic,
+    int ItemCount,
+    IReadOnlyList<string> MissingAccounts,
+    decimal UnpostedValue,
+    int UnpostedEntryCount);
+
 /// <summary>One reason stock may be adjusted for.</summary>
 /// <param name="Code">Its code.</param>
 /// <param name="Name">What it is called.</param>
@@ -405,6 +466,22 @@ public static class InventoryEndpoints
         group.MapGet("/reports/shrinkage", ShrinkageAsync)
              .WithName("ShrinkageReport")
              .WithSummary("What was adjusted under each reason, and what it was worth.");
+
+        group.MapGet("/categories", CategoriesAsync)
+             .WithName("ItemCategories")
+             .WithSummary("The categories items are grouped under, and the accounts each posts to.");
+
+        group.MapPost("/categories", SaveCategoryAsync)
+             .WithName("SaveItemCategory")
+             .WithSummary("Adds an item category, or changes one already there.");
+
+        group.MapPost("/items/{itemNo}/category", SetItemCategoryAsync)
+             .WithName("SetItemCategory")
+             .WithSummary("Moves an item into a category. What already posted keeps its accounts.");
+
+        group.MapGet("/reports/posting-gaps", PostingGapsAsync)
+             .WithName("CategoryPostingGaps")
+             .WithSummary("Which categories are not reaching the ledger, and what that has cost.");
 
         return app;
     }
@@ -1237,6 +1314,133 @@ public static class InventoryEndpoints
             r.EntryCount,
             r.Quantity,
             r.CostAmount)));
+    }
+
+    private static async Task<IResult> CategoriesAsync(
+        ItemCategoryService categories,
+        AsapDbContext context,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, "Inventory.Category.Read"))
+        {
+            return Forbidden("Inventory.Category.Read", "view item categories", http);
+        }
+
+        var rows = await categories.CategoriesAsync(cancellationToken).ConfigureAwait(false);
+
+        // The parent is shown by its code rather than its key, because a code is the only part of
+        // a category a person ever types or reads.
+        var byId = rows.ToDictionary(static c => c.Id, static c => c.Code);
+
+        var counts = await context.Set<Item>()
+            .AsNoTracking()
+            .Where(static i => i.CategoryId != null)
+            .GroupBy(static i => i.CategoryId)
+            .Select(static g => new { CategoryId = g.Key, Count = g.Count() })
+            .ToDictionaryAsync(static g => g.CategoryId!.Value, static g => g.Count, cancellationToken)
+            .ConfigureAwait(false);
+
+        return Results.Ok(rows.Select(c => new ItemCategoryView(
+            c.Code,
+            c.Name,
+            c.NameArabic,
+            c.ParentId is { } parent ? byId.GetValueOrDefault(parent) : null,
+            c.InventoryAccountNo,
+            c.CostOfGoodsSoldAccountNo,
+            c.SalesAccountNo,
+            c.VarianceAccountNo,
+            counts.GetValueOrDefault(c.Id))));
+    }
+
+    private static async Task<IResult> SaveCategoryAsync(
+        SaveItemCategoryRequest request,
+        ItemCategoryService categories,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, "Inventory.Category.Update"))
+        {
+            return Forbidden("Inventory.Category.Update", "maintain item categories", http);
+        }
+
+        var result = await categories
+            .SaveAsync(
+                new ItemCategoryRequest(
+                    request.Code,
+                    request.Name,
+                    request.NameArabic,
+                    request.ParentCode,
+                    request.InventoryAccountNo,
+                    request.CostOfGoodsSoldAccountNo,
+                    request.SalesAccountNo,
+                    request.VarianceAccountNo),
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed
+            ? Refused(result, http)
+            : Results.Ok(new ItemCategoryView(
+                result.Value.Code,
+                result.Value.Name,
+                result.Value.NameArabic,
+                request.ParentCode,
+                result.Value.InventoryAccountNo,
+                result.Value.CostOfGoodsSoldAccountNo,
+                result.Value.SalesAccountNo,
+                result.Value.VarianceAccountNo,
+                0));
+    }
+
+    private static async Task<IResult> SetItemCategoryAsync(
+        string itemNo,
+        SetItemCategoryRequest request,
+        ItemCategoryService categories,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, "Inventory.Category.Update"))
+        {
+            return Forbidden("Inventory.Category.Update", "move an item between categories", http);
+        }
+
+        var result = await categories
+            .SetCategoryAsync(itemNo, request.CategoryCode, cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed
+            ? Refused(result, http)
+            : Results.Ok(new { itemNo = result.Value.No, categoryCode = request.CategoryCode });
+    }
+
+    private static async Task<IResult> PostingGapsAsync(
+        ItemCategoryService categories,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, "Inventory.Category.Read"))
+        {
+            return Forbidden("Inventory.Category.Read", "see which categories are not posting", http);
+        }
+
+        var rows = await categories.GapsAsync(cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(rows.Select(static g => new CategoryPostingGapView(
+            g.Code,
+            g.Name,
+            g.NameArabic,
+            g.ItemCount,
+            g.MissingAccounts,
+            g.UnpostedValue,
+            g.UnpostedEntryCount)));
     }
 
     private static bool Can(IUserContext user, string permission)

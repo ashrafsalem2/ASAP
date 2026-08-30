@@ -43,6 +43,11 @@ export const routes: Routes = [
         loadComponent: () => import('./features/finance/periods').then((m) => m.FiscalPeriods),
       },
       {
+        path: 'inventory/categories',
+        canActivate: [requirePermission('Inventory.Category.Read')],
+        loadComponent: () => import('./features/inventory/categories').then((m) => m.Categories),
+      },
+      {
         path: 'inventory/adjustment-reasons',
         canActivate: [requirePermission('Inventory.AdjustmentReason.Read')],
         loadComponent: () =>

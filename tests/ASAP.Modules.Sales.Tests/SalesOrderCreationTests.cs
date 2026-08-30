@@ -4,6 +4,7 @@ using ASAP.Modules.Inventory.Items;
 using ASAP.Modules.Inventory.Locations;
 using ASAP.Modules.Sales;
 using ASAP.Modules.Sales.Orders;
+using ASAP.Modules.Sales.Pricing;
 using ASAP.Platform.Core.Messaging;
 using ASAP.Platform.Kernel.Messaging;
 using ASAP.Platform.Kernel.Numbering;
@@ -118,6 +119,7 @@ public sealed class SalesOrderCreationTests : IDisposable
             _tenancy,
             new StubUser(),
             _clock,
+            new PricingService(context, catalog, _tenancy),
             NullLogger<SalesOrderService>.Instance);
     }
 
@@ -229,6 +231,110 @@ public sealed class SalesOrderCreationTests : IDisposable
         refusal.Code.Value.ShouldBe("INV.LOCATION.NOT_SELLABLE");
         refusal.Target.Field.ShouldBe("Lines[2]", "only the second line named the warehouse");
     }
+
+    [Fact]
+    public async Task An_order_takes_the_price_this_customer_was_agreed()
+    {
+        // The whole point of a price list. Without this, a contract customer is quoted the counter
+        // price and somebody has to remember to type over it on every line of every order.
+        using var context = NewContext();
+
+        await Prices(context).SaveAsync(new PriceListRequest(
+            "TRADE",
+            "Trade",
+            Lines: [new PriceListLineRequest("ITEM-1001", 80m)]));
+
+        await Prices(context).AssignAsync("C-0001", "TRADE");
+
+        var result = await Service(context).CreateAsync(
+            "C-0001",
+            [new SalesOrderLineRequest(SalesLineType.Item, "ITEM-1001", 2m)],
+            "JED-01");
+
+        result.Succeeded.ShouldBeTrue();
+        result.Value.Lines.Single().UnitPrice.ShouldBe(80m);
+    }
+
+    [Fact]
+    public async Task A_price_typed_on_the_line_still_beats_the_list()
+    {
+        // Whoever took the order may have agreed something on the telephone. The list is a default,
+        // not a ceiling, and overriding it is a decision somebody is entitled to make.
+        using var context = NewContext();
+
+        await Prices(context).SaveAsync(new PriceListRequest(
+            "TRADE",
+            "Trade",
+            Lines: [new PriceListLineRequest("ITEM-1001", 80m)]));
+
+        await Prices(context).AssignAsync("C-0001", "TRADE");
+
+        var result = await Service(context).CreateAsync(
+            "C-0001",
+            [new SalesOrderLineRequest(SalesLineType.Item, "ITEM-1001", 2m, 90m)],
+            "JED-01");
+
+        result.Value.Lines.Single().UnitPrice.ShouldBe(90m);
+    }
+
+    [Fact]
+    public async Task Below_cost_is_measured_against_the_agreed_price_not_the_counter_one()
+    {
+        // This is the case the warning exists for. The item lists at a hundred and costs forty, so
+        // measured against the counter price nothing looks wrong. The customer pays thirty. Reading
+        // the counter price here would let every contract sale below cost through in silence.
+        using var context = NewContext();
+
+        await Prices(context).SaveAsync(new PriceListRequest(
+            "TRADE",
+            "Trade",
+            Lines: [new PriceListLineRequest("ITEM-1001", 30m)]));
+
+        await Prices(context).AssignAsync("C-0001", "TRADE");
+
+        var result = await Service(context).CreateAsync(
+            "C-0001",
+            [new SalesOrderLineRequest(SalesLineType.Item, "ITEM-1001", 1m)],
+            "JED-01");
+
+        result.Succeeded.ShouldBeTrue("selling below cost is a warning, not a refusal");
+        result.Messages.ShouldContain(m => m.Code == SalesMessages.BelowCost);
+    }
+
+    [Fact]
+    public async Task A_price_list_that_contradicts_itself_refuses_the_order()
+    {
+        // Nothing is written. Half an order priced from a sheet nobody can read is worse than no
+        // order, because the half that was priced looks deliberate.
+        using var context = NewContext();
+
+        await Prices(context).SaveAsync(new PriceListRequest(
+            "TRADE",
+            "Trade",
+            Lines:
+            [
+                new PriceListLineRequest("ITEM-1001", 80m),
+                new PriceListLineRequest("ITEM-1001", 75m),
+            ]));
+
+        await Prices(context).AssignAsync("C-0001", "TRADE");
+
+        var result = await Service(context).CreateAsync(
+            "C-0001",
+            [new SalesOrderLineRequest(SalesLineType.Item, "ITEM-1001", 1m)],
+            "JED-01");
+
+        result.Failed.ShouldBeTrue();
+        result.Messages.ShouldContain(m => m.Code == SalesMessages.PriceIsAmbiguous);
+        context.Set<SalesOrder>().Count().ShouldBe(0, "nothing was written");
+    }
+
+    private PricingService Prices(AsapDbContext context)
+        => new(
+            context,
+            new MessageCatalog(
+                [.. PlatformMessages.All, .. InventoryMessages.All, .. SalesMessages.All]),
+            _tenancy);
 
     public void Dispose()
     {

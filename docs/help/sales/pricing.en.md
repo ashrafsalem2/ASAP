@@ -1,19 +1,27 @@
 # Pricing
 
-A line's price comes from the first of these that has something to say: a price the salesperson typed, a price agreement for the customer, the item's list price.
+A line's price comes from the first of these that has something to say: a price the salesperson typed, the price list the customer is on, the item's own price.
 
-## Price agreements
+## Price lists
 
-An agreement can name a price, a discount, or both, for a customer or a customer group, over a date window, above a quantity. The narrowest match wins — a price for this customer and this item beats a discount for their group.
+How a customer gets a price of their own is covered in [Price lists](price-lists). That topic is the one to read: it explains which line wins when several fit, why two equally specific lines are refused rather than resolved, and why dates on an arrangement matter more than they look.
 
-Dates matter more than they look. An agreement that has expired stops applying silently, and the first anybody knows is a customer querying an invoice. Where an agreement is meant to run indefinitely, leave the end date empty rather than putting a date far in the future that somebody will eventually reach.
+The short version. A list holds prices for items, optionally narrowed to a variant, a unit of measure, or a quantity from which the price applies. The most specific line that fits wins. Two that are equally specific and disagree refuse the order, because choosing between them would make what a customer is charged depend on which row was read first.
 
 ## Discount, or a lower price
 
-They post differently and the difference is the point. A lower price reduces revenue. A discount posts revenue at list and the discount as a contra, so the two are visible separately and a report can say what was given away.
+Both reduce what the customer pays, and either can be put on a price list line.
 
-Use a discount where you want to know. Use a price where the customer's price simply is what it is and calling it a discount would misdescribe the relationship.
+Use a discount where you want the concession to be visible as a concession — the line still carries the price it started from, so anybody reading the order can see what was given away and against what. Use a price where the customer's price simply is what it is, and calling it a discount would misdescribe the relationship.
+
+A discount typed on the order line takes precedence over one from the list, on the same reasoning as the price itself: whoever took the order may have agreed something the list does not know about.
+
+## Selling below cost
+
+The warning is measured against what the customer actually pays, not against the item's price. An item that lists at 100 and costs 40 looks healthy right up until you notice the customer's list says 30.
+
+It is a warning and not a refusal. Clearing stock at a loss is a decision somebody is entitled to make; what it must not be is invisible until the margin report.
 
 ## Offers
 
-Offers are worked out after this, on the price that came out of it. See the promotions topics — in particular the margin one, because a price agreement and an offer can each be reasonable and together be below cost.
+Offers are worked out after this, on the price that came out of it. See the promotions topics — in particular the margin one, because a price list and an offer can each be reasonable and together be below cost.

@@ -174,6 +174,44 @@ export interface StockLocation {
   usesBins: boolean;
 }
 
+/** One agreed price on a price list. */
+export interface PriceListLine {
+  itemNo: string;
+  variantCode?: string | null;
+  unitCode?: string | null;
+  minimumQuantity: number;
+  unitPrice: number;
+  discountPercent: number;
+  validFrom?: string | null;
+  validTo?: string | null;
+}
+
+/** A set of agreed prices, and when they apply. */
+export interface PriceList {
+  code: string;
+  name: string;
+  nameArabic?: string | null;
+  validFrom?: string | null;
+  validTo?: string | null;
+  isActive: boolean;
+  lines: PriceListLine[];
+}
+
+/** Which price list a customer is on. */
+export interface CustomerPriceList {
+  customerNo: string;
+  priceListCode: string;
+}
+
+/** What a customer pays for one item, and where the figure came from. */
+export interface ResolvedPrice {
+  itemNo: string;
+  unitPrice: number;
+  discountPercent: number;
+  priceListCode: string;
+  minimumQuantity: number;
+}
+
 /** One line of a margin report. */
 export interface MarginRow {
   key: string;

@@ -22,6 +22,97 @@ public sealed class SalesSchema : IModuleSchema
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
 
+        modelBuilder.Entity<Pricing.PriceList>(builder =>
+
+        {
+
+            builder.ToTable("PriceLists", SchemaName);
+
+
+            builder.Property(l => l.Code).HasMaxLength(32).IsRequired();
+
+            builder.Property(l => l.Name).HasMaxLength(200).IsRequired();
+
+            builder.Property(l => l.NameArabic).HasMaxLength(200);
+
+            builder.Property(l => l.RowVersion).IsRowVersion();
+
+
+            builder.HasMany(l => l.Lines)
+
+                   .WithOne(l => l.PriceList!)
+
+                   .HasForeignKey(l => l.PriceListId)
+
+                   .OnDelete(DeleteBehavior.Cascade);
+
+
+            builder.HasIndex(l => new { l.CompanyId, l.Code })
+
+                   .IsUnique()
+
+                   .HasFilter("[IsDeleted] = 0");
+
+        });
+
+
+        modelBuilder.Entity<Pricing.PriceListLine>(builder =>
+
+        {
+
+            builder.ToTable("PriceListLines", SchemaName);
+
+
+            builder.Property(l => l.ItemNo).HasMaxLength(32).IsRequired();
+
+            builder.Property(l => l.VariantCode).HasMaxLength(32);
+
+            builder.Property(l => l.UnitCode).HasMaxLength(10);
+
+            builder.Property(l => l.MinimumQuantity).HasColumnType(DecimalPrecisionConventions.Quantity);
+
+            builder.Property(l => l.UnitPrice).HasColumnType(DecimalPrecisionConventions.UnitAmount);
+
+            builder.Property(l => l.DiscountPercent).HasColumnType(DecimalPrecisionConventions.Percentage);
+
+            builder.Property(l => l.RowVersion).IsRowVersion();
+
+
+            builder.Ignore(l => l.Specificity);
+
+
+            // Every price lookup goes down this one.
+
+            builder.HasIndex(l => new { l.PriceListId, l.ItemNo });
+
+        });
+
+
+        modelBuilder.Entity<Pricing.CustomerPriceList>(builder =>
+
+        {
+
+            builder.ToTable("CustomerPriceLists", SchemaName);
+
+
+            builder.Property(c => c.CustomerNo).HasMaxLength(20).IsRequired();
+
+            builder.Property(c => c.PriceListCode).HasMaxLength(32).IsRequired();
+
+            builder.Property(c => c.RowVersion).IsRowVersion();
+
+
+            // One list per customer. Two would make what they pay depend on which was read.
+
+            builder.HasIndex(c => new { c.CompanyId, c.CustomerNo })
+
+                   .IsUnique()
+
+                   .HasFilter("[IsDeleted] = 0");
+
+        });
+
+
         modelBuilder.Entity<SalesOrder>(builder =>
         {
             builder.ToTable("SalesOrders", SchemaName);

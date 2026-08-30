@@ -23,6 +23,7 @@ namespace ASAP.Modules.Purchasing.Orders;
 /// <param name="Description">What it is. Falls back to the item or account name.</param>
 /// <param name="TaxCode">The tax the vendor will charge.</param>
 /// <param name="LocationCode">Where this line's goods go, when it differs from the order.</param>
+/// <param name="VariantCode">Which variant of the item, where the item has them.</param>
 public readonly record struct PurchaseOrderLineRequest(
     PurchaseLineType Type,
     string No,

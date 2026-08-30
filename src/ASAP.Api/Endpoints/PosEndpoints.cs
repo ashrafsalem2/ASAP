@@ -35,6 +35,7 @@ public sealed record SetPickBinRequest(string? PickBinCode);
 /// <param name="Description">What it says on the receipt.</param>
 /// <param name="TaxCode">The tax to charge.</param>
 /// <param name="UnitCode">The unit rung, or null for the item's base unit.</param>
+/// <param name="VariantCode">Which variant of the item, where the item has them.</param>
 public sealed record PosLinePayload(
     PosLineType Type,
     string No,
@@ -99,6 +100,7 @@ public sealed record ParkedSaleView(
 /// <param name="DefaultCustomerNo">Who walk-in sales are recorded against.</param>
 /// <param name="IsBlocked">Whether it is out of service.</param>
 /// <param name="OpenSessionNo">The session open on it, if any.</param>
+/// <param name="PickBinCode">The bin this till picks from, where the location tracks bins.</param>
 public sealed record PosStationView(
     string Code,
     string Name,

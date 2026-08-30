@@ -53,6 +53,9 @@ public sealed class SalesModule : IAsapModule
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddScoped<Orders.SalesOrderService>();
+
+
+        services.AddScoped<Pricing.PricingService>();
         services.AddScoped<Reporting.SalesReportService>();
         services.AddScoped<ASAP.Platform.Kernel.Documents.IDocumentParties, Reporting.SalesDocumentParties>();
         services.AddScoped<Orders.SalesShipmentService>();
@@ -62,6 +65,22 @@ public sealed class SalesModule : IAsapModule
     /// <inheritdoc />
     public IReadOnlyCollection<PermissionDescriptor> Permissions =>
     [
+        PermissionDescriptor.Define(
+            Id, "PriceList", PermissionAction.Read,
+            new LocalizedText("View price lists", "عرض قوائم الأسعار")),
+
+        PermissionDescriptor.Define(
+            Id, "PriceList", PermissionAction.Update,
+            new LocalizedText("Maintain price lists", "إدارة قوائم الأسعار"),
+            new LocalizedText(
+                "Say what each customer pays. This is the commercial arrangement itself, so it "
+                + "belongs with whoever agrees prices rather than with whoever types orders.",
+                "تحديد ما يدفعه كل عميل. وهذا هو الاتفاق التجاري نفسه، فمكانه مع من يتفق على "
+                + "الأسعار لا مع من يُدخل الأوامر."),
+            implies: [$"{Id}.PriceList.Read"],
+            isSensitive: true),
+
+
         PermissionDescriptor.Define(
             Id, "Order", PermissionAction.Read,
             new LocalizedText("View sales orders", "عرض أوامر البيع")),
@@ -200,6 +219,18 @@ public sealed class SalesModule : IAsapModule
             Kind = NavigationKind.Group,
             Icon = "sales",
             Order = 400,
+        },
+        new()
+        {
+            Id = "Sales.PriceLists",
+            Module = Id,
+            ParentId = "Sales.Root",
+            DisplayName = new LocalizedText("Price lists", "قوائم الأسعار"),
+            Kind = NavigationKind.Page,
+            Route = "/sales/price-lists",
+            RequiresPermission = $"{Id}.PriceList.Read",
+            Order = 60,
+            HelpTopic = "sales/price-lists",
         },
         new()
         {

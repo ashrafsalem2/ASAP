@@ -1,5 +1,6 @@
 using ASAP.Api.Infrastructure;
 using ASAP.Modules.Sales.Orders;
+using ASAP.Modules.Sales.Pricing;
 using ASAP.Modules.Sales.Reporting;
 using ASAP.Platform.Kernel.Security;
 using ASAP.Platform.Kernel.Time;
@@ -18,6 +19,7 @@ namespace ASAP.Api.Endpoints;
 /// <param name="Description">What it is.</param>
 /// <param name="TaxCode">The tax to charge.</param>
 /// <param name="LocationCode">Where this line ships from, when it differs from the order.</param>
+/// <param name="VariantCode">Which variant of the item, where the item has them.</param>
 public sealed record SalesLinePayload(
     SalesLineType Type,
     string No,
@@ -116,10 +118,57 @@ public sealed record SalesOrderView(
     bool IsEditable,
     IReadOnlyList<SalesOrderLineView> Lines);
 
+/// <summary>One agreed price as it is reported back.</summary>
+/// <param name="ItemNo">What it is for.</param>
+/// <param name="VariantCode">One variant, or null for all of them.</param>
+/// <param name="UnitCode">One unit, or null for any.</param>
+/// <param name="MinimumQuantity">The least that has to be bought for it.</param>
+/// <param name="UnitPrice">What one costs.</param>
+/// <param name="DiscountPercent">A discount off that.</param>
+/// <param name="ValidFrom">The first day this line applies.</param>
+/// <param name="ValidTo">The last day this line applies.</param>
+public sealed record PriceListLineView(
+    string ItemNo,
+    string? VariantCode,
+    string? UnitCode,
+    decimal MinimumQuantity,
+    decimal UnitPrice,
+    decimal DiscountPercent,
+    DateOnly? ValidFrom,
+    DateOnly? ValidTo);
+
+/// <summary>A price list as it is reported back.</summary>
+/// <param name="Code">Its code.</param>
+/// <param name="Name">What it is called.</param>
+/// <param name="NameArabic">What it is called in Arabic.</param>
+/// <param name="ValidFrom">The first day it applies.</param>
+/// <param name="ValidTo">The last day it applies.</param>
+/// <param name="IsActive">Whether it may be used.</param>
+/// <param name="Lines">The prices on it, most specific first within each item.</param>
+public sealed record PriceListView(
+    string Code,
+    string Name,
+    string? NameArabic,
+    DateOnly? ValidFrom,
+    DateOnly? ValidTo,
+    bool IsActive,
+    IReadOnlyList<PriceListLineView> Lines);
+
+/// <summary>Which price list a customer is on, as it is reported back.</summary>
+/// <param name="CustomerNo">The customer.</param>
+/// <param name="PriceListCode">The list they are on.</param>
+public sealed record CustomerPriceListView(string CustomerNo, string PriceListCode);
+
+/// <summary>What a client sends to put a customer on a price list.</summary>
+/// <param name="PriceListCode">The list, or null to take them off whatever they are on.</param>
+public sealed record AssignPriceListRequest(string? PriceListCode);
+
 /// <summary>Sales orders, shipments and invoices.</summary>
 public static class SalesEndpoints
 {
     private const string ReadPermission = "Sales.Order.Read";
+    private const string PriceReadPermission = "Sales.PriceList.Read";
+    private const string PriceWritePermission = "Sales.PriceList.Update";
     private const string CreatePermission = "Sales.Order.Create";
     private const string ShipPermission = "Sales.Shipment.Post";
     private const string InvoicePermission = "Sales.Invoice.Post";
@@ -169,8 +218,182 @@ public static class SalesEndpoints
              .WithName("OpenSalesOrders")
              .WithSummary("What is ordered and has not shipped, latest first.");
 
+        group.MapGet("/price-lists", ListPriceListsAsync)
+             .WithName("ListPriceLists")
+             .WithSummary("The agreed price lists and everything on them.");
+
+        group.MapGet("/price-lists/assignments", PriceListAssignmentsAsync)
+             .WithName("PriceListAssignments")
+             .WithSummary("Who is on which price list.");
+
+        group.MapGet("/price-lists/quote", QuotePriceAsync)
+             .WithName("QuotePrice")
+             .WithSummary("What one customer pays for one item on one day.");
+
+        group.MapGet("/price-lists/{code}", GetPriceListAsync)
+             .WithName("GetPriceList")
+             .WithSummary("One price list and its prices.");
+
+        group.MapPut("/price-lists/{code}", SavePriceListAsync)
+             .WithName("SavePriceList")
+             .WithSummary("Writes a price list and everything on it.");
+
+        group.MapPut("/price-lists/assignments/{customerNo}", AssignPriceListAsync)
+             .WithName("AssignPriceList")
+             .WithSummary("Puts a customer on a price list, or takes them off one.");
+
         return app;
     }
+
+    private static async Task<IResult> ListPriceListsAsync(
+        PricingService pricing,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, PriceReadPermission))
+        {
+            return Forbidden(PriceReadPermission, "view price lists", http);
+        }
+
+        var lists = await pricing.ListsAsync(cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(lists.Select(ViewOf));
+    }
+
+    private static async Task<IResult> GetPriceListAsync(
+        string code,
+        PricingService pricing,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, PriceReadPermission))
+        {
+            return Forbidden(PriceReadPermission, "view price lists", http);
+        }
+
+        var list = await pricing.FindAsync(code, cancellationToken).ConfigureAwait(false);
+
+        return list is null ? Results.NotFound() : Results.Ok(ViewOf(list));
+    }
+
+    private static async Task<IResult> SavePriceListAsync(
+        string code,
+        PriceListRequest request,
+        PricingService pricing,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, PriceWritePermission))
+        {
+            return Forbidden(PriceWritePermission, "maintain price lists", http);
+        }
+
+        var result = await pricing
+            .SaveAsync(request with { Code = code }, cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.Ok(ViewOf(result.Value));
+    }
+
+    private static async Task<IResult> PriceListAssignmentsAsync(
+        PricingService pricing,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, PriceReadPermission))
+        {
+            return Forbidden(PriceReadPermission, "view price list assignments", http);
+        }
+
+        var assignments = await pricing.AssignmentsAsync(cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(assignments.Select(static a => new CustomerPriceListView(
+            a.CustomerNo,
+            a.PriceListCode)));
+    }
+
+    private static async Task<IResult> AssignPriceListAsync(
+        string customerNo,
+        AssignPriceListRequest request,
+        PricingService pricing,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, PriceWritePermission))
+        {
+            return Forbidden(PriceWritePermission, "assign price lists", http);
+        }
+
+        var result = await pricing
+            .AssignAsync(customerNo, request.PriceListCode, cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.NoContent();
+    }
+
+    private static async Task<IResult> QuotePriceAsync(
+        PricingService pricing,
+        IUserContext user,
+        IClock clock,
+        HttpContext http,
+        CancellationToken cancellationToken,
+        string customerNo = "",
+        string itemNo = "",
+        decimal quantity = 1m,
+        string? variantCode = null,
+        string? unitCode = null,
+        DateOnly? on = null)
+    {
+        if (!Can(user, ReadPermission))
+        {
+            return Forbidden(ReadPermission, "quote a price", http);
+        }
+
+        var result = await pricing
+            .PriceForAsync(
+                customerNo,
+                itemNo,
+                quantity,
+                on ?? clock.Today,
+                variantCode,
+                unitCode,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.Ok(result.Value);
+    }
+
+    private static PriceListView ViewOf(Modules.Sales.Pricing.PriceList list)
+        => new(
+            list.Code,
+            list.Name,
+            list.NameArabic,
+            list.ValidFrom,
+            list.ValidTo,
+            list.IsActive,
+            [.. list.Lines
+                .OrderBy(l => l.ItemNo, StringComparer.OrdinalIgnoreCase)
+                .ThenByDescending(l => l.Specificity)
+                .ThenBy(l => l.MinimumQuantity)
+                .Select(static l => new PriceListLineView(
+                    l.ItemNo,
+                    l.VariantCode,
+                    l.UnitCode,
+                    l.MinimumQuantity,
+                    l.UnitPrice,
+                    l.DiscountPercent,
+                    l.ValidFrom,
+                    l.ValidTo))]);
+
     private static async Task<IResult> MarginByItemAsync(
         SalesReportService reports,
         IUserContext user,

@@ -5,6 +5,15 @@ namespace ASAP.Modules.Sales;
 /// <summary>Everything the Sales module can tell the user.</summary>
 public static class SalesMessages
 {
+    /// <summary>Two equally specific price list lines cover the same sale.</summary>
+    public static readonly MessageCode PriceIsAmbiguous = new("SAL.PRICE.AMBIGUOUS");
+
+    /// <summary>No price list by that code.</summary>
+    public static readonly MessageCode PriceListNotFound = new("SAL.PRICE.LIST_NOT_FOUND");
+
+    /// <summary>A price list assignment named no customer.</summary>
+    public static readonly MessageCode PriceListNeedsACustomer = new("SAL.PRICE.NO_CUSTOMER");
+
     /// <summary>The order named does not exist.</summary>
     public static readonly MessageCode OrderNotFound = new("SAL.ORDER.NOT_FOUND");
 
@@ -47,6 +56,52 @@ public static class SalesMessages
     /// <summary>Every message the module declares.</summary>
     public static IReadOnlyCollection<MessageDefinition> All { get; } =
     [
+        new()
+        {
+            Code = PriceIsAmbiguous,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("Two prices say different things", "سعران مختلفان لنفس البيع"),
+            Detail = new LocalizedText(
+                "{PriceListCode} has {Count} lines for {ItemNo} that are equally specific and "
+                + "disagree: {Prices}.",
+                "تحتوي القائمة {PriceListCode} على {Count} من السطور للصنف {ItemNo} بالتحديد نفسه "
+                + "وتختلف: {Prices}."),
+            Resolution = new LocalizedText(
+                "Make one of them more specific, or delete it. Choosing between them would make "
+                + "what this customer is charged depend on which row the database reached first, "
+                + "and nobody finds that until an invoice is queried.",
+                "اجعل أحدها أكثر تحديدًا، أو احذفه. فالاختيار بينهما يجعل ما يُحمَّل على هذا "
+                + "العميل رهنًا بأي سطر وصل إليه المخزن أولًا، ولا يكتشف ذلك أحد حتى تُراجَع "
+                + "فاتورة."),
+            HelpTopic = "sales/price-lists",
+        },
+        new()
+        {
+            Code = PriceListNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such price list", "لا توجد قائمة أسعار بهذا الرمز"),
+            Detail = new LocalizedText(
+                "Nothing in this company is coded {PriceListCode}.",
+                "لا يوجد في هذه الشركة ما يحمل الرمز {PriceListCode}."),
+            Resolution = new LocalizedText(
+                "Check the code, or add the list first.",
+                "تحقق من الرمز، أو أضف القائمة أولًا."),
+            HelpTopic = "sales/price-lists",
+        },
+        new()
+        {
+            Code = PriceListNeedsACustomer,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Say who it is for", "حدّد لمن هي"),
+            Detail = new LocalizedText(
+                "A price list was assigned with no customer named.",
+                "أُسندت قائمة أسعار دون تحديد عميل."),
+            Resolution = new LocalizedText(
+                "Name the customer. A list applies to whoever is put on it and to nobody else.",
+                "حدّد العميل. فالقائمة تسري على من يوضع عليها لا على غيره."),
+            HelpTopic = "sales/price-lists",
+        },
+
         new()
         {
             Code = OrderNotFound,

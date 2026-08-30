@@ -19,11 +19,14 @@ namespace ASAP.Modules.Sales.Orders;
 /// <param name="Type">Whether it sells stock or a charge.</param>
 /// <param name="No">The item number, or the account number on a charge line.</param>
 /// <param name="Quantity">How much to sell. Always positive.</param>
-/// <param name="UnitPrice">The price per unit, or zero to take the item's own price.</param>
+/// <param name="UnitPrice">
+/// The price per unit, or zero to take whatever this customer has been agreed.
+/// </param>
 /// <param name="DiscountPercent">A discount off this line.</param>
 /// <param name="Description">What it is. Falls back to the item or account name.</param>
 /// <param name="TaxCode">The tax to charge.</param>
 /// <param name="LocationCode">Where this line ships from, when it differs from the order.</param>
+/// <param name="VariantCode">Which variant of the item, where the item has them.</param>
 public readonly record struct SalesOrderLineRequest(
     SalesLineType Type,
     string No,
@@ -50,6 +53,7 @@ public readonly record struct SalesOrderLineRequest(
 /// <param name="setup">Supplies the number series to use.</param>
 /// <param name="tenantContext">Supplies the company.</param>
 /// <param name="userContext">Records who took it.</param>
+/// <param name="pricing">Says what this customer pays, where an arrangement exists.</param>
 /// <param name="clock">Supplies today.</param>
 /// <param name="logger">Records orders taken.</param>
 public sealed class SalesOrderService(
@@ -61,6 +65,7 @@ public sealed class SalesOrderService(
     ITenantContext tenantContext,
     IUserContext userContext,
     IClock clock,
+    Pricing.PricingService pricing,
     ILogger<SalesOrderService> logger)
 {
     /// <summary>
@@ -116,8 +121,56 @@ public sealed class SalesOrderService(
             found.Add(messages.Render(SalesMessages.OrderHasNoLines, arguments));
         }
 
+        var today = clock.Today;
+
+        // Priced before the lines are checked, because the below-cost warning has to be measured
+        // against what this customer actually pays. Measuring it against the counter price would
+        // let every contract sale below cost through in silence, which is the one case where it
+        // matters most.
+        var agreed = new List<(decimal UnitPrice, decimal DiscountPercent)>();
+        var priceRefusals = new List<AsapMessage>();
+
+        foreach (var line in wanted)
+        {
+            if (line.Type is not SalesLineType.Item)
+            {
+                agreed.Add((0m, 0m));
+                continue;
+            }
+
+            var quoted = await pricing
+                .PriceForAsync(
+                    customer?.No ?? string.Empty,
+                    line.No,
+                    line.Quantity,
+                    today,
+                    line.VariantCode,
+                    unitCode: null,
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            if (quoted.Failed)
+            {
+                // An item that does not exist is the line check's story to tell, and it tells it
+                // against the right line. Saying it twice helps nobody.
+                priceRefusals.AddRange(quoted.Messages.Where(static m
+                    => m.Code != Inventory.InventoryMessages.ItemNotFound));
+
+                agreed.Add((0m, 0m));
+                continue;
+            }
+
+            agreed.Add((quoted.Value.UnitPrice, quoted.Value.DiscountPercent));
+        }
+
+        if (priceRefusals.Count > 0)
+        {
+            return Result<SalesOrder>.Failure(priceRefusals);
+        }
+
         var items = await CheckLinesAsync(
                 wanted,
+                agreed,
                 found,
                 locationCode,
                 heldOverridePermissions,
@@ -129,7 +182,6 @@ public sealed class SalesOrderService(
             return Result<SalesOrder>.Failure(found);
         }
 
-        var today = clock.Today;
         var seriesCode = await SeriesCodeAsync(cancellationToken).ConfigureAwait(false);
         var numbered = await numbers.NextAsync(seriesCode, today, cancellationToken).ConfigureAwait(false);
 
@@ -159,10 +211,12 @@ public sealed class SalesOrderService(
         };
 
         var lineNo = 0;
+        var priceIndex = 0;
 
         foreach (var line in wanted)
         {
             var item = line.Type is SalesLineType.Item ? items.GetValueOrDefault(line.No) : null;
+            var arranged = agreed[priceIndex++];
 
             order.Lines.Add(new SalesOrderLine
             {
@@ -177,9 +231,13 @@ public sealed class SalesOrderService(
                 LocationCode = line.LocationCode,
                 Quantity = line.Quantity,
 
-                // The item's own price when nobody typed one, which is what a price list is for.
-                UnitPrice = line.UnitPrice != 0m ? line.UnitPrice : item?.UnitPrice ?? 0m,
-                DiscountPercent = line.DiscountPercent,
+                // What this customer has been agreed, where there is an arrangement, and the
+                // counter price where there is not. A figure typed on the line still wins: whoever
+                // took the order may have agreed something on the telephone that no list knows.
+                UnitPrice = line.UnitPrice != 0m ? line.UnitPrice : arranged.UnitPrice,
+                DiscountPercent = line.DiscountPercent != 0m
+                    ? line.DiscountPercent
+                    : arranged.DiscountPercent,
                 TaxCode = line.TaxCode,
             });
         }
@@ -245,6 +303,7 @@ public sealed class SalesOrderService(
 
     private async Task<Dictionary<string, Item>> CheckLinesAsync(
         IReadOnlyList<SalesOrderLineRequest> lines,
+        IReadOnlyList<(decimal UnitPrice, decimal DiscountPercent)> agreed,
         List<AsapMessage> found,
         string? orderLocationCode,
         IReadOnlySet<string>? heldOverridePermissions,
@@ -307,7 +366,7 @@ public sealed class SalesOrderService(
                 CheckLocation(from, locations, arguments, target, heldOverridePermissions, found);
             }
 
-            WarnIfBelowCost(line, item, arguments, target, found);
+            WarnIfBelowCost(line, item, agreed[index], arguments, target, found);
         }
 
         return items;
@@ -384,6 +443,7 @@ public sealed class SalesOrderService(
     private void WarnIfBelowCost(
         SalesOrderLineRequest line,
         Item item,
+        (decimal UnitPrice, decimal DiscountPercent) agreed,
         Dictionary<string, object?> arguments,
         MessageTarget target,
         List<AsapMessage> found)
@@ -395,8 +455,9 @@ public sealed class SalesOrderService(
             return;
         }
 
-        var price = line.UnitPrice != 0m ? line.UnitPrice : item.UnitPrice;
-        var net = price * (1m - (line.DiscountPercent / 100m));
+        var price = line.UnitPrice != 0m ? line.UnitPrice : agreed.UnitPrice;
+        var discount = line.DiscountPercent != 0m ? line.DiscountPercent : agreed.DiscountPercent;
+        var net = price * (1m - (discount / 100m));
 
         if (net >= cost)
         {

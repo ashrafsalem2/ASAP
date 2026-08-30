@@ -1,0 +1,200 @@
+<div class="page">
+  <h1>{{ t('sales.priceLists.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('sales.priceLists.intro') }}</p>
+    <p class="panel__body hint">{{ t('sales.priceLists.specificityHint') }}</p>
+    <p class="panel__body hint">{{ t('sales.priceLists.expiryHint') }}</p>
+  </section>
+
+  @if (loading()) {
+    <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+  } @else {
+    @if (editing(); as sheet) {
+      <section class="panel">
+        <h2 class="panel__title">{{ sheet.code || t('sales.priceLists.newList') }}</h2>
+        <p class="panel__body hint">{{ t('sales.priceLists.editHint') }}</p>
+
+        <div class="panel__body form-row">
+          <label>
+            {{ t('sales.priceLists.code') }}
+            <input type="text" [(ngModel)]="sheet.code" name="code" />
+          </label>
+          <label>
+            {{ t('sales.priceLists.name') }}
+            <input type="text" [(ngModel)]="sheet.name" name="name" />
+          </label>
+          <label>
+            {{ t('sales.priceLists.nameArabic') }}
+            <input type="text" [(ngModel)]="sheet.nameArabic" name="nameArabic" />
+          </label>
+        </div>
+
+        <div class="panel__body form-row">
+          <label>
+            {{ t('sales.priceLists.validFrom') }}
+            <input type="date" [(ngModel)]="sheet.validFrom" name="validFrom" />
+          </label>
+          <label>
+            {{ t('sales.priceLists.validTo') }}
+            <input type="date" [(ngModel)]="sheet.validTo" name="validTo" />
+          </label>
+          <label class="check">
+            <input type="checkbox" [(ngModel)]="sheet.isActive" name="isActive" />
+            {{ t('sales.priceLists.active') }}
+          </label>
+        </div>
+
+        <h3 class="panel__title">{{ t('sales.priceLists.lines') }}</h3>
+
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('sales.priceLists.item') }}</th>
+                <th>{{ t('sales.priceLists.variant') }}</th>
+                <th>{{ t('sales.priceLists.unit') }}</th>
+                <th class="numeric">{{ t('sales.priceLists.minimumQuantity') }}</th>
+                <th class="numeric">{{ t('sales.priceLists.unitPrice') }}</th>
+                <th class="numeric">{{ t('sales.priceLists.discount') }}</th>
+                <th>{{ t('sales.priceLists.validFrom') }}</th>
+                <th>{{ t('sales.priceLists.validTo') }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (line of sheet.lines; track trackLine($index); let i = $index) {
+                <tr>
+                  <td><input type="text" [(ngModel)]="line.itemNo" [name]="'item' + i" /></td>
+                  <td><input type="text" [(ngModel)]="line.variantCode" [name]="'variant' + i" /></td>
+                  <td><input type="text" [(ngModel)]="line.unitCode" [name]="'unit' + i" /></td>
+                  <td class="numeric">
+                    <input type="number" [(ngModel)]="line.minimumQuantity" [name]="'min' + i" />
+                  </td>
+                  <td class="numeric">
+                    <input type="number" [(ngModel)]="line.unitPrice" [name]="'price' + i" />
+                  </td>
+                  <td class="numeric">
+                    <input type="number" [(ngModel)]="line.discountPercent" [name]="'disc' + i" />
+                  </td>
+                  <td><input type="date" [(ngModel)]="line.validFrom" [name]="'lfrom' + i" /></td>
+                  <td><input type="date" [(ngModel)]="line.validTo" [name]="'lto' + i" /></td>
+                  <td>
+                    <button type="button" class="button button--quiet" (click)="removeLine(i)">
+                      {{ t('sales.priceLists.removeLine') }}
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div class="panel__body form-row">
+          <button type="button" class="button button--quiet" (click)="addLine()">
+            {{ t('sales.priceLists.addLine') }}
+          </button>
+          <button type="button" class="button" [disabled]="saving()" (click)="save()">
+            {{ t('sales.priceLists.save') }}
+          </button>
+          <button type="button" class="button button--quiet" (click)="cancel()">
+            {{ t('sales.priceLists.cancel') }}
+          </button>
+        </div>
+      </section>
+    }
+
+    <section class="panel">
+      <h2 class="panel__title">{{ t('sales.priceLists.listsTitle') }}</h2>
+
+      @if (lists().length === 0) {
+        <p class="empty">{{ t('sales.priceLists.none') }}</p>
+      } @else {
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('sales.priceLists.code') }}</th>
+                <th>{{ t('sales.priceLists.name') }}</th>
+                <th>{{ t('sales.priceLists.validFrom') }}</th>
+                <th>{{ t('sales.priceLists.validTo') }}</th>
+                <th>{{ t('sales.priceLists.active') }}</th>
+                <th class="numeric">{{ t('sales.priceLists.lines') }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (list of lists(); track list.code) {
+                <tr>
+                  <td>{{ list.code }}</td>
+                  <td>{{ i18n.language() === 'ar' ? (list.nameArabic || list.name) : list.name }}</td>
+                  <td>{{ list.validFrom || '—' }}</td>
+                  <td>{{ list.validTo || '—' }}</td>
+                  <td>{{ list.isActive ? '✓' : '—' }}</td>
+                  <td class="numeric">{{ list.lines.length }}</td>
+                  <td>
+                    <button type="button" class="button button--quiet" (click)="edit(list)">
+                      {{ t('sales.priceLists.edit') }}
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+
+      <div class="panel__body">
+        <button type="button" class="button" (click)="startNew()">
+          {{ t('sales.priceLists.newList') }}
+        </button>
+      </div>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">{{ t('sales.priceLists.assignmentsTitle') }}</h2>
+
+      @if (assignments().length === 0) {
+        <p class="empty">{{ t('sales.priceLists.noAssignments') }}</p>
+      } @else {
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('sales.priceLists.customer') }}</th>
+                <th>{{ t('sales.priceLists.list') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of assignments(); track row.customerNo) {
+                <tr>
+                  <td>{{ row.customerNo }}</td>
+                  <td>{{ row.priceListCode }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+
+      <div class="panel__body form-row">
+        <label>
+          {{ t('sales.priceLists.customer') }}
+          <input type="text" [(ngModel)]="assignCustomerNo" name="assignCustomer" />
+        </label>
+        <label>
+          {{ t('sales.priceLists.list') }}
+          <select [(ngModel)]="assignListCode" name="assignList">
+            <option value="">{{ t('sales.priceLists.noList') }}</option>
+            @for (list of lists(); track list.code) {
+              <option [value]="list.code">{{ list.code }}</option>
+            }
+          </select>
+        </label>
+        <button type="button" class="button" (click)="assign()">
+          {{ t('sales.priceLists.assign') }}
+        </button>
+      </div>
+    </section>
+  }
+</div>

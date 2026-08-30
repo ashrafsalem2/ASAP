@@ -63,6 +63,7 @@ public sealed record SetApprovalLimitRequest(
 /// <param name="Description">What it is.</param>
 /// <param name="TaxCode">The tax the vendor will charge.</param>
 /// <param name="LocationCode">Where this line's goods go, when it differs from the order.</param>
+/// <param name="VariantCode">Which variant of the item, where the item has them.</param>
 public sealed record PurchaseLinePayload(
     PurchaseLineType Type,
     string No,
@@ -120,6 +121,7 @@ public sealed record PostPurchaseInvoiceRequest(
 /// <param name="QuantityInvoiced">How much has been invoiced.</param>
 /// <param name="OutstandingToReceive">How much is still to arrive.</param>
 /// <param name="ReceivedNotInvoiced">How much has arrived and is still awaiting an invoice.</param>
+/// <param name="VariantCode">Which variant of the item, where the item has them.</param>
 public sealed record PurchaseOrderLineView(
     int LineNo,
     string Type,

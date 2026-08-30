@@ -243,8 +243,21 @@ Everything else posts here, so it goes first.
 ## Phase 4 — Sales
 
 - **done** Customers, credit limits and payment terms (through the Finance party ledger); a
-  line discount held as a percentage so what was given away stays reportable. Price lists and
-  discount structures to come
+  line discount held as a percentage so what was given away stays reportable
+- **done** Price lists: a customer is assigned one list or none, and a line takes a typed price
+  first, the list second, the item third. A line can be narrowed to a variant, a unit or a quantity
+  from which it applies, and the most specific line that fits wins -- which is what lets a general
+  trade price and a volume break sit in one sheet without either knowing the other exists. Two
+  equally specific lines that disagree refuse the order rather than being resolved: that is not a
+  tie to break but a contradiction somebody entered by accident, and choosing between them would
+  make what a customer is charged depend on which row the database reached first, which nobody
+  finds until an invoice is queried. Lists and lines both carry date windows so a quarter's
+  arrangement expires without anybody remembering, because the one nobody remembers is the one
+  still being honoured two years later. The below-cost warning is measured against the agreed price
+  rather than the item's, or every contract sale below cost passes in silence -- the case the
+  warning exists for. The assignment is held by Sales rather than on the party, because a customer
+  belongs to Finance and what they pay for goods is a sales arrangement. Customer groups and
+  offers-on-top still to come
 - *in progress* **Order, shipment and invoice done**; quote, return and credit memo to come
 - **done** Availability decided at shipment, by the costing engine, which is the only thing that
   knows what is on the shelf at the moment somebody reaches for it. Reservation to come

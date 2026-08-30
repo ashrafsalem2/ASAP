@@ -4,8 +4,11 @@ import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   CreateSalesOrderRequest,
+  CustomerPriceList,
   MarginRow,
   OpenSalesOrderRow,
+  PriceList,
+  ResolvedPrice,
   SalesInvoiceResult,
   SalesOrder,
   SalesOrderCreated,
@@ -128,6 +131,52 @@ export class SalesService {
 
     return firstValueFrom(
       this.http.get<OpenSalesOrderRow[]>(`${this.base}/reports/open-orders`, { params }),
+    );
+  }
+
+  /** The agreed price lists and everything on them. */
+  priceLists(): Promise<PriceList[]> {
+    return firstValueFrom(this.http.get<PriceList[]>(`${this.base}/price-lists`));
+  }
+
+  /** Who is on which price list. */
+  priceListAssignments(): Promise<CustomerPriceList[]> {
+    return firstValueFrom(
+      this.http.get<CustomerPriceList[]>(`${this.base}/price-lists/assignments`),
+    );
+  }
+
+  /**
+   * Writes a price list and everything on it.
+   *
+   * The lines given replace the lines held: a price list is edited as a whole sheet, because that
+   * is how somebody negotiating a contract thinks about it.
+   */
+  savePriceList(list: PriceList): Promise<PriceList> {
+    return firstValueFrom(
+      this.http.put<PriceList>(`${this.base}/price-lists/${encodeURIComponent(list.code)}`, list),
+    );
+  }
+
+  /** Puts a customer on a price list, or takes them off one when the code is null. */
+  assignPriceList(customerNo: string, priceListCode: string | null): Promise<void> {
+    return firstValueFrom(
+      this.http.put<void>(
+        `${this.base}/price-lists/assignments/${encodeURIComponent(customerNo)}`,
+        { priceListCode },
+      ),
+    );
+  }
+
+  /** What one customer pays for one item on one day. */
+  quotePrice(customerNo: string, itemNo: string, quantity: number): Promise<ResolvedPrice> {
+    const params = new HttpParams()
+      .set('customerNo', customerNo)
+      .set('itemNo', itemNo)
+      .set('quantity', quantity);
+
+    return firstValueFrom(
+      this.http.get<ResolvedPrice>(`${this.base}/price-lists/quote`, { params }),
     );
   }
 }

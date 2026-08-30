@@ -133,8 +133,13 @@ public sealed class UnitConversionService(AsapDbContext context, IMessageCatalog
         if (string.IsNullOrEmpty(wanted)
             || string.Equals(wanted, item.BaseUnitOfMeasure, StringComparison.OrdinalIgnoreCase))
         {
-            return Result<ResolvedQuantity>.Success(new ResolvedQuantity(
-                item.No, item.Description, item.BaseUnitOfMeasure, quantity, quantity, item.BaseUnitOfMeasure));
+            var tooPrecise = await TooPreciseAsync(item.BaseUnitOfMeasure, quantity, cancellationToken)
+                .ConfigureAwait(false);
+
+            return tooPrecise is not null
+                ? Result<ResolvedQuantity>.Failure(tooPrecise)
+                : Result<ResolvedQuantity>.Success(new ResolvedQuantity(
+                    item.No, item.Description, item.BaseUnitOfMeasure, quantity, quantity, item.BaseUnitOfMeasure));
         }
 
         var unit = await context.Set<ItemUnit>()
@@ -161,6 +166,14 @@ public sealed class UnitConversionService(AsapDbContext context, IMessageCatalog
             return Result<ResolvedQuantity>.Failure(messages.Render(
                 InventoryMessages.UnitFactorNotUsable,
                 Args(("ItemNo", item.No), ("UnitCode", wanted))));
+        }
+
+        var overPrecise = await TooPreciseAsync(unit.UnitCode, quantity, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (overPrecise is not null)
+        {
+            return Result<ResolvedQuantity>.Failure(overPrecise);
         }
 
         return Result<ResolvedQuantity>.Success(new ResolvedQuantity(
@@ -220,6 +233,47 @@ public sealed class UnitConversionService(AsapDbContext context, IMessageCatalog
         }
 
         return units;
+    }
+
+    /// <summary>
+    /// Says why a quantity will not go in that unit, when it will not.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A unit that is counted carries no decimal places, and one that is weighed carries three.
+    /// This is not decoration: a till that accepts two and a half of something sold one at a time
+    /// has taken an order nobody can pick, and a scale reporting 1.234 kg against a whole-number
+    /// unit loses 234 grams on every sale.
+    /// </para>
+    /// <para>
+    /// A unit nobody set up in the company list is not checked. The base unit is free text on the
+    /// item, so refusing every quantity against a unit that was never defined would turn a missing
+    /// setup into a shop that cannot sell.
+    /// </para>
+    /// </remarks>
+    private async Task<AsapMessage?> TooPreciseAsync(
+        string unitCode,
+        decimal quantity,
+        CancellationToken cancellationToken)
+    {
+        var normalised = unitCode.Trim().ToUpperInvariant();
+
+        var unit = await context.Set<UnitOfMeasure>()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(u => u.Code == normalised, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (unit is null || decimal.Round(quantity, unit.DecimalPlaces) == quantity)
+        {
+            return null;
+        }
+
+        return messages.Render(
+            InventoryMessages.QuantityTooPrecise,
+            Args(
+                ("Quantity", quantity),
+                ("UnitCode", unit.Code),
+                ("DecimalPlaces", unit.DecimalPlaces)));
     }
 
     private static Dictionary<string, object?> Args(params (string Key, object? Value)[] pairs)

@@ -30,6 +30,7 @@ public sealed record CloseSessionRequest(decimal DeclaredCash, string? OverrideR
 /// <param name="DiscountPercent">A discount off this line.</param>
 /// <param name="Description">What it says on the receipt.</param>
 /// <param name="TaxCode">The tax to charge.</param>
+/// <param name="UnitCode">The unit rung, or null for the item's base unit.</param>
 public sealed record PosLinePayload(
     PosLineType Type,
     string No,
@@ -37,7 +38,8 @@ public sealed record PosLinePayload(
     decimal UnitPrice = 0m,
     decimal DiscountPercent = 0m,
     string? Description = null,
-    string? TaxCode = null);
+    string? TaxCode = null,
+    string? UnitCode = null);
 
 /// <summary>Money put towards a receipt, as a client sends it.</summary>
 /// <param name="Kind">What kind of money it is.</param>
@@ -777,7 +779,8 @@ public static class PosEndpoints
             payload.UnitPrice,
             payload.DiscountPercent,
             payload.Description,
-            payload.TaxCode);
+            payload.TaxCode,
+            payload.UnitCode);
 
     private static ParkedSaleView View(PosReceipt receipt)
         => new(

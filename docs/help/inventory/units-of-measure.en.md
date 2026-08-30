@@ -32,6 +32,19 @@ Each unit says how many decimal places a quantity in it may carry. None for thin
 
 It is not decoration. A till that accepts 2.5 of something sold one at a time has taken an order nobody can pick, and a scale reporting 1.234 kg against a whole-number unit loses 234 grams on every sale.
 
+## Selling a case at the till
+
+Ring the case and the till stores twelve. The receipt line keeps both: twelve in the base unit,
+which is what leaves the shelf, and the case that was actually scanned, which is what the customer
+handed over.
+
+**The price is per base unit.** A lamp at 24.00 sold by the case of twelve comes to 288.00, not
+24.00. A case price that was not simply twelve singles would be a second price on the same item,
+and two prices for one thing is how a shop ends up not knowing what it sells anything for.
+
+What the case held is frozen on the line, like the cost. A company that redefines its case from
+twelve to six next year must not thereby restate what somebody bought last year.
+
 ## Converting back
 
 Seven tins expressed in boxes of twelve is 0.5833 of a box. The system does not round that away — what it shows you is never what it stores, so stock is not lost to a display decision.

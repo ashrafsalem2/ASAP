@@ -19,6 +19,9 @@ public static class InventoryMessages
     /// <summary>No item by that number, asked while converting a unit.</summary>
     public static readonly MessageCode ItemNotFoundForUnit = new("INV.UNIT.ITEM_NOT_FOUND");
 
+    /// <summary>A quantity carries more decimal places than its unit allows.</summary>
+    public static readonly MessageCode QuantityTooPrecise = new("INV.UNIT.TOO_MANY_DECIMALS");
+
     /// <summary>Stock would go below zero and the company does not permit it.</summary>
     public static readonly MessageCode NegativeInventoryBlocked = new("INV.STOCK.NEGATIVE_BLOCKED");
 
@@ -160,6 +163,23 @@ public static class InventoryMessages
             Resolution = new LocalizedText(
                 "Check the number, or scan the barcode instead.",
                 "تحقق من الرقم، أو امسح الباركود بدلًا من ذلك."),
+            HelpTopic = "inventory/units-of-measure",
+        },
+        new()
+        {
+            Code = QuantityTooPrecise,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("That unit is not sold in fractions", "هذه الوحدة لا تُباع بالكسور"),
+            Detail = new LocalizedText(
+                "{Quantity:0.#####} was entered against {UnitCode}, which is counted to "
+                + "{DecimalPlaces} decimal places.",
+                "أُدخلت الكمية {Quantity:0.#####} بالوحدة {UnitCode}، وهي تُحسب بـ {DecimalPlaces} "
+                + "من المنازل العشرية."),
+            Resolution = new LocalizedText(
+                "Enter a quantity the unit can carry, or use a unit that can. A till accepting "
+                + "half of something sold one at a time has taken an order nobody can pick.",
+                "أدخل كمية تستوعبها الوحدة، أو استخدم وحدة تستوعبها. فنقطة البيع التي تقبل نصف "
+                + "صنف يُباع بالحبة قد سجّلت طلبًا لا يستطيع أحد تجهيزه."),
             HelpTopic = "inventory/units-of-measure",
         },
         new()

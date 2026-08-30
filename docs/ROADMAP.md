@@ -190,6 +190,12 @@ Everything else posts here, so it goes first.
   at the price paid, discount and all, and is counted against every earlier return on that
   receipt — checking only the transaction in hand lets somebody return two, then two more,
   against a sale of two
+- **done** Selling in units other than the base one. Scanning a case of twelve rings one and
+  stores twelve, priced at twelve singles, because a case price that was not simply twelve singles
+  would be a second price on the same item. The receipt line keeps both figures and freezes what
+  the case held, so redefining a case next year does not restate what somebody bought last year.
+  Refused at the till rather than found later: half of something sold one at a time, and a unit
+  the item has no conversion for
 - **done** A receipt posts exactly as a sales invoice does: revenue at list with the discount as
   a contra, tax on both, stock out at what the goods cost. The P&L cannot tell which door a sale
   came through

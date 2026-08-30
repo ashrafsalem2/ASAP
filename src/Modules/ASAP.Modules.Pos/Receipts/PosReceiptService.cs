@@ -27,6 +27,9 @@ namespace ASAP.Modules.Pos.Receipts;
 /// <param name="DiscountPercent">A discount off this line.</param>
 /// <param name="Description">What it says on the receipt. Falls back to the item name.</param>
 /// <param name="TaxCode">The tax to charge. Falls back to the item's own.</param>
+/// <param name="UnitCode">
+/// The unit the quantity was rung in, or null for the item's base unit.
+/// </param>
 public readonly record struct PosLineRequest(
     PosLineType Type,
     string No,
@@ -34,7 +37,8 @@ public readonly record struct PosLineRequest(
     decimal UnitPrice = 0m,
     decimal DiscountPercent = 0m,
     string? Description = null,
-    string? TaxCode = null);
+    string? TaxCode = null,
+    string? UnitCode = null);
 
 /// <summary>Money put towards a receipt.</summary>
 /// <param name="Kind">What kind of money it is.</param>
@@ -191,7 +195,9 @@ public sealed class PosReceiptService(
             return Result<PosReceiptPosted>.Failure(found);
         }
 
-        var built = BuildLines(lines, items, discountLimit, original, heldOverridePermissions, found);
+        var units = await ResolveUnitsAsync(lines, items, cancellationToken).ConfigureAwait(false);
+
+        var built = BuildLines(lines, items, units, discountLimit, original, heldOverridePermissions, found);
 
         built = await ApplyOffersAsync(
                 built,
@@ -383,7 +389,9 @@ public sealed class PosReceiptService(
         // The discount limit is not enforced here. Nothing has been agreed with anybody yet, and
         // refusing to set a basket down is a strange thing for a till to do; it is asked again,
         // and answered by a supervisor, at the moment the money is taken.
-        var built = BuildLines(lines, items, decimal.MaxValue, original: null, held: null, found);
+        var units = await ResolveUnitsAsync(lines, items, cancellationToken).ConfigureAwait(false);
+
+        var built = BuildLines(lines, items, units, decimal.MaxValue, original: null, held: null, found);
 
         _ = discountLimit;
 
@@ -423,6 +431,8 @@ public sealed class PosReceiptService(
                 AccountNo = line.Type is PosLineType.GlAccount ? line.No : null,
                 Description = line.Description,
                 Quantity = line.Quantity,
+                UnitCode = line.UnitCode,
+                QuantityPerUnit = line.QuantityPerUnit,
                 UnitPrice = line.UnitPrice,
                 DiscountPercent = line.DiscountPercent,
                 TaxCode = line.TaxCode,
@@ -674,6 +684,18 @@ public sealed class PosReceiptService(
         decimal DiscountPercent,
         string? TaxCode)
     {
+        /// <summary>The unit it was rung in, which is what the receipt prints.</summary>
+        public string? UnitCode { get; init; }
+
+        /// <summary>
+        /// How many base units that unit held when it was rung.
+        /// </summary>
+        /// <remarks>
+        /// Kept on the line rather than looked up again, for the same reason the cost is: a case
+        /// of twelve becoming a case of six next year must not restate what a customer bought.
+        /// </remarks>
+        public decimal QuantityPerUnit { get; init; } = 1m;
+
         /// <summary>What the goods cost per unit, or null on a line with no goods behind it.</summary>
         public decimal? UnitCostAtSale { get; init; }
 
@@ -709,6 +731,7 @@ public sealed class PosReceiptService(
     private List<BuiltLine> BuildLines(
         IReadOnlyList<PosLineRequest> lines,
         IReadOnlyDictionary<string, Item> items,
+        UnitLookup units,
         decimal discountLimit,
         PosReceipt? original,
         IReadOnlySet<string>? held,
@@ -732,6 +755,12 @@ public sealed class PosReceiptService(
 
             Item? item = null;
 
+            // What the cashier rang, before any unit is applied to it. A case of twelve is rung
+            // as one and stored as twelve; this is the one.
+            var rung = line.Quantity;
+            var unitCode = line.UnitCode;
+            var perUnit = 1m;
+
             if (line.Type is PosLineType.Item)
             {
                 if (!items.TryGetValue(line.No, out item))
@@ -754,10 +783,25 @@ public sealed class PosReceiptService(
 
                     continue;
                 }
+
+                var converted = units.Convert(item, unitCode, rung, arguments, target, messages);
+
+                if (converted.Refusal is { } refusal)
+                {
+                    found.Add(refusal);
+                    continue;
+                }
+
+                unitCode = converted.UnitCode;
+                perUnit = converted.QuantityPerUnit;
             }
 
+            // Everything from here down is in base units, because that is what stock leaves in
+            // and what the price is quoted per. A case of twelve at 24.00 is twelve at 24.00.
+            var quantity = rung * perUnit;
+
             // What it went out at on the receipt being returned against, when there is one.
-            var sold = line.Quantity < 0m && original is not null
+            var sold = quantity < 0m && original is not null
                 ? original.Lines.FirstOrDefault(l =>
                     string.Equals(l.ItemNo, line.No, StringComparison.OrdinalIgnoreCase))
                 : null;
@@ -791,7 +835,7 @@ public sealed class PosReceiptService(
 
             // Said at the till, not found in a margin report next month. A return is not a sale
             // below cost however the arithmetic reads, so only outbound lines are checked.
-            if (item is not null && line.Quantity > 0m && item.UnitCost > 0m && net < item.UnitCost)
+            if (item is not null && quantity > 0m && item.UnitCost > 0m && net < item.UnitCost)
             {
                 found.Add(messages.Render(
                     PosMessages.BelowCost,
@@ -802,7 +846,7 @@ public sealed class PosReceiptService(
                         ("NetUnitPrice", net),
                         ("UnitCost", item.UnitCost),
                         ("LossPerUnit", item.UnitCost - net),
-                        ("Quantity", line.Quantity)),
+                        ("Quantity", quantity)),
                     target));
             }
 
@@ -811,12 +855,14 @@ public sealed class PosReceiptService(
                 line.Type,
                 line.No,
                 description,
-                line.Quantity,
+                quantity,
                 unitPrice,
                 discountPercent,
                 line.TaxCode ?? sold?.TaxCode)
             {
                 UnitCostAtSale = item?.UnitCost,
+                UnitCode = unitCode,
+                QuantityPerUnit = perUnit,
             });
         }
 
@@ -1380,6 +1426,8 @@ public sealed class PosReceiptService(
                 AccountNo = line.Type is PosLineType.GlAccount ? line.No : null,
                 Description = line.Description,
                 Quantity = line.Quantity,
+                UnitCode = line.UnitCode,
+                QuantityPerUnit = line.QuantityPerUnit,
                 UnitPrice = line.UnitPrice,
                 DiscountPercent = line.DiscountPercent,
                 OfferCode = line.OfferCode,
@@ -1403,6 +1451,163 @@ public sealed class PosReceiptService(
         }
 
         return receipt;
+    }
+
+    /// <summary>What a unit came to on a line, or why it could not.</summary>
+    private readonly record struct ConvertedUnit(
+        string? UnitCode,
+        decimal QuantityPerUnit,
+        AsapMessage? Refusal);
+
+    /// <summary>
+    /// The units the items on this receipt may be rung in, loaded once for the whole basket.
+    /// </summary>
+    /// <remarks>
+    /// Loaded up front rather than asked per line, because a till is the one place in the system
+    /// where a query inside a loop is felt by somebody standing at a counter.
+    /// </remarks>
+    private sealed record UnitLookup(
+        IReadOnlyDictionary<string, ItemUnit> ByItemAndCode,
+        IReadOnlyDictionary<string, int> PlacesByCode)
+    {
+        /// <summary>An empty one, for a basket with no item lines on it.</summary>
+        public static UnitLookup Empty { get; } = new(
+            new Dictionary<string, ItemUnit>(StringComparer.OrdinalIgnoreCase),
+            new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase));
+
+        /// <summary>The key a unit is held under.</summary>
+        /// <param name="itemNo">The item.</param>
+        /// <param name="unitCode">The unit.</param>
+        /// <returns>The lookup key.</returns>
+        public static string Key(string itemNo, string unitCode)
+            => itemNo.ToUpperInvariant() + "|" + unitCode.ToUpperInvariant();
+
+        /// <summary>
+        /// Works out what one of the named unit holds, and whether the quantity may be keyed in it.
+        /// </summary>
+        /// <param name="item">The item being rung.</param>
+        /// <param name="unitCode">The unit named, or null for the base unit.</param>
+        /// <param name="quantity">How many of that unit.</param>
+        /// <param name="arguments">The message arguments so far, added to on a refusal.</param>
+        /// <param name="target">The field a refusal points at.</param>
+        /// <param name="messages">Renders the refusal.</param>
+        /// <returns>The unit and its factor, or why the line cannot stand.</returns>
+        public ConvertedUnit Convert(
+            Item item,
+            string? unitCode,
+            decimal quantity,
+            Dictionary<string, object?> arguments,
+            MessageTarget target,
+            IMessageCatalog messages)
+        {
+            var wanted = unitCode?.Trim().ToUpperInvariant();
+
+            // Nothing named, or the base unit named: nothing to convert, and nothing to have set
+            // up. An item sold only in the unit it is counted in should need no configuration.
+            var isBase = string.IsNullOrEmpty(wanted)
+                || string.Equals(wanted, item.BaseUnitOfMeasure, StringComparison.OrdinalIgnoreCase);
+
+            var code = isBase ? item.BaseUnitOfMeasure : wanted!;
+            var perUnit = 1m;
+
+            if (!isBase)
+            {
+                if (!ByItemAndCode.TryGetValue(Key(item.No, code), out var unit))
+                {
+                    arguments["UnitCode"] = code;
+                    arguments["BaseUnit"] = item.BaseUnitOfMeasure;
+
+                    return new ConvertedUnit(null, 1m, messages.Render(
+                        Inventory.InventoryMessages.UnitNotSetUpForItem,
+                        arguments,
+                        target));
+                }
+
+                if (unit.QuantityPerUnit <= 0m)
+                {
+                    arguments["UnitCode"] = code;
+
+                    return new ConvertedUnit(null, 1m, messages.Render(
+                        Inventory.InventoryMessages.UnitFactorNotUsable,
+                        arguments,
+                        target));
+                }
+
+                code = unit.UnitCode;
+                perUnit = unit.QuantityPerUnit;
+            }
+
+            // A unit nobody defined in the company list is not checked, because the base unit is
+            // free text on the item and a missing setup must not become a shop that cannot sell.
+            if (PlacesByCode.TryGetValue(code, out var places)
+                && decimal.Round(quantity, places) != quantity)
+            {
+                arguments["UnitCode"] = code;
+                arguments["DecimalPlaces"] = places;
+                arguments["Quantity"] = quantity;
+
+                return new ConvertedUnit(null, 1m, messages.Render(
+                    Inventory.InventoryMessages.QuantityTooPrecise,
+                    arguments,
+                    target));
+            }
+
+            return new ConvertedUnit(code, perUnit, null);
+        }
+    }
+
+    private async Task<UnitLookup> ResolveUnitsAsync(
+        IReadOnlyList<PosLineRequest> lines,
+        IReadOnlyDictionary<string, Item> items,
+        CancellationToken cancellationToken)
+    {
+        if (items.Count == 0)
+        {
+            return UnitLookup.Empty;
+        }
+
+        var itemIds = items.Values.Select(static i => i.Id).ToList();
+
+        var unitRows = await context.Set<ItemUnit>()
+            .AsNoTracking()
+            .Where(u => itemIds.Contains(u.ItemId) && u.IsActive)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var byId = items.Values.ToDictionary(static i => i.Id, static i => i.No);
+
+        var byItemAndCode = new Dictionary<string, ItemUnit>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var row in unitRows)
+        {
+            if (byId.TryGetValue(row.ItemId, out var itemNo))
+            {
+                byItemAndCode[UnitLookup.Key(itemNo, row.UnitCode)] = row;
+            }
+        }
+
+        // Every unit named on the basket, plus every base unit, because a quantity keyed in the
+        // base unit is checked for decimal places too -- two and a half of something sold one at
+        // a time is the case this exists for.
+        var codes = lines
+            .Select(static l => l.UnitCode)
+            .Where(static c => !string.IsNullOrWhiteSpace(c))
+            .Select(static c => c!.Trim().ToUpperInvariant())
+            .Concat(items.Values.Select(static i => i.BaseUnitOfMeasure.ToUpperInvariant()))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var places = await context.Set<Inventory.Items.UnitOfMeasure>()
+            .AsNoTracking()
+            .Where(u => codes.Contains(u.Code))
+            .ToDictionaryAsync(
+                static u => u.Code,
+                static u => u.DecimalPlaces,
+                StringComparer.OrdinalIgnoreCase,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        return new UnitLookup(byItemAndCode, places);
     }
 
     private async Task<Dictionary<string, Item>> ResolveItemsAsync(

@@ -130,6 +130,14 @@ public sealed class ReceiptPrintService(
                 ("AccountNo", line.AccountNo),
                 ("Description", line.Description),
                 ("Quantity", line.Quantity),
+
+                // What was actually scanned, beside what left the shelf. A receipt may print
+                // either: twelve lamps is what the customer carries out, one case is what they
+                // handed over, and both are true.
+                ("UnitCode", line.UnitCode),
+                ("QuantityRung", line.QuantityPerUnit == 0m
+                    ? line.Quantity
+                    : line.Quantity / line.QuantityPerUnit),
                 ("UnitPrice", line.UnitPrice),
                 ("DiscountPercent", line.DiscountPercent),
                 ("OfferCode", line.OfferCode),
@@ -178,7 +186,8 @@ public sealed class ReceiptPrintService(
                 ("", "DiscountAmount"), ("", "TaxAmount"), ("", "RoundingAmount"),
                 ("", "TotalAmount"), ("", "ChangeGiven"), ("", "LineCount"),
                 ("lines", "LineNo"), ("lines", "ItemNo"), ("lines", "AccountNo"),
-                ("lines", "Description"), ("lines", "Quantity"), ("lines", "UnitPrice"),
+                ("lines", "Description"), ("lines", "Quantity"),
+                ("lines", "UnitCode"), ("lines", "QuantityRung"), ("lines", "UnitPrice"),
                 ("lines", "DiscountPercent"), ("lines", "OfferCode"),
                 ("lines", "OfferDiscountAmount"), ("lines", "LineAmount"),
                 ("tenders", "Kind"), ("tenders", "Amount"), ("tenders", "Reference"),

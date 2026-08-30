@@ -183,6 +183,8 @@ public sealed partial class PosSchema : IModuleSchema
             builder.HasIndex(l => new { l.CompanyId, l.OfferCode });
 
             builder.Property(l => l.Quantity).HasColumnType(DecimalPrecisionConventions.Quantity);
+            builder.Property(l => l.UnitCode).HasMaxLength(10);
+            builder.Property(l => l.QuantityPerUnit).HasColumnType(DecimalPrecisionConventions.Quantity);
             builder.Property(l => l.UnitPrice).HasColumnType(DecimalPrecisionConventions.UnitAmount);
             builder.Property(l => l.DiscountPercent).HasColumnType(DecimalPrecisionConventions.Percentage);
 

@@ -57,6 +57,12 @@ public sealed class UnitConversionTests : IDisposable
         context.Set<Item>().AddRange(beans, flour);
         context.SaveChanges();
 
+        // None for the things that are counted, three for the things that are weighed.
+        context.Set<UnitOfMeasure>().AddRange(
+            Measure("EACH", 0),
+            Measure("BOX", 0),
+            Measure("KG", 3));
+
         context.Set<ItemUnit>().AddRange(
             Unit(beans.Id, "EACH", 1m, "5000000000001"),
             Unit(beans.Id, "BOX", 12m, "5000000000012"),
@@ -68,6 +74,17 @@ public sealed class UnitConversionTests : IDisposable
             Unit(flour.Id, "BROKEN", 0m));
 
         context.SaveChanges();
+
+        static UnitOfMeasure Measure(string code, int places)
+            => new()
+            {
+                TenantId = Tenant,
+                CompanyId = Company,
+                Code = code,
+                Name = code,
+                NameArabic = code,
+                DecimalPlaces = places,
+            };
 
         static ItemUnit Unit(Guid itemId, string code, decimal per, string? barcode = null)
             => new()
@@ -268,5 +285,54 @@ public sealed class UnitConversionTests : IDisposable
         public DateTime UtcNow { get; } = utcNow;
 
         public DateOnly Today => DateOnly.FromDateTime(UtcNow);
+    }
+
+    [Fact]
+    public async Task Half_of_something_sold_one_at_a_time_is_refused()
+    {
+        await using var context = NewContext();
+
+        // Not a rounding question. A till that accepts this has taken an order nobody can pick,
+        // and the shortfall shows up as a picking problem rather than as a mistake at the till.
+        var converted = await Service(context).ConvertAsync("BEANS", "EACH", 2.5m);
+
+        converted.Failed.ShouldBeTrue();
+        converted.Messages.Single(m => m.IsFailure).Code.Value.ShouldBe("INV.UNIT.TOO_MANY_DECIMALS");
+    }
+
+    [Fact]
+    public async Task Half_of_something_sold_by_weight_is_fine()
+    {
+        await using var context = NewContext();
+
+        var converted = await Service(context).ConvertAsync("FLOUR", "KG", 2.5m);
+
+        converted.Succeeded.ShouldBeTrue();
+        converted.Value.BaseQuantity.ShouldBe(2.5m);
+    }
+
+    [Fact]
+    public async Task A_weighed_unit_still_stops_somewhere()
+    {
+        await using var context = NewContext();
+
+        // Three places, because that is what a scale reports. A fourth is a scale nobody has.
+        var converted = await Service(context).ConvertAsync("FLOUR", "KG", 2.5001m);
+
+        converted.Failed.ShouldBeTrue();
+        converted.Messages.Single(m => m.IsFailure).Code.Value.ShouldBe("INV.UNIT.TOO_MANY_DECIMALS");
+    }
+
+    [Fact]
+    public async Task A_unit_nobody_defined_is_not_checked_for_places()
+    {
+        await using var context = NewContext();
+
+        // PALLET is set up on the item but never added to the company's unit list. Refusing here
+        // would turn a missing setup into a shop that cannot sell.
+        var converted = await Service(context).ConvertAsync("BEANS", "PALLET", 0.5m);
+
+        converted.Succeeded.ShouldBeTrue();
+        converted.Value.BaseQuantity.ShouldBe(360m);
     }
 }

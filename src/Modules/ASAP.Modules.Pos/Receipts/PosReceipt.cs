@@ -195,8 +195,27 @@ public sealed class PosReceiptLine : CompanyEntity
     /// <summary>What it says on the receipt.</summary>
     public required string Description { get; set; }
 
-    /// <summary>How much. Negative takes goods back.</summary>
+    /// <summary>
+    /// How much, in the item's base unit. Negative takes goods back.
+    /// </summary>
+    /// <remarks>
+    /// Base units, always, whatever was rung. Stock leaves in base units and the price is per
+    /// base unit, so a case of twelve is stored as twelve and charged as twelve. What the cashier
+    /// actually scanned is on <see cref="UnitCode"/> beside it, for the receipt to print.
+    /// </remarks>
     public decimal Quantity { get; set; }
+
+    /// <summary>The unit it was rung in, when that was not the base unit.</summary>
+    public string? UnitCode { get; set; }
+
+    /// <summary>
+    /// How many base units that unit held at the moment of sale.
+    /// </summary>
+    /// <remarks>
+    /// Frozen on the line, like the cost. A company that redefines its case from twelve to six
+    /// must not thereby restate what somebody bought last year.
+    /// </remarks>
+    public decimal QuantityPerUnit { get; set; } = 1m;
 
     /// <summary>The price on the shelf, before any discount.</summary>
     public decimal UnitPrice { get; set; }

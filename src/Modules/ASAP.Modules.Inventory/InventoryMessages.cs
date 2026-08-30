@@ -91,6 +91,24 @@ public static class InventoryMessages
     /// <summary>A category was saved without a code.</summary>
     public static readonly MessageCode CategoryCodeRequired = new("INV.CATEGORY.CODE_REQUIRED");
 
+    /// <summary>A movement on an item with variants did not say which one.</summary>
+    public static readonly MessageCode VariantRequired = new("INV.VARIANT.REQUIRED");
+
+    /// <summary>A variant was named that the item has not got.</summary>
+    public static readonly MessageCode VariantNotFound = new("INV.VARIANT.NOT_FOUND");
+
+    /// <summary>A variant was named on an item that does not have them.</summary>
+    public static readonly MessageCode VariantNotUsedHere = new("INV.VARIANT.NOT_USED");
+
+    /// <summary>The variant is withdrawn from use.</summary>
+    public static readonly MessageCode VariantBlocked = new("INV.VARIANT.BLOCKED");
+
+    /// <summary>An item was told to stop having variants while stock still sat under them.</summary>
+    public static readonly MessageCode VariantsStillHoldStock = new("INV.VARIANT.STILL_HOLDS_STOCK");
+
+    /// <summary>A variant was saved without a code.</summary>
+    public static readonly MessageCode VariantCodeRequired = new("INV.VARIANT.CODE_REQUIRED");
+
     /// <summary>No category by that code.</summary>
     public static readonly MessageCode CategoryNotFound = new("INV.CATEGORY.NOT_FOUND");
 
@@ -719,6 +737,96 @@ public static class InventoryMessages
                 "ارفع الإيقاف عنه، أو اختر غيره. فقد أُوقف عن قصد، وتوجيه فئة إليه يوقف ترحيلها "
                 + "بصمت."),
             HelpTopic = "inventory/item-categories",
+        },
+        new()
+        {
+            Code = VariantRequired,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("Say which one", "حدّد أيّها"),
+            Detail = new LocalizedText(
+                "{ItemNo} is stocked as separate variants, and line {LineNo} did not say which.",
+                "الصنف {ItemNo} يُخزَّن بأشكال منفصلة، والسطر {LineNo} لم يحدد أيّها."),
+            Resolution = new LocalizedText(
+                "Choose the colour, size or flavour. Guessing is the one thing that must not "
+                + "happen here: it does not fail, it costs a blue shirt against a red receipt, and "
+                + "the only symptom is a margin quietly wrong on both.",
+                "اختر اللون أو المقاس أو النكهة. فالتخمين هو ما يجب ألا يحدث هنا: إذ لا يُخطئ، بل "
+                + "يحمّل قميصًا أزرق على قيد استلام أحمر، وعلامته الوحيدة هامش خاطئ في كليهما بصمت."),
+            HelpTopic = "inventory/variants",
+        },
+        new()
+        {
+            Code = VariantNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such variant", "لا يوجد شكل بهذا الرمز"),
+            Detail = new LocalizedText(
+                "{ItemNo} has no variant {VariantCode}.",
+                "الصنف {ItemNo} ليس فيه شكل {VariantCode}."),
+            Resolution = new LocalizedText(
+                "Check it against the item's list. A variant code is unique inside its item, so "
+                + "the same code on another item is a different thing.",
+                "قارنه بقائمة الصنف. فرمز الشكل فريد داخل صنفه، والرمز نفسه في صنف آخر شيء آخر."),
+            HelpTopic = "inventory/variants",
+        },
+        new()
+        {
+            Code = VariantNotUsedHere,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("This item has no variants", "هذا الصنف بلا أشكال"),
+            Detail = new LocalizedText(
+                "{VariantCode} was given for {ItemNo}, which is stocked as one thing.",
+                "أُعطي الرمز {VariantCode} للصنف {ItemNo}، وهو يُخزَّن كشيء واحد."),
+            Resolution = new LocalizedText(
+                "Leave it out, or turn variants on for the item first. Recording a variant nothing "
+                + "reads would look like tracking that never happened.",
+                "احذفه، أو فعّل الأشكال للصنف أولًا. فتسجيل شكل لا يقرؤه شيء يوحي بتتبّع لم يحدث."),
+            HelpTopic = "inventory/variants",
+        },
+        new()
+        {
+            Code = VariantBlocked,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("That variant is withdrawn", "هذا الشكل موقوف"),
+            Detail = new LocalizedText(
+                "{VariantCode} of {ItemNo} is blocked.",
+                "الشكل {VariantCode} من الصنف {ItemNo} موقوف."),
+            Resolution = new LocalizedText(
+                "Choose another, or unblock it. What is already in stock under it stays counted, "
+                + "because it is still on the shelf.",
+                "اختر غيره، أو ارفع الإيقاف عنه. وما في المخزون تحته يبقى محسوبًا، لأنه ما زال "
+                + "على الرف."),
+            HelpTopic = "inventory/variants",
+        },
+        new()
+        {
+            Code = VariantsStillHoldStock,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("There is still stock under them", "ما زال هناك مخزون تحتها"),
+            Detail = new LocalizedText(
+                "{ItemNo} was to stop using variants, and {VariantCount} of them still hold "
+                + "{Quantity:0.#####} between them.",
+                "كان الصنف {ItemNo} سيتوقف عن استخدام الأشكال، وما زال {VariantCount} منها يحمل "
+                + "{Quantity:0.#####} بينها."),
+            Resolution = new LocalizedText(
+                "Clear the stock first. Turning variants off would leave every one of those "
+                + "entries pointing at a variant nothing reads, and the item's cost layers would "
+                + "silently merge colours that were never interchangeable.",
+                "صفِّ المخزون أولًا. فإيقاف الأشكال يترك كل تلك القيود تشير إلى شكل لا يقرؤه شيء، "
+                + "وتندمج طبقات تكلفة الصنف بصمت جامعةً ألوانًا لم تكن يومًا قابلة للتبادل."),
+            HelpTopic = "inventory/variants",
+        },
+        new()
+        {
+            Code = VariantCodeRequired,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("A variant needs a code", "الشكل يحتاج رمزًا"),
+            Detail = new LocalizedText(
+                "No code was given, and a variant is named by its code on every entry it appears on.",
+                "لم يُعطَ رمز، والشكل يُسمّى برمزه في كل قيد يظهر فيه."),
+            Resolution = new LocalizedText(
+                "Give it a short code somebody will recognise: BLUE-M, RED-L.",
+                "أعطه رمزًا قصيرًا يعرفه الناس: BLUE-M أو RED-L."),
+            HelpTopic = "inventory/variants",
         },
         new()
         {

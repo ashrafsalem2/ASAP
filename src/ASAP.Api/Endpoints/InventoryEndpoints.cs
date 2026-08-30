@@ -125,6 +125,53 @@ public sealed record SaveItemUnitRequest(
     string? Barcode = null,
     bool IsActive = true);
 
+/// <summary>One version of an item that is stocked separately.</summary>
+/// <param name="Code">Its code, unique within its item.</param>
+/// <param name="Description">What this version is called.</param>
+/// <param name="DescriptionArabic">The same in Arabic.</param>
+/// <param name="Barcode">Its own barcode.</param>
+/// <param name="SortOrder">Where it sits in a list.</param>
+/// <param name="IsBlocked">Whether it is withdrawn from use.</param>
+public sealed record ItemVariantView(
+    string Code,
+    string Description,
+    string? DescriptionArabic,
+    string? Barcode,
+    int SortOrder,
+    bool IsBlocked);
+
+/// <summary>A variant as a client sends it.</summary>
+/// <param name="Code">Its code, unique within its item.</param>
+/// <param name="Description">What this version is called.</param>
+/// <param name="DescriptionArabic">The same in Arabic.</param>
+/// <param name="Barcode">Its own barcode.</param>
+/// <param name="SortOrder">Where it sits in a list.</param>
+/// <param name="IsBlocked">Whether it is withdrawn from use.</param>
+public sealed record SaveItemVariantRequest(
+    string Code,
+    string Description,
+    string? DescriptionArabic = null,
+    string? Barcode = null,
+    int SortOrder = 0,
+    bool IsBlocked = false);
+
+/// <summary>Whether an item is stocked as separate versions.</summary>
+/// <param name="HasVariants">On, every movement has to say which variant.</param>
+public sealed record SetHasVariantsRequest(bool HasVariants);
+
+/// <summary>What one variant is holding at one location.</summary>
+/// <param name="VariantCode">The variant.</param>
+/// <param name="Description">What it is called.</param>
+/// <param name="DescriptionArabic">The same in Arabic.</param>
+/// <param name="LocationCode">Where.</param>
+/// <param name="Quantity">How much of it is there.</param>
+public sealed record VariantStockView(
+    string VariantCode,
+    string Description,
+    string? DescriptionArabic,
+    string LocationCode,
+    decimal Quantity);
+
 /// <summary>One category items are grouped under.</summary>
 /// <param name="Code">Its code.</param>
 /// <param name="Name">What it is called.</param>
@@ -259,13 +306,15 @@ public sealed record StockValuationView(
 /// <param name="PostingDate">The date to report it in. Defaults to today.</param>
 /// <param name="Reason">Why, which goes on the entries and the ledger description.</param>
 /// <param name="ContraAccountNo">Where the loss or gain lands, or null for the category's own.</param>
+/// <param name="VariantCode">Which variant, on an item that has them.</param>
 public sealed record RevalueStockRequest(
     string ItemNo,
     string LocationCode,
     decimal NewUnitCost,
     DateOnly? PostingDate = null,
     string? Reason = null,
-    string? ContraAccountNo = null);
+    string? ContraAccountNo = null,
+    string? VariantCode = null);
 
 /// <summary>Whether a location tracks stock down to the bin.</summary>
 /// <param name="UsesBins">On, every movement here has to say which bin.</param>
@@ -335,6 +384,8 @@ public sealed record ItemUnitView(
 /// <param name="Quantity">How many of that unit.</param>
 /// <param name="BaseQuantity">The same amount in the unit stock is stored in.</param>
 /// <param name="BaseUnitCode">What that unit is.</param>
+/// <param name="VariantCode">Which variant was scanned, on an item that has them.</param>
+/// <param name="VariantDescription">What that variant is called.</param>
 public sealed record ResolvedQuantityView(
     string ItemNo,
     string Description,
@@ -342,7 +393,9 @@ public sealed record ResolvedQuantityView(
     string UnitCode,
     decimal Quantity,
     decimal BaseQuantity,
-    string BaseUnitCode);
+    string BaseUnitCode,
+    string? VariantCode = null,
+    string? VariantDescription = null);
 
 /// <summary>Items, locations, stock levels and movements.</summary>
 public static class InventoryEndpoints
@@ -482,6 +535,22 @@ public static class InventoryEndpoints
         group.MapGet("/reports/posting-gaps", PostingGapsAsync)
              .WithName("CategoryPostingGaps")
              .WithSummary("Which categories are not reaching the ledger, and what that has cost.");
+
+        group.MapGet("/items/{itemNo}/variants", VariantsAsync)
+             .WithName("ItemVariants")
+             .WithSummary("The colours, sizes and flavours an item is stocked as.");
+
+        group.MapPost("/items/{itemNo}/variants", SaveVariantAsync)
+             .WithName("SaveItemVariant")
+             .WithSummary("Adds a variant to an item, or changes one already there.");
+
+        group.MapPost("/items/{itemNo}/has-variants", SetHasVariantsAsync)
+             .WithName("SetItemHasVariants")
+             .WithSummary("Turns variants on or off for an item.");
+
+        group.MapGet("/items/{itemNo}/variant-stock", VariantStockAsync)
+             .WithName("VariantStock")
+             .WithSummary("What each variant is holding, by location.");
 
         return app;
     }
@@ -922,7 +991,9 @@ public static class InventoryEndpoints
                 result.Value.UnitCode,
                 result.Value.Quantity,
                 result.Value.BaseQuantity,
-                result.Value.BaseUnitCode));
+                result.Value.BaseUnitCode,
+                result.Value.VariantCode,
+                result.Value.VariantDescription));
     }
     private static async Task<IResult> SaveUnitAsync(
         SaveUnitRequest request,
@@ -1152,7 +1223,8 @@ public static class InventoryEndpoints
         HttpContext http,
         CancellationToken cancellationToken,
         string itemNo,
-        string locationCode)
+        string locationCode,
+        string? variantCode = null)
     {
         if (!Can(user, "Inventory.Stock.Read"))
         {
@@ -1160,7 +1232,7 @@ public static class InventoryEndpoints
         }
 
         var result = await revaluation
-            .ValuationAsync(itemNo, locationCode, cancellationToken)
+            .ValuationAsync(itemNo, locationCode, variantCode, cancellationToken)
             .ConfigureAwait(false);
 
         return result.Failed
@@ -1198,6 +1270,7 @@ public static class InventoryEndpoints
                 request.PostingDate ?? clock.Today,
                 request.Reason,
                 request.ContraAccountNo,
+                request.VariantCode,
                 cancellationToken)
             .ConfigureAwait(false);
 
@@ -1441,6 +1514,114 @@ public static class InventoryEndpoints
             g.MissingAccounts,
             g.UnpostedValue,
             g.UnpostedEntryCount)));
+    }
+
+    private static async Task<IResult> VariantsAsync(
+        string itemNo,
+        ItemVariantService variants,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, "Inventory.Variant.Read"))
+        {
+            return Forbidden("Inventory.Variant.Read", "view item variants", http);
+        }
+
+        var rows = await variants.VariantsAsync(itemNo, cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(rows.Select(static v => new ItemVariantView(
+            v.Code,
+            v.Description,
+            v.DescriptionArabic,
+            v.Barcode,
+            v.SortOrder,
+            v.IsBlocked)));
+    }
+
+    private static async Task<IResult> SaveVariantAsync(
+        string itemNo,
+        SaveItemVariantRequest request,
+        ItemVariantService variants,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, "Inventory.Variant.Update"))
+        {
+            return Forbidden("Inventory.Variant.Update", "maintain item variants", http);
+        }
+
+        var result = await variants
+            .SaveAsync(
+                itemNo,
+                new ItemVariantRequest(
+                    request.Code,
+                    request.Description,
+                    request.DescriptionArabic,
+                    request.Barcode,
+                    request.SortOrder,
+                    request.IsBlocked),
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed
+            ? Refused(result, http)
+            : Results.Ok(new ItemVariantView(
+                result.Value.Code,
+                result.Value.Description,
+                result.Value.DescriptionArabic,
+                result.Value.Barcode,
+                result.Value.SortOrder,
+                result.Value.IsBlocked));
+    }
+
+    private static async Task<IResult> SetHasVariantsAsync(
+        string itemNo,
+        SetHasVariantsRequest request,
+        ItemVariantService variants,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, "Inventory.Variant.Update"))
+        {
+            return Forbidden("Inventory.Variant.Update", "turn variants on or off", http);
+        }
+
+        var result = await variants
+            .SetHasVariantsAsync(itemNo, request.HasVariants, cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed
+            ? Refused(result, http)
+            : Results.Ok(new { itemNo = result.Value.No, hasVariants = result.Value.HasVariants });
+    }
+
+    private static async Task<IResult> VariantStockAsync(
+        string itemNo,
+        ItemVariantService variants,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, "Inventory.Stock.Read"))
+        {
+            return Forbidden("Inventory.Stock.Read", "read stock by variant", http);
+        }
+
+        var rows = await variants.StockAsync(itemNo, cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(rows.Select(static r => new VariantStockView(
+            r.VariantCode,
+            r.Description,
+            r.DescriptionArabic,
+            r.LocationCode,
+            r.Quantity)));
     }
 
     private static bool Can(IUserContext user, string permission)

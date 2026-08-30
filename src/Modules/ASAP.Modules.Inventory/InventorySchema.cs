@@ -124,6 +124,31 @@ public sealed partial class InventorySchema : IModuleSchema
                    .HasFilter("[IsDeleted] = 0");
         });
 
+        modelBuilder.Entity<ItemVariant>(builder =>
+        {
+            builder.ToTable("ItemVariants", SchemaName);
+
+            builder.Property(v => v.Code).HasMaxLength(32).IsRequired();
+            builder.Property(v => v.Description).HasMaxLength(250).IsRequired();
+            builder.Property(v => v.DescriptionArabic).HasMaxLength(250);
+            builder.Property(v => v.Barcode).HasMaxLength(64);
+            builder.Property(v => v.LastDirectCost).HasColumnType(DecimalPrecisionConventions.UnitAmount);
+            builder.Property(v => v.RowVersion).IsRowVersion();
+
+            builder.HasOne(v => v.Item)
+                   .WithMany()
+                   .HasForeignKey(v => v.ItemId)
+                   .OnDelete(DeleteBehavior.Restrict);
+
+            // Unique within its item, not the company: two items both having a RED is ordinary.
+            builder.HasIndex(v => new { v.ItemId, v.Code })
+                   .IsUnique()
+                   .HasFilter("[IsDeleted] = 0");
+
+            // A scan looks here first, like it does for units.
+            builder.HasIndex(v => new { v.CompanyId, v.Barcode });
+        });
+
         modelBuilder.Entity<Adjustments.AdjustmentReason>(builder =>
         {
             builder.ToTable("AdjustmentReasons", SchemaName);
@@ -171,6 +196,12 @@ public sealed partial class InventorySchema : IModuleSchema
             builder.Property(e => e.ItemNo).HasMaxLength(32).IsRequired();
             builder.Property(e => e.LocationCode).HasMaxLength(32).IsRequired();
             builder.Property(e => e.BinCode).HasMaxLength(32);
+            builder.Property(e => e.VariantCode).HasMaxLength(32);
+
+            // The stock line's real identity once variants are in play. Every on-hand sum and
+            // every cost layer query goes down this index.
+            builder.HasIndex(e => new { e.ItemId, e.VariantId, e.LocationId, e.RemainingQuantity });
+
             builder.Property(e => e.ReasonCode).HasMaxLength(32);
             builder.Property(e => e.Note).HasMaxLength(500);
 
@@ -234,6 +265,8 @@ public sealed partial class InventorySchema : IModuleSchema
         modelBuilder.Entity<ItemApplicationEntry>(builder =>
         {
             builder.ToTable("ItemApplications", SchemaName);
+
+            builder.HasIndex(e => new { e.ItemId, e.VariantId, e.IsOutstanding });
 
             builder.Property(a => a.Quantity).HasColumnType(DecimalPrecisionConventions.Quantity);
 

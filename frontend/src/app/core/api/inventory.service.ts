@@ -11,6 +11,7 @@ import {
   Item,
   ItemCategory,
   ItemUnit,
+  ItemVariant,
   ResolvedQuantity,
   SettlementReceipt,
   StockCount,
@@ -25,6 +26,7 @@ import {
   Transfer,
   TransferCreated,
   TransferMoveReceipt,
+  VariantStockRow,
   UnitOfMeasure,
 } from './asap-api.models';
 
@@ -341,6 +343,47 @@ export class InventoryService {
   categoryPostingGaps(): Promise<CategoryPostingGap[]> {
     return firstValueFrom(
       this.http.get<CategoryPostingGap[]>(`${this.base}/reports/posting-gaps`),
+    );
+  }
+
+  /** The colours, sizes and flavours an item is stocked as. */
+  itemVariants(itemNo: string): Promise<ItemVariant[]> {
+    return firstValueFrom(
+      this.http.get<ItemVariant[]>(`${this.base}/items/${encodeURIComponent(itemNo)}/variants`),
+    );
+  }
+
+  /** Adds a variant to an item, or changes one already there. */
+  saveItemVariant(itemNo: string, variant: ItemVariant): Promise<ItemVariant> {
+    return firstValueFrom(
+      this.http.post<ItemVariant>(
+        `${this.base}/items/${encodeURIComponent(itemNo)}/variants`,
+        variant,
+      ),
+    );
+  }
+
+  /**
+   * Turns variants on or off for an item.
+   *
+   * Off is refused while stock still stands under them: those entries would keep pointing at a
+   * variant nothing reads, and the item's cost layers would merge colours that were never the
+   * same goods.
+   */
+  setItemHasVariants(itemNo: string, hasVariants: boolean): Promise<unknown> {
+    return firstValueFrom(
+      this.http.post(`${this.base}/items/${encodeURIComponent(itemNo)}/has-variants`, {
+        hasVariants,
+      }),
+    );
+  }
+
+  /** What each variant is holding, by location. */
+  variantStock(itemNo: string): Promise<VariantStockRow[]> {
+    return firstValueFrom(
+      this.http.get<VariantStockRow[]>(
+        `${this.base}/items/${encodeURIComponent(itemNo)}/variant-stock`,
+      ),
     );
   }
 }

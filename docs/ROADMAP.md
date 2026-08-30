@@ -135,8 +135,7 @@ Everything else posts here, so it goes first.
   item's, which is what makes scanning a case of twelve add twelve rather than one. A screen sets
   both halves and answers "what does this barcode mean", refusing a barcode something else already
   carries -- two rows with one barcode makes a scan return whichever the database reached first,
-  which nobody notices until a stock count. Variants, and categories as something a company can
-  manage rather than an entity the seed fills in, still to come
+  which nobody notices until a stock count
 - **done** Locations, and bins inside them. A bin is a refinement of a location, never a
   substitute: every stock figure, valuation and cost layer stays per location and the bin only says
   where inside. Costing per bin would mean one item at one location having two costs depending on
@@ -161,6 +160,17 @@ Everything else posts here, so it goes first.
   sales booked against the revenue they earned. The loss lands on variance rather than cost of
   sales, because nothing was sold. Revaluing a whole category at once, and lower-of-cost-or-market
   as a routine, still to come
+- **done** Item variants: the colours, sizes and flavours an item is stocked as. Unlike a bin, a
+  variant partitions the arithmetic -- stock, cost layers and valuation are per item, variant and
+  location together, because a blue shirt is a different physical thing from a red one and may have
+  cost differently. A query that forgets the variant does not fail; it costs a blue shirt against a
+  red receipt and the only symptom is a margin quietly wrong on both, so every layer and on-hand
+  query now takes one and the compiler enumerated the call sites. Opt-in per item, and an item
+  without them behaves exactly as before. No default and no softening when they are on: "no
+  variant" is not a vaguer answer but a different stock line no shelf corresponds to. Each variant
+  remembers its own last cost, because the item's figure becomes whichever variant arrived most
+  recently. Variant dimensions, generating a colour-by-size grid, and a price per variant still to
+  come
 - **done** Item categories a company can manage, with the accounts each posts to. Accounts live on
   the category rather than the item, so twelve thousand items need six sets of accounts rather than
   twelve thousand -- that is why the grouping exists at all. Account numbers are checked against the

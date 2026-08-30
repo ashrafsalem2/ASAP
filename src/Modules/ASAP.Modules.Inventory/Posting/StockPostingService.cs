@@ -44,6 +44,11 @@ namespace ASAP.Modules.Inventory.Posting;
 /// shelf says "breakage" without having to know which account that is.
 /// </param>
 /// <param name="Note">What the person adjusting wrote, where they wrote anything.</param>
+/// <param name="VariantCode">
+/// Which colour, size or flavour, on an item that has them. Required there and refused elsewhere:
+/// a variant splits the stock and the cost layers, so a movement that did not say which one would
+/// have to be guessed at, and a guess here costs a blue shirt against a red receipt.
+/// </param>
 public sealed record StockMovementRequest(
     string ItemNo,
     string LocationCode,
@@ -54,7 +59,8 @@ public sealed record StockMovementRequest(
     string? ContraAccountNo = null,
     string? BinCode = null,
     string? ReasonCode = null,
-    string? Note = null);
+    string? Note = null,
+    string? VariantCode = null);
 
 /// <summary>What a stock posting produced.</summary>
 /// <param name="TransactionNo">The number grouping every entry written.</param>
@@ -269,6 +275,8 @@ public sealed partial class StockPostingService(
             // bin named lands in the receiving bay and the entry has to say so.
             BinId = movement.Bin?.Id,
             BinCode = movement.Bin?.Code,
+            VariantId = movement.VariantId,
+            VariantCode = movement.VariantCode,
             ReasonCode = request.ReasonCode?.Trim().ToUpperInvariant(),
             Note = request.Note?.Trim(),
             Quantity = request.Quantity,
@@ -280,7 +288,22 @@ public sealed partial class StockPostingService(
 
         var result = request.Quantity > 0
             ? ReceiveStock(entry, item, request)
-            : await IssueStockAsync(entry, item, location, request, cancellationToken).ConfigureAwait(false);
+            : await IssueStockAsync(entry, item, location, movement, request, cancellationToken).ConfigureAwait(false);
+
+        // What this variant last cost, kept beside the item's own figure. The item's becomes
+        // whichever variant arrived most recently once variants are in play, which makes it a poor
+        // thing to estimate an unreceived colour at.
+        if (request.Quantity > 0m && movement.VariantId is { } receivedVariantId)
+        {
+            var variant = await context.Set<ItemVariant>()
+                .FirstOrDefaultAsync(v => v.Id == receivedVariantId, cancellationToken)
+                .ConfigureAwait(false);
+
+            if (variant is not null)
+            {
+                variant.LastDirectCost = request.UnitCost > 0m ? request.UnitCost : item.UnitCost;
+            }
+        }
 
         context.Set<ItemLedgerEntry>().Add(entry);
 
@@ -332,13 +355,18 @@ public sealed partial class StockPostingService(
         ItemLedgerEntry entry,
         Item item,
         Location location,
+        MovementView movement,
         StockMovementRequest request,
         CancellationToken cancellationToken)
     {
         var quantity = -request.Quantity;
 
+        // Item, variant and location together. Dropping the variant here would cost a blue shirt
+        // out of a red receipt without failing, and the only symptom would be a margin quietly
+        // wrong on both.
         var openLayers = await context.Set<ItemLedgerEntry>()
             .Where(e => e.ItemId == item.Id
+                        && e.VariantId == movement.VariantId
                         && e.LocationId == location.Id
                         && e.RemainingQuantity > 0)
             .OrderBy(e => e.PostingDate)
@@ -375,6 +403,10 @@ public sealed partial class StockPostingService(
                 TenantId = entry.TenantId,
                 CompanyId = entry.CompanyId,
                 ItemId = item.Id,
+
+                // Carried onto the application so the settlement routine can find a receipt of
+                // the same variant without a join it might one day drop.
+                VariantId = movement.VariantId,
                 OutboundEntryId = entry.Id,
                 InboundEntryId = application.InboundEntryId,
                 Quantity = application.Quantity,
@@ -518,6 +550,16 @@ public sealed partial class StockPostingService(
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+        // Every variant of every item on this posting, loaded once. A goods receipt for a
+        // clothing line is fifty lines of the same item in different sizes.
+        var itemIds = items.Values.Select(static i => i.Id).ToList();
+
+        var variants = await context.Set<ItemVariant>()
+            .AsNoTracking()
+            .Where(v => itemIds.Contains(v.ItemId))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
         var reasonCodes = requests
             .Select(static r => r.ReasonCode)
             .Where(static c => !string.IsNullOrWhiteSpace(c))
@@ -577,6 +619,14 @@ public sealed partial class StockPostingService(
                 continue;
             }
 
+            var variantResult = ResolveVariant(request, item, variants, index + 1);
+
+            if (variantResult.Refusal is { } variantRefusal)
+            {
+                missing.Add(variantRefusal);
+                continue;
+            }
+
             var reasonRefusal = CheckReason(request, reasons, reasonRequired, index + 1);
 
             if (reasonRefusal is not null)
@@ -585,18 +635,21 @@ public sealed partial class StockPostingService(
                 continue;
             }
 
-            var onHand = await OnHandAsync(item.Id, location.Id, cancellationToken).ConfigureAwait(false);
+            var onHand = await OnHandAsync(item.Id, variantResult.VariantId, location.Id, cancellationToken)
+                .ConfigureAwait(false);
 
             var inBin = binResult.Bin is null
                 ? 0m
-                : await BinOnHandAsync(item.Id, binResult.Bin.Id, cancellationToken).ConfigureAwait(false);
+                : await BinOnHandAsync(item.Id, variantResult.VariantId, binResult.Bin.Id, cancellationToken)
+                    .ConfigureAwait(false);
 
             // Only asked when the shelf is actually short. "Where is it then" is a query, and
             // running it on every line of a put-away sheet to answer a question nobody asked
             // would make the ordinary case pay for the exception.
             var elsewhere = binResult.Bin is not null && request.Quantity < 0m
                 && inBin + request.Quantity < 0m
-                ? await BinsHoldingAsync(item.Id, location.Id, binResult.Bin.Id, cancellationToken)
+                ? await BinsHoldingAsync(
+                        item.Id, variantResult.VariantId, location.Id, binResult.Bin.Id, cancellationToken)
                     .ConfigureAwait(false)
                 : [];
 
@@ -609,7 +662,9 @@ public sealed partial class StockPostingService(
                     item.CostingMethod,
                     item.IsBlocked,
                     item.AllowNegativeInventory,
-                    item.UnitCost > 0 ? item.UnitCost : item.LastDirectCost,
+                    variantResult.LastDirectCost > 0m
+                        ? variantResult.LastDirectCost
+                        : item.UnitCost > 0 ? item.UnitCost : item.LastDirectCost,
                     item.ReorderPoint),
                 new LocationView(location.Code, location.Name, location.IsBlocked, location.IsSellable),
                 request.Quantity,
@@ -620,12 +675,85 @@ public sealed partial class StockPostingService(
                 BinQuantityOnHand = inBin,
                 BinsHoldingIt = elsewhere,
                 ContraAccountNo = ContraFor(request, reasons),
+                VariantId = variantResult.VariantId,
+                VariantCode = variantResult.VariantCode,
+                VariantUnitCost = variantResult.LastDirectCost,
             });
         }
 
         return missing.Count > 0
             ? Result<List<MovementView>>.Failure(missing)
             : Result<List<MovementView>>.Success(movements);
+    }
+
+    /// <summary>What a line's variant came to, or why the line cannot stand.</summary>
+    private readonly record struct ResolvedVariant(
+        Guid? VariantId,
+        string? VariantCode,
+        decimal LastDirectCost,
+        AsapMessage? Refusal);
+
+    /// <summary>
+    /// Works out which variant a line moves, and whether it may.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Both directions refused, like bins: an item with variants takes nothing else, and one
+    /// without takes no variant at all. Unlike bins there is no softening and no default, because
+    /// a variant is not a refinement of the stock but a partition of it. Falling back to "no
+    /// variant" on an item that has them would open a phantom stock line that no shelf
+    /// corresponds to, and the first sale out of it would cost against nothing.
+    /// </para>
+    /// <para>
+    /// Blocked stops goods arriving, not leaving, for the same reason a blocked bin does: what is
+    /// already in stock under a withdrawn variant is still on the shelf and still has to be
+    /// sellable.
+    /// </para>
+    /// </remarks>
+    private ResolvedVariant ResolveVariant(
+        StockMovementRequest request,
+        Item item,
+        List<ItemVariant> variants,
+        int lineNo)
+    {
+        var target = MessageTarget.OnField($"Lines[{lineNo}]");
+        var wanted = request.VariantCode?.Trim();
+
+        if (!item.HasVariants)
+        {
+            return string.IsNullOrEmpty(wanted)
+                ? new ResolvedVariant(null, null, 0m, null)
+                : new ResolvedVariant(null, null, 0m, messages.Render(
+                    InventoryMessages.VariantNotUsedHere,
+                    Args(("LineNo", lineNo), ("VariantCode", wanted), ("ItemNo", item.No)),
+                    target));
+        }
+
+        if (string.IsNullOrEmpty(wanted))
+        {
+            return new ResolvedVariant(null, null, 0m, messages.Render(
+                InventoryMessages.VariantRequired,
+                Args(("LineNo", lineNo), ("ItemNo", item.No)),
+                target));
+        }
+
+        var variant = variants.Find(v =>
+            v.ItemId == item.Id && string.Equals(v.Code, wanted, StringComparison.OrdinalIgnoreCase));
+
+        if (variant is null)
+        {
+            return new ResolvedVariant(null, null, 0m, messages.Render(
+                InventoryMessages.VariantNotFound,
+                Args(("LineNo", lineNo), ("VariantCode", wanted), ("ItemNo", item.No)),
+                target));
+        }
+
+        return variant.IsBlocked && request.Quantity > 0m
+            ? new ResolvedVariant(null, null, 0m, messages.Render(
+                InventoryMessages.VariantBlocked,
+                Args(("LineNo", lineNo), ("VariantCode", variant.Code), ("ItemNo", item.No)),
+                target))
+            : new ResolvedVariant(variant.Id, variant.Code, variant.LastDirectCost, null);
     }
 
     /// <summary>Where an adjustment's value posts against, when its reason names an account.</summary>
@@ -823,12 +951,14 @@ public sealed partial class StockPostingService(
     /// </remarks>
     private async Task<IReadOnlyList<string>> BinsHoldingAsync(
         Guid itemId,
+        Guid? variantId,
         Guid locationId,
         Guid exceptBinId,
         CancellationToken cancellationToken)
     {
         var held = await context.Set<ItemLedgerEntry>()
-            .Where(e => e.ItemId == itemId && e.LocationId == locationId && e.BinId != null
+            .Where(e => e.ItemId == itemId && e.VariantId == variantId
+                && e.LocationId == locationId && e.BinId != null
                 && e.BinId != exceptBinId)
             .GroupBy(static e => e.BinId)
             .Select(static g => new { BinId = g.Key, Quantity = g.Sum(static e => e.Quantity) })
@@ -872,9 +1002,13 @@ public sealed partial class StockPostingService(
     /// Summed from the same ledger the location total comes from, so the bins add up to the
     /// location by construction rather than by a reconciliation somebody has to run.
     /// </remarks>
-    private async Task<decimal> BinOnHandAsync(Guid itemId, Guid binId, CancellationToken cancellationToken)
+    private async Task<decimal> BinOnHandAsync(
+        Guid itemId,
+        Guid? variantId,
+        Guid binId,
+        CancellationToken cancellationToken)
         => await context.Set<ItemLedgerEntry>()
-            .Where(e => e.ItemId == itemId && e.BinId == binId)
+            .Where(e => e.ItemId == itemId && e.VariantId == variantId && e.BinId == binId)
             .SumAsync(static e => (decimal?)e.Quantity, cancellationToken)
             .ConfigureAwait(false) ?? 0m;
 
@@ -885,9 +1019,13 @@ public sealed partial class StockPostingService(
     /// Summed from the ledger rather than read off the item, because the item carries a total
     /// across every location and the question here is about one shelf.
     /// </remarks>
-    private async Task<decimal> OnHandAsync(Guid itemId, Guid locationId, CancellationToken cancellationToken)
+    private async Task<decimal> OnHandAsync(
+        Guid itemId,
+        Guid? variantId,
+        Guid locationId,
+        CancellationToken cancellationToken)
         => await context.Set<ItemLedgerEntry>()
-            .Where(e => e.ItemId == itemId && e.LocationId == locationId)
+            .Where(e => e.ItemId == itemId && e.VariantId == variantId && e.LocationId == locationId)
             .SumAsync(static e => (decimal?)e.Quantity, cancellationToken)
             .ConfigureAwait(false) ?? 0m;
 

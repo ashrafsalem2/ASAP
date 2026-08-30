@@ -132,6 +132,17 @@ public sealed class ItemApplicationEntry : LedgerEntity
     public Guid ItemId { get; set; }
 
     /// <summary>The entry that took stock out.</summary>
+    /// <summary>
+    /// The variant, where the item has them.
+    /// </summary>
+    /// <remarks>
+    /// Carried on the application rather than looked up from the outbound entry, because this is
+    /// what the settlement routine searches receipts by and a query that had to join to find it
+    /// would be the place somebody later dropped the join. A blue shortfall is settled by a blue
+    /// receipt or by nothing.
+    /// </remarks>
+    public Guid? VariantId { get; set; }
+
     public Guid OutboundEntryId { get; set; }
 
     /// <summary>The receipt it was taken from. Null while the stock has not arrived yet.</summary>

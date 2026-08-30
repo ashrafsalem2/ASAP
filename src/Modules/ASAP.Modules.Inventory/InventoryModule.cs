@@ -80,6 +80,7 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
         services.AddScoped<Locations.BinSetupService>();
         services.AddScoped<Adjustments.AdjustmentReasonService>();
         services.AddScoped<Items.ItemCategoryService>();
+        services.AddScoped<Items.ItemVariantService>();
         services.AddScoped<Seed.InventorySeeder>();
         services.AddScoped<Transfers.TransferService>();
         services.AddScoped<Counting.StockCountService>();
@@ -164,6 +165,21 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
                 "خفض المخزون تحت الصفر في شركة أو صنف يمنع ذلك، أو الصرف من موقع لم يُفرج عن "
                 + "بضائعه. يتم تدقيق كل استخدام، وتُسوّى التكلفة عند وصول البضاعة."),
             implies: [$"{Id}.Stock.Read"],
+            isSensitive: true),
+
+        PermissionDescriptor.Define(
+            Id, "Variant", PermissionAction.Read,
+            new LocalizedText("View item variants", "عرض أشكال الأصناف")),
+
+        PermissionDescriptor.Define(
+            Id, "Variant", PermissionAction.Update,
+            new LocalizedText("Maintain item variants", "إدارة أشكال الأصناف"),
+            new LocalizedText(
+                "Say which colours, sizes or flavours an item is stocked as. A variant splits the "
+                + "stock and the cost layers, so this changes what a movement has to say.",
+                "تحديد الألوان والمقاسات والنكهات التي يُخزَّن بها الصنف. والشكل يقسّم المخزون "
+                + "وطبقات التكلفة، فهذا يغيّر ما يجب أن تذكره الحركة."),
+            implies: [$"{Id}.Variant.Read"],
             isSensitive: true),
 
         PermissionDescriptor.Define(
@@ -372,6 +388,12 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
             Order = 200,
         },
         Page("Items", new LocalizedText("Items", "الأصناف"), "/inventory/items", $"{Id}.Item.Read", 10),
+        Page(
+            "Variants",
+            new LocalizedText("Item variants", "أشكال الأصناف"),
+            "/inventory/variants",
+            $"{Id}.Variant.Read",
+            14),
         Page(
             "Categories",
             new LocalizedText("Item categories", "فئات الأصناف"),

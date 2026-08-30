@@ -83,7 +83,7 @@ public sealed partial class CostSettlementService(
 
             foreach (var application in group.OrderBy(static a => a.PostingDate).ThenBy(static a => a.Id))
             {
-                var layer = await NextAvailableLayerAsync(item.Id, application, cancellationToken)
+                var layer = await NextAvailableLayerAsync(item.Id, application.VariantId, application, cancellationToken)
                     .ConfigureAwait(false);
 
                 // Still nothing to settle against. The goods have not arrived yet, so the estimate
@@ -268,10 +268,15 @@ public sealed partial class CostSettlementService(
     /// </remarks>
     private Task<ItemLedgerEntry?> NextAvailableLayerAsync(
         Guid itemId,
+        Guid? variantId,
         ItemApplicationEntry application,
         CancellationToken cancellationToken)
         => context.Set<ItemLedgerEntry>()
             .Where(e => e.ItemId == itemId
+
+                        // A blue shortfall is settled by a blue receipt. Without this a red
+                        // arrival would quietly pay for a blue sale and both costs would be wrong.
+                        && e.VariantId == variantId
                         && e.RemainingQuantity > 0
                         && e.Quantity > 0
                         && e.PostingDate >= application.PostingDate)

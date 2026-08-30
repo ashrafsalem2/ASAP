@@ -84,6 +84,29 @@ public sealed record MovementView(
     /// movement knows better than a code list does.
     /// </remarks>
     public string? ContraAccountNo { get; init; }
+
+    /// <summary>
+    /// The variant moving, on an item that has them.
+    /// </summary>
+    /// <remarks>
+    /// Not decoration. Stock on hand, the cost layers and the valuation are all per item, variant
+    /// and location together, so this is part of the identity of the line rather than a label on
+    /// it. Null on an item without variants, which is most of them.
+    /// </remarks>
+    public Guid? VariantId { get; init; }
+
+    /// <summary>What that variant is called, for a message that has to name it.</summary>
+    public string? VariantCode { get; init; }
+
+    /// <summary>
+    /// What this variant last cost, where it has been received before.
+    /// </summary>
+    /// <remarks>
+    /// Overrides the item's figure when valuing a shortfall. The item's own cost becomes whichever
+    /// variant was received most recently once variants are in play, and estimating a blue shirt
+    /// at what a red one cost is a worse guess than the blue one's own history.
+    /// </remarks>
+    public decimal VariantUnitCost { get; init; }
 }
 
 /// <summary>

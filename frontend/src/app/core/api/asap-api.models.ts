@@ -174,6 +174,25 @@ export interface StockLocation {
   usesBins: boolean;
 }
 
+/** One version of an item that is stocked separately. */
+export interface ItemVariant {
+  code: string;
+  description: string;
+  descriptionArabic?: string | null;
+  barcode?: string | null;
+  sortOrder: number;
+  isBlocked: boolean;
+}
+
+/** What one variant is holding at one location. */
+export interface VariantStockRow {
+  variantCode: string;
+  description: string;
+  descriptionArabic?: string | null;
+  locationCode: string;
+  quantity: number;
+}
+
 /** One category items are grouped under. */
 export interface ItemCategory {
   code: string;
@@ -261,6 +280,8 @@ export interface ResolvedQuantity {
   itemNo: string;
   description: string;
   descriptionArabic?: string | null;
+  variantCode?: string | null;
+  variantDescription?: string | null;
   unitCode: string;
   quantity: number;
   baseQuantity: number;

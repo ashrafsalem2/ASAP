@@ -66,6 +66,19 @@ public sealed class ItemLedgerEntry : LedgerEntity
     /// <summary>Location code, copied for the same reason as the item number.</summary>
     public required string LocationCode { get; set; }
 
+    /// <summary>The variant it moved, on an item that has them.</summary>
+    public Guid? VariantId { get; set; }
+
+    /// <summary>
+    /// Variant code, copied for the same reason as the item number.
+    /// </summary>
+    /// <remarks>
+    /// Unlike a bin code, this one partitions the arithmetic. Stock on hand, the cost layers and
+    /// the valuation are per item, variant and location together: a blue shirt is not a red one
+    /// and must never be costed out of a red receipt.
+    /// </remarks>
+    public string? VariantCode { get; set; }
+
     /// <summary>
     /// Why it was adjusted, on an adjustment.
     /// </summary>

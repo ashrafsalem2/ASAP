@@ -94,9 +94,11 @@ public sealed class RevaluationService(
     /// <param name="locationCode">The location.</param>
     /// <param name="cancellationToken">Cancels the work.</param>
     /// <returns>The valuation, or why it could not be read.</returns>
+    /// <param name="variantCode">Which variant, on an item that has them.</param>
     public async Task<Result<StockValuation>> ValuationAsync(
         string itemNo,
         string locationCode,
+        string? variantCode = null,
         CancellationToken cancellationToken = default)
     {
         var found = await FindAsync(itemNo, locationCode, cancellationToken).ConfigureAwait(false);
@@ -107,7 +109,16 @@ public sealed class RevaluationService(
         }
 
         var (item, location) = (found.Item!, found.Location!);
-        var layers = await OpenLayersAsync(item.Id, location.Id, cancellationToken).ConfigureAwait(false);
+
+        var variant = await VariantIdAsync(item, variantCode, cancellationToken).ConfigureAwait(false);
+
+        if (variant.Refusal is { } variantRefusal)
+        {
+            return Result<StockValuation>.Failure(variantRefusal);
+        }
+
+        var layers = await OpenLayersAsync(item.Id, variant.VariantId, location.Id, cancellationToken)
+            .ConfigureAwait(false);
 
         var quantity = layers.Sum(static l => l.Remaining);
         var value = layers.Sum(static l => l.Remaining * l.UnitCost);
@@ -133,6 +144,11 @@ public sealed class RevaluationService(
     /// <param name="contraAccountNo">Where the loss or gain lands, or null for the category's own.</param>
     /// <param name="cancellationToken">Cancels the work.</param>
     /// <returns>What it did, or why it did nothing.</returns>
+    /// <param name="variantCode">
+    /// Which variant, on an item that has them. A write-down applies to one variant: last
+    /// season's blue is not this season's red, and the whole reason variants exist is that the two
+    /// are different goods.
+    /// </param>
     public async Task<Result<RevaluationPosted>> RevalueAsync(
         string itemNo,
         string locationCode,
@@ -140,6 +156,7 @@ public sealed class RevaluationService(
         DateOnly postingDate,
         string? reason = null,
         string? contraAccountNo = null,
+        string? variantCode = null,
         CancellationToken cancellationToken = default)
     {
         var found = await FindAsync(itemNo, locationCode, cancellationToken).ConfigureAwait(false);
@@ -160,7 +177,16 @@ public sealed class RevaluationService(
                 Args(("ItemNo", item.No), ("UnitCost", newUnitCost))));
         }
 
-        var layers = await OpenLayersAsync(item.Id, location.Id, cancellationToken).ConfigureAwait(false);
+        var variant = await VariantIdAsync(item, variantCode, cancellationToken).ConfigureAwait(false);
+
+        if (variant.Refusal is { } variantRefusal)
+        {
+            return Result<RevaluationPosted>.Failure(variantRefusal);
+        }
+
+        var layers = await OpenLayersAsync(item.Id, variant.VariantId, location.Id, cancellationToken)
+            .ConfigureAwait(false);
+
         var quantity = layers.Sum(static l => l.Remaining);
 
         if (quantity <= 0m)
@@ -275,11 +301,13 @@ public sealed class RevaluationService(
 
     private async Task<List<Layer>> OpenLayersAsync(
         Guid itemId,
+        Guid? variantId,
         Guid locationId,
         CancellationToken cancellationToken)
     {
         var open = await context.Set<ItemLedgerEntry>()
-            .Where(e => e.ItemId == itemId && e.LocationId == locationId && e.RemainingQuantity > 0)
+            .Where(e => e.ItemId == itemId && e.VariantId == variantId
+                && e.LocationId == locationId && e.RemainingQuantity > 0)
             .OrderBy(e => e.PostingDate)
             .ThenBy(e => e.Id)
             .ToListAsync(cancellationToken)
@@ -362,6 +390,52 @@ public sealed class RevaluationService(
                 },
                 cancellationToken)
             .ConfigureAwait(false);
+    }
+
+    /// <summary>Which variant a revaluation is about, or why it cannot be told.</summary>
+    private readonly record struct FoundVariant(Guid? VariantId, AsapMessage? Refusal);
+
+    /// <summary>
+    /// Resolves the variant a revaluation names, refusing the two ways it can be wrong.
+    /// </summary>
+    /// <remarks>
+    /// The same two refusals as everywhere else variants appear, and for the same reason: an item
+    /// with variants has no single stock figure to write down, and one without has nowhere to put
+    /// a variant code.
+    /// </remarks>
+    private async Task<FoundVariant> VariantIdAsync(
+        Item item,
+        string? variantCode,
+        CancellationToken cancellationToken)
+    {
+        var wanted = variantCode?.Trim().ToUpperInvariant();
+
+        if (!item.HasVariants)
+        {
+            return string.IsNullOrEmpty(wanted)
+                ? new FoundVariant(null, null)
+                : new FoundVariant(null, messages.Render(
+                    InventoryMessages.VariantNotUsedHere,
+                    Args(("ItemNo", item.No), ("VariantCode", wanted))));
+        }
+
+        if (string.IsNullOrEmpty(wanted))
+        {
+            return new FoundVariant(null, messages.Render(
+                InventoryMessages.VariantRequired,
+                Args(("ItemNo", item.No))));
+        }
+
+        var variant = await context.Set<ItemVariant>()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(v => v.ItemId == item.Id && v.Code == wanted, cancellationToken)
+            .ConfigureAwait(false);
+
+        return variant is null
+            ? new FoundVariant(null, messages.Render(
+                InventoryMessages.VariantNotFound,
+                Args(("ItemNo", item.No), ("VariantCode", wanted))))
+            : new FoundVariant(variant.Id, null);
     }
 
     private readonly record struct Found(Item? Item, Location? Location, AsapMessage? Refusal);

@@ -1,0 +1,139 @@
+<div class="page">
+  <h1>{{ t('inventory.variants.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('inventory.variants.intro') }}</p>
+  </section>
+
+  @if (loading()) {
+    <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+  } @else {
+    <section class="panel">
+      <div class="panel__body form-row">
+        <label>
+          {{ t('inventory.variants.item') }}
+          <select [value]="selected()?.no ?? ''" (change)="onItemChange($event)">
+            @for (item of items(); track item.no) {
+              <option [value]="item.no">{{ item.no }} — {{ itemName(item) }}</option>
+            }
+          </select>
+        </label>
+
+        @if (variants().length > 0) {
+          <button type="button" class="button button--quiet" [disabled]="busy()" (click)="turnOff()">
+            {{ t('inventory.variants.turnOff') }}
+          </button>
+        }
+      </div>
+
+      @if (variants().length === 0) {
+        <p class="empty">{{ t('inventory.variants.none') }}</p>
+      } @else {
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('inventory.variants.code') }}</th>
+                <th>{{ t('inventory.variants.description') }}</th>
+                <th>{{ t('inventory.variants.barcode') }}</th>
+                <th class="numeric">{{ t('inventory.variants.sortOrder') }}</th>
+                <th class="numeric">{{ t('inventory.variants.onHand') }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (variant of variants(); track variant.code) {
+                <tr>
+                  <td class="code">
+                    {{ variant.code }}
+                    @if (variant.isBlocked) {
+                      <span class="tag">{{ t('inventory.variants.blocked') }}</span>
+                    }
+                  </td>
+                  <td>{{ variantName(variant) }}</td>
+                  <td class="code">{{ variant.barcode }}</td>
+                  <td class="numeric">{{ variant.sortOrder }}</td>
+                  <td class="numeric">{{ held(variant.code) }}</td>
+                  <td>
+                    <button
+                      type="button"
+                      class="button button--quiet"
+                      [disabled]="busy()"
+                      (click)="setBlocked(variant, !variant.isBlocked)"
+                    >
+                      {{
+                        variant.isBlocked
+                          ? t('inventory.variants.unblock')
+                          : t('inventory.variants.block')
+                      }}
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+
+      <div class="panel__body form-row">
+        <label>
+          {{ t('inventory.variants.code') }}
+          <input [(ngModel)]="code" name="code" maxlength="32" />
+        </label>
+        <label>
+          {{ t('inventory.variants.description') }}
+          <input [(ngModel)]="description" name="description" />
+        </label>
+        <label>
+          {{ t('inventory.variants.descriptionArabic') }}
+          <input [(ngModel)]="descriptionArabic" name="descriptionArabic" dir="rtl" />
+        </label>
+        <label>
+          {{ t('inventory.variants.barcode') }}
+          <input [(ngModel)]="barcode" name="barcode" />
+        </label>
+        <label>
+          {{ t('inventory.variants.sortOrder') }}
+          <input type="number" [(ngModel)]="sortOrder" name="sortOrder" />
+        </label>
+        <button type="button" class="button" [disabled]="busy()" (click)="add()">
+          {{ t('inventory.variants.add') }}
+        </button>
+      </div>
+
+      <p class="panel__body hint">{{ t('inventory.variants.hint') }}</p>
+    </section>
+
+    @if (stock().length > 0) {
+      <section class="panel">
+        <h2 class="panel__title">{{ t('inventory.variants.stockTitle') }}</h2>
+
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('inventory.variants.variant') }}</th>
+                <th>{{ t('inventory.variants.location') }}</th>
+                <th class="numeric">{{ t('inventory.variants.quantity') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of stock(); track row.variantCode + '|' + row.locationCode) {
+                <tr>
+                  <td>
+                    <span class="code">{{ row.variantCode }}</span>
+                    {{ row.description }}
+                  </td>
+                  <td class="code">{{ row.locationCode }}</td>
+                  <td class="numeric">{{ row.quantity }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <p class="panel__body hint">{{ t('inventory.variants.stockHint') }}</p>
+      </section>
+    }
+  }
+</div>

@@ -77,6 +77,23 @@ public sealed class Item : CompanyEntity
     /// <summary>Navigation to the category.</summary>
     public ItemCategory? Category { get; set; }
 
+    /// <summary>
+    /// Whether this item is stocked as separate colours, sizes or flavours.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Off, and nothing about the item changes: every entry carries no variant and the arithmetic
+    /// is exactly what it always was. On, every movement has to say which variant, because a
+    /// variant splits the stock, the cost layers and the valuation again, and a movement that does
+    /// not say which one would have to be guessed at.
+    /// </para>
+    /// <para>
+    /// Guessing is the one thing that must never happen here. It does not fail: it costs a blue
+    /// shirt against a red receipt, and the only symptom is a margin quietly wrong on both.
+    /// </para>
+    /// </remarks>
+    public bool HasVariants { get; set; }
+
     /// <summary>The unit it is counted in, for example <c>PCS</c> or <c>KG</c>.</summary>
     public required string BaseUnitOfMeasure { get; set; }
 

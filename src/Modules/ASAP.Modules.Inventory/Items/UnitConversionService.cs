@@ -13,6 +13,8 @@ namespace ASAP.Modules.Inventory.Items;
 /// <param name="Quantity">How many of that unit.</param>
 /// <param name="BaseQuantity">The same amount in the unit everything is stored in.</param>
 /// <param name="BaseUnitCode">What that unit is.</param>
+/// <param name="VariantCode">Which variant was scanned, on an item that has them.</param>
+/// <param name="VariantDescription">What that variant is called.</param>
 public readonly record struct ResolvedQuantity(
     string ItemNo,
     string Description,
@@ -20,7 +22,9 @@ public readonly record struct ResolvedQuantity(
     string UnitCode,
     decimal Quantity,
     decimal BaseQuantity,
-    string BaseUnitCode);
+    string BaseUnitCode,
+    string? VariantCode = null,
+    string? VariantDescription = null);
 
 /// <summary>
 /// Turns what somebody scanned or typed into a quantity in the unit stock is kept in.
@@ -69,6 +73,30 @@ public sealed class UnitConversionService(AsapDbContext context, IMessageCatalog
             .Include(u => u.Item)
             .FirstOrDefaultAsync(u => u.Barcode == scanned && u.IsActive, cancellationToken)
             .ConfigureAwait(false);
+
+        // A variant's barcode is looked for before the item's, for the same reason a unit's is:
+        // a shop scans the label on the garment, which carries the size. An item barcode shared
+        // across sizes would make every scan ambiguous at the moment nobody has time to resolve
+        // it.
+        var variant = await context.Set<ItemVariant>()
+            .AsNoTracking()
+            .Include(v => v.Item)
+            .FirstOrDefaultAsync(v => v.Barcode == scanned && !v.IsBlocked, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (unit is null && variant?.Item is { } itemOfVariant)
+        {
+            return Result<ResolvedQuantity>.Success(new ResolvedQuantity(
+                itemOfVariant.No,
+                itemOfVariant.Description,
+                itemOfVariant.DescriptionArabic,
+                itemOfVariant.BaseUnitOfMeasure,
+                1m,
+                1m,
+                itemOfVariant.BaseUnitOfMeasure,
+                variant.Code,
+                variant.Description));
+        }
 
         if (unit?.Item is { } itemOfUnit)
         {

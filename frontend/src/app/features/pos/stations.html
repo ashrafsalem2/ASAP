@@ -21,7 +21,11 @@
           </thead>
           <tbody>
             @for (row of rows(); track row.code) {
-              <tr>
+              <tr
+                class="admin__row"
+                [class.admin__row--selected]="selected()?.code === row.code"
+                (click)="select(row)"
+              >
                 <td class="code">
                   {{ row.code }}
                   @if (row.isBlocked) {
@@ -30,6 +34,9 @@
                 </td>
                 <td>{{ name(row) }}</td>
                 <td class="code">{{ row.locationCode }}</td>
+
+                <!-- A till left open overnight is the commonest reason a day's takings do not add
+                     up, and it is invisible from anywhere else. -->
                 <td>
                   @if (row.openSessionNo) {
                     <span class="tag tag--warning">{{ row.openSessionNo }}</span>
@@ -44,4 +51,69 @@
       </div>
     }
   </section>
+
+  @if (selected(); as station) {
+    <section class="panel">
+      <div class="panel__header">
+        <h2>{{ station.code }} — {{ name(station) }}</h2>
+      </div>
+
+      @if (readiness(); as r) {
+        <p class="panel__body admin__note">
+          @if (r.devices === 0) {
+            {{ t('pos.devices.noneYet') }}
+          } @else if (r.needsBridge) {
+            {{ t('pos.devices.needsBridge', { devices: r.bridgeDevices.join(', ') }) }}
+          } @else {
+            {{ t('pos.devices.needsNothing') }}
+          }
+        </p>
+      }
+
+      @if (devices().length > 0) {
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('pos.devices.code') }}</th>
+                <th>{{ t('pos.devices.name') }}</th>
+                <th>{{ t('pos.devices.kind') }}</th>
+                <th>{{ t('pos.devices.connection') }}</th>
+                <th>{{ t('pos.devices.address') }}</th>
+                <th>{{ t('pos.devices.default') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (device of devices(); track device.code) {
+                <tr>
+                  <td class="code">
+                    {{ device.code }}
+                    @if (!device.isActive) {
+                      <span class="tag">{{ t('pos.devices.inactive') }}</span>
+                    }
+                  </td>
+                  <td>{{ name(device) }}</td>
+                  <td>{{ device.kind }}</td>
+
+                  <!-- The column the page exists for. Only Bridge means anything has to be put on
+                       this computer; the other two mean it does not. -->
+                  <td>
+                    @if (device.needsBridge) {
+                      <span class="tag tag--warning">{{ device.connection }}</span>
+                    } @else {
+                      <span class="tag">{{ device.connection }}</span>
+                    }
+                  </td>
+                  <td class="code">{{ device.address }}</td>
+                  <td>{{ device.isDefault ? t('pos.devices.yes') : '' }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+
+      <p class="panel__body admin__note">{{ t('pos.devices.connectionNote') }}</p>
+    </section>
+  }
 </div>

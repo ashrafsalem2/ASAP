@@ -1781,3 +1781,30 @@ export interface RecurringRun {
   /** The transaction the reversing lines went under, when any line reverses. */
   reversalTransactionNo: number | null;
 }
+
+/** One device at a till. */
+export interface PosDeviceInfo {
+  code: string;
+  name: string;
+  kind: string;
+
+  /** Browser, Network or Bridge. Only Bridge needs a program installed on the till. */
+  connection: string;
+  nameArabic: string | null;
+  address: string | null;
+  printTemplateCode: string | null;
+  isDefault: boolean;
+  isActive: boolean;
+  stationCode: string | null;
+  needsBridge: boolean;
+}
+
+/** What a till needs installed on it before it can trade. */
+export interface StationReadiness {
+  stationCode: string;
+  devices: number;
+  needsBridge: boolean;
+
+  /** Which devices force it, so the answer can be checked rather than believed. */
+  bridgeDevices: string[];
+}

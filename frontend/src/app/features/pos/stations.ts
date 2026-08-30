@@ -1,15 +1,17 @@
 import { ChangeDetectionStrategy, Component, OnInit, inject, signal } from '@angular/core';
-import { PosStation } from '../../core/api/asap-api.models';
+import { PosDeviceInfo, PosStation, StationReadiness } from '../../core/api/asap-api.models';
 import { PosService } from '../../core/api/pos.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslationKey } from '../../core/i18n/translations';
 import { MessageService } from '../../core/messages/message.service';
 
 /**
- * The tills, and whether each has a session open.
+ * The tills, whether each has a session open, and what each needs installed on it.
  *
- * The open session is the column worth having. A till left open overnight is the commonest reason
- * a day's takings do not add up, and it is invisible from anywhere else.
+ * Two questions on one page because they are asked together. "Is this till still open" is what a
+ * manager asks at the end of the day — a till left open overnight is the commonest reason a day's
+ * takings do not add up, and it is invisible from anywhere else. "What do I have to install on
+ * it" is what somebody asks when opening a shop, and for most tills the answer is nothing at all.
  */
 @Component({
   selector: 'asap-stations',
@@ -23,11 +25,20 @@ export class Stations implements OnInit {
   private readonly messages = inject(MessageService);
 
   protected readonly rows = signal<PosStation[]>([]);
+  protected readonly devices = signal<PosDeviceInfo[]>([]);
+  protected readonly readiness = signal<StationReadiness | null>(null);
+  protected readonly selected = signal<PosStation | null>(null);
   protected readonly loading = signal(true);
 
   async ngOnInit(): Promise<void> {
     try {
-      this.rows.set(await this.api.stations());
+      const stations = await this.api.stations();
+
+      this.rows.set(stations);
+
+      if (stations.length > 0) {
+        await this.select(stations[0]);
+      }
     } catch (error) {
       this.messages.showError(error);
     } finally {
@@ -41,5 +52,21 @@ export class Stations implements OnInit {
 
   protected name(row: { name: string; nameArabic?: string | null }): string {
     return this.i18n.language() === 'ar' && row.nameArabic ? row.nameArabic : row.name;
+  }
+
+  protected async select(station: PosStation): Promise<void> {
+    this.selected.set(station);
+
+    try {
+      const [devices, readiness] = await Promise.all([
+        this.api.devices(station.code),
+        this.api.readiness(station.code),
+      ]);
+
+      this.devices.set(devices);
+      this.readiness.set(readiness);
+    } catch (error) {
+      this.messages.showError(error);
+    }
   }
 }

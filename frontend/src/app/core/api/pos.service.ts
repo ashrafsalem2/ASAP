@@ -15,6 +15,8 @@ import {
   PrintTemplates,
   PromotionUptake,
   TenderKind,
+  PosDeviceInfo,
+  StationReadiness,
 } from './asap-api.models';
 
 /** One thing being rung up. */
@@ -44,6 +46,22 @@ export class PosService {
   /** The tills, each saying whether it is already open. */
   stations(): Promise<PosStation[]> {
     return firstValueFrom(this.http.get<PosStation[]>(`${this.base}/stations`));
+  }
+
+  /** The devices at one till, or at every till. */
+  devices(stationCode?: string): Promise<PosDeviceInfo[]> {
+    const query = stationCode ? `?stationCode=${encodeURIComponent(stationCode)}` : '';
+
+    return firstValueFrom(this.http.get<PosDeviceInfo[]>(`${this.base}/devices${query}`));
+  }
+
+  /** What a till needs installed on it, which for most tills is nothing. */
+  readiness(stationCode: string): Promise<StationReadiness> {
+    return firstValueFrom(
+      this.http.get<StationReadiness>(
+        `${this.base}/stations/${encodeURIComponent(stationCode)}/readiness`,
+      ),
+    );
   }
 
   /** Till sessions, most recently opened first. */

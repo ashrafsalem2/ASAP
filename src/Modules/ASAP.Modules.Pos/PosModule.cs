@@ -162,6 +162,28 @@ public sealed class PosModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISyncCont
     [
         new()
         {
+            Key = $"{Id}.Bridge.Address",
+            Module = Id,
+            Group = new LocalizedText("Hardware", "الأجهزة"),
+            DisplayName = new LocalizedText("Bridge agent address", "عنوان وكيل الجسر"),
+            Description = new LocalizedText(
+                "Where the till's browser looks for the bridge agent, which drives the cash "
+                + "drawer, the customer display and the scale. Always on the till itself, because "
+                + "the agent listens to that machine and nothing else — an address pointing "
+                + "anywhere but localhost is either a mistake or a drawer somebody else can open. "
+                + "Most tills need no agent at all.",
+                "الموضع الذي يبحث فيه متصفح نقطة البيع عن وكيل الجسر، وهو الذي يشغّل درج النقد "
+                + "وشاشة العميل والميزان. ويكون دائمًا على نقطة البيع نفسها، لأن الوكيل لا يستمع "
+                + "إلا لذلك الجهاز — والعنوان الذي يشير إلى غير localhost إما خطأ أو درج يستطيع "
+                + "غيرك فتحه. ومعظم نقاط البيع لا تحتاج وكيلًا أصلًا."),
+            ValueType = SetupValueType.Text,
+            Scope = SetupScope.Branch,
+            DefaultValue = "http://localhost:8731",
+            RequiresPermission = $"{Id}.Station.Update",
+            HelpTopic = "pos/bridge-agent",
+        },
+        new()
+        {
             Key = $"{Id}.Posting.CashAccount",
             Module = Id,
             Group = new LocalizedText("Posting", "الترحيل"),

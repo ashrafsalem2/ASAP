@@ -296,7 +296,18 @@ Everything else posts here, so it goes first.
   is the same composite syntax .NET uses, so a column of figures can be made to line up. The
   editor previews against a real posted receipt rather than an invented one, and prints through
   the browser’s own dialog with no agent, no driver and no install
-- A local bridge agent so the browser can drive devices it otherwise cannot reach
+- **done** A local bridge agent so the browser can drive devices it otherwise cannot reach. It
+  opens serial ports and sends bytes, holds no data and knows nothing about what is being sold,
+  which is why whoever sets up the shop can install it rather than somebody with a password. It
+  binds to the loopback interface and nothing else, not configurably, because a bridge reachable
+  from the network is a cash drawer anybody on that network can open; and it answers only the
+  pages named in its configuration. Every response carries the station code, and a request naming
+  a different till is refused — two tills on one counter and a browser tab left open from
+  yesterday both end with one till opening another's drawer otherwise. It simulates until told
+  not to, and says so on every response, because a demonstration indistinguishable from the real
+  thing is one somebody believes on a day it matters. The byte sequences and the reading of what
+  a scale sends back are pure functions with eighteen tests against them: a drawer that opens on
+  a real till and not on a test bench is a drawer nobody can debug
 
 ## Phase 9 — Extensibility and documentation
 

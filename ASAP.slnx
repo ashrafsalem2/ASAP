@@ -17,6 +17,9 @@
     <Project Path="src/Modules/ASAP.Modules.Hr/ASAP.Modules.Hr.csproj" />
     <Project Path="src/Modules/ASAP.Modules.Pos/ASAP.Modules.Pos.csproj" />
   </Folder>
+  <Folder Name="/src/Bridge/">
+    <Project Path="src/Bridge/ASAP.Bridge/ASAP.Bridge.csproj" />
+  </Folder>
   <Folder Name="/src/Sdk/">
     <Project Path="src/Sdk/ASAP.Extensions.Sdk/ASAP.Extensions.Sdk.csproj" />
   </Folder>
@@ -29,6 +32,7 @@
     <Project Path="tests/ASAP.Modules.Pos.Tests/ASAP.Modules.Pos.Tests.csproj" />
     <Project Path="tests/ASAP.Modules.Promotions.Tests/ASAP.Modules.Promotions.Tests.csproj" />
     <Project Path="tests/ASAP.Modules.Hr.Tests/ASAP.Modules.Hr.Tests.csproj" />
+    <Project Path="tests/ASAP.Bridge.Tests/ASAP.Bridge.Tests.csproj" />
     <Project Path="tests/ASAP.Conformance.Tests/ASAP.Conformance.Tests.csproj" />
   </Folder>
 </Solution>

@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <RootNamespace>ASAP.Bridge</RootNamespace>
+    <Description>The small program that runs on a till so the browser can drive devices it cannot reach: cash drawers, customer displays and scales.</Description>
+    <UserSecretsId>asap-bridge</UserSecretsId>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="System.IO.Ports" />
+  </ItemGroup>
+</Project>

@@ -22,6 +22,21 @@ public static class InventoryMessages
     /// <summary>A quantity carries more decimal places than its unit allows.</summary>
     public static readonly MessageCode QuantityTooPrecise = new("INV.UNIT.TOO_MANY_DECIMALS");
 
+    /// <summary>A unit was saved without a code.</summary>
+    public static readonly MessageCode UnitCodeRequired = new("INV.UNIT.CODE_REQUIRED");
+
+    /// <summary>A unit asks for more decimal places than a quantity can hold.</summary>
+    public static readonly MessageCode DecimalPlacesOutOfRange = new("INV.UNIT.PLACES_OUT_OF_RANGE");
+
+    /// <summary>An item names a unit the company never agreed on.</summary>
+    public static readonly MessageCode UnitNotInCompanyList = new("INV.UNIT.NOT_IN_LIST");
+
+    /// <summary>The base unit was given a factor other than one.</summary>
+    public static readonly MessageCode BaseUnitFactorMustBeOne = new("INV.UNIT.BASE_NOT_ONE");
+
+    /// <summary>Something else already carries that barcode.</summary>
+    public static readonly MessageCode BarcodeAlreadyInUse = new("INV.BARCODE.IN_USE");
+
     /// <summary>Stock would go below zero and the company does not permit it.</summary>
     public static readonly MessageCode NegativeInventoryBlocked = new("INV.STOCK.NEGATIVE_BLOCKED");
 
@@ -180,6 +195,84 @@ public static class InventoryMessages
                 + "half of something sold one at a time has taken an order nobody can pick.",
                 "أدخل كمية تستوعبها الوحدة، أو استخدم وحدة تستوعبها. فنقطة البيع التي تقبل نصف "
                 + "صنف يُباع بالحبة قد سجّلت طلبًا لا يستطيع أحد تجهيزه."),
+            HelpTopic = "inventory/units-of-measure",
+        },
+        new()
+        {
+            Code = UnitCodeRequired,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("A unit needs a code", "الوحدة تحتاج رمزًا"),
+            Detail = new LocalizedText(
+                "No code was given, and a unit is named by its code on every document.",
+                "لم يُعطَ رمز، والوحدة تُسمّى برمزها في كل مستند."),
+            Resolution = new LocalizedText(
+                "Give it a short code people will recognise on a receipt: PCS, KG, BOX.",
+                "أعطها رمزًا قصيرًا يعرفه الناس على الفاتورة: PCS أو KG أو BOX."),
+            HelpTopic = "inventory/units-of-measure",
+        },
+        new()
+        {
+            Code = DecimalPlacesOutOfRange,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("More precision than a quantity holds", "دقة تفوق ما تحتمله الكمية"),
+            Detail = new LocalizedText(
+                "{UnitCode} asks for {DecimalPlaces} decimal places, and a quantity holds "
+                + "{Maximum}.",
+                "تطلب الوحدة {UnitCode} عدد {DecimalPlaces} من المنازل العشرية، والكمية تحتمل "
+                + "{Maximum}."),
+            Resolution = new LocalizedText(
+                "Ask for {Maximum} or fewer. Promising a precision the database rounds away would "
+                + "mean a quantity that changes when it is saved.",
+                "اطلب {Maximum} أو أقل. فوعدٌ بدقة يقرّبها المخزن يعني كمية تتغير عند حفظها."),
+            HelpTopic = "inventory/units-of-measure",
+        },
+        new()
+        {
+            Code = UnitNotInCompanyList,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such unit", "لا توجد وحدة بهذا الرمز"),
+            Detail = new LocalizedText(
+                "{UnitCode} is not on this company's list of units.",
+                "الرمز {UnitCode} ليس في قائمة وحدات هذه الشركة."),
+            Resolution = new LocalizedText(
+                "Add it to the unit list first. Free text here is how one company ends up with "
+                + "CTN, CARTON and CASE all meaning the same thing and none of them adding up.",
+                "أضفها إلى قائمة الوحدات أولًا. فالنص الحر هنا هو ما يجعل شركة تحمل CTN وCARTON "
+                + "وCASE بمعنى واحد ولا يجتمع منها شيء."),
+            HelpTopic = "inventory/units-of-measure",
+        },
+        new()
+        {
+            Code = BaseUnitFactorMustBeOne,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("One of the base unit is one", "الوحدة الأساسية واحدها واحد"),
+            Detail = new LocalizedText(
+                "{UnitCode} is what {ItemNo} is counted in, and it was given a factor of "
+                + "{QuantityPerUnit:0.#####}.",
+                "الوحدة {UnitCode} هي ما يُحسب به الصنف {ItemNo}، وقد أُعطيت معاملًا قدره "
+                + "{QuantityPerUnit:0.#####}."),
+            Resolution = new LocalizedText(
+                "Set it to one, or leave it out altogether -- the base unit needs no row. Anything "
+                + "else says the item is counted in something other than what it is counted in, "
+                + "and every stock figure it has would be wrong by that factor.",
+                "اجعله واحدًا، أو احذف السطر أصلًا — فالوحدة الأساسية لا تحتاج سطرًا. وأي قيمة "
+                + "أخرى تعني أن الصنف يُحسب بغير ما يُحسب به، فيصير كل رصيد له خاطئًا بذلك المعامل."),
+            HelpTopic = "inventory/units-of-measure",
+        },
+        new()
+        {
+            Code = BarcodeAlreadyInUse,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("Something else carries that barcode", "الباركود مستخدم بالفعل"),
+            Detail = new LocalizedText(
+                "{Barcode} is already on {ItemNo} {UnitCode}.",
+                "الباركود {Barcode} مسجّل بالفعل على {ItemNo} {UnitCode}."),
+            Resolution = new LocalizedText(
+                "Use a different barcode, or take it off the other one first. Two rows carrying "
+                + "the same barcode makes a scan return whichever the database reached first, "
+                + "which nobody notices until a stock count.",
+                "استخدم باركودًا آخر، أو أزله من الآخر أولًا. فوجود سطرين بالباركود نفسه يجعل "
+                + "المسح يعيد أيهما وصل إليه المخزن أولًا، ولا يلاحظ ذلك أحد حتى الجرد."),
             HelpTopic = "inventory/units-of-measure",
         },
         new()

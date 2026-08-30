@@ -100,6 +100,30 @@ public sealed record RecordCountRequest(
 /// <param name="OverrideReason">Why a protection is being pushed past.</param>
 public sealed record PostCountRequest(string? OverrideReason = null);
 
+/// <summary>A unit as a client sends it.</summary>
+/// <param name="Code">What it is called on a document.</param>
+/// <param name="Name">Its name in English.</param>
+/// <param name="NameArabic">Its name in Arabic.</param>
+/// <param name="DecimalPlaces">How many decimal places a quantity in it may carry.</param>
+/// <param name="IsActive">Whether it may still be chosen.</param>
+public sealed record SaveUnitRequest(
+    string Code,
+    string Name,
+    string? NameArabic = null,
+    int DecimalPlaces = 0,
+    bool IsActive = true);
+
+/// <summary>What one of a unit holds for one item, as a client sends it.</summary>
+/// <param name="UnitCode">The unit.</param>
+/// <param name="QuantityPerUnit">How many base units are in one of it.</param>
+/// <param name="Barcode">Its own barcode, when it has one.</param>
+/// <param name="IsActive">Whether it may still be chosen.</param>
+public sealed record SaveItemUnitRequest(
+    string UnitCode,
+    decimal QuantityPerUnit,
+    string? Barcode = null,
+    bool IsActive = true);
+
 /// <summary>One unit an item may be handled in.</summary>
 /// <param name="UnitCode">The unit.</param>
 /// <param name="QuantityPerUnit">How many base units one of these is.</param>
@@ -114,6 +138,7 @@ public sealed record ItemUnitView(
 /// <summary>What a scan or a keyed quantity came to.</summary>
 /// <param name="ItemNo">The item.</param>
 /// <param name="Description">What it is called.</param>
+/// <param name="DescriptionArabic">The same in Arabic.</param>
 /// <param name="UnitCode">The unit scanned or named.</param>
 /// <param name="Quantity">How many of that unit.</param>
 /// <param name="BaseQuantity">The same amount in the unit stock is stored in.</param>
@@ -121,6 +146,7 @@ public sealed record ItemUnitView(
 public sealed record ResolvedQuantityView(
     string ItemNo,
     string Description,
+    string? DescriptionArabic,
     string UnitCode,
     decimal Quantity,
     decimal BaseQuantity,
@@ -196,6 +222,18 @@ public static class InventoryEndpoints
         group.MapGet("/scan/{barcode}", ScanAsync)
              .WithName("ScanBarcode")
              .WithSummary("Says what a barcode is and how many it stands for.");
+
+        group.MapPost("/units", SaveUnitAsync)
+             .WithName("SaveUnitOfMeasure")
+             .WithSummary("Adds a unit to the company's list, or changes one on it.");
+
+        group.MapPost("/items/{itemNo}/units", SaveItemUnitAsync)
+             .WithName("SaveItemUnit")
+             .WithSummary("Says what one of a unit holds, for one item.");
+
+        group.MapDelete("/items/{itemNo}/units/{unitCode}", RemoveItemUnitAsync)
+             .WithName("RemoveItemUnit")
+             .WithSummary("Takes a unit off an item. What already posted keeps its factor.");
 
         return app;
     }
@@ -574,11 +612,15 @@ public static class InventoryEndpoints
 
     private static async Task<IResult> UnitsAsync(
         AsapDbContext context,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool includeInactive = false)
     {
+        // A setup screen has to see what somebody switched off, or the only way to switch it
+        // back on is to guess that it is there. A till asks without the flag and sees only what
+        // it may sell in.
         var units = await context.Set<UnitOfMeasure>()
             .AsNoTracking()
-            .Where(u => u.IsActive)
+            .Where(u => includeInactive || u.IsActive)
             .OrderBy(u => u.Code)
             .Select(u => new
             {
@@ -586,6 +628,7 @@ public static class InventoryEndpoints
                 name = u.Name,
                 nameArabic = u.NameArabic,
                 decimalPlaces = u.DecimalPlaces,
+                isActive = u.IsActive,
             })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -621,11 +664,106 @@ public static class InventoryEndpoints
             : Results.Ok(new ResolvedQuantityView(
                 result.Value.ItemNo,
                 result.Value.Description,
+                result.Value.DescriptionArabic,
                 result.Value.UnitCode,
                 result.Value.Quantity,
                 result.Value.BaseQuantity,
                 result.Value.BaseUnitCode));
     }
+    private static async Task<IResult> SaveUnitAsync(
+        SaveUnitRequest request,
+        UnitSetupService setup,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, "Inventory.Unit.Update"))
+        {
+            return Forbidden("Inventory.Unit.Update", "maintain units of measure", http);
+        }
+
+        var result = await setup
+            .SaveUnitAsync(
+                new UnitRequest(
+                    request.Code,
+                    request.Name,
+                    request.NameArabic,
+                    request.DecimalPlaces,
+                    request.IsActive),
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed
+            ? Refused(result, http)
+            : Results.Ok(new
+            {
+                code = result.Value.Code,
+                name = result.Value.Name,
+                nameArabic = result.Value.NameArabic,
+                decimalPlaces = result.Value.DecimalPlaces,
+                isActive = result.Value.IsActive,
+            });
+    }
+
+    private static async Task<IResult> SaveItemUnitAsync(
+        string itemNo,
+        SaveItemUnitRequest request,
+        UnitSetupService setup,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, "Inventory.Unit.Update"))
+        {
+            return Forbidden("Inventory.Unit.Update", "maintain units of measure", http);
+        }
+
+        var result = await setup
+            .SaveItemUnitAsync(
+                itemNo,
+                new ItemUnitRequest(
+                    request.UnitCode,
+                    request.QuantityPerUnit,
+                    request.Barcode,
+                    request.IsActive),
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed
+            ? Refused(result, http)
+            : Results.Ok(new
+            {
+                unitCode = result.Value.UnitCode,
+                quantityPerUnit = result.Value.QuantityPerUnit,
+                barcode = result.Value.Barcode,
+                isActive = result.Value.IsActive,
+            });
+    }
+
+    private static async Task<IResult> RemoveItemUnitAsync(
+        string itemNo,
+        string unitCode,
+        UnitSetupService setup,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, "Inventory.Unit.Update"))
+        {
+            return Forbidden("Inventory.Unit.Update", "maintain units of measure", http);
+        }
+
+        var result = await setup
+            .RemoveItemUnitAsync(itemNo, unitCode, cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.NoContent();
+    }
+
     private static bool Can(IUserContext user, string permission)
         => user.IsSuperUser || user.Has(permission);
 

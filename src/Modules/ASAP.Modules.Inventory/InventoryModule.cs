@@ -75,6 +75,7 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
         services.AddScoped<Posting.StockPostingService>();
         services.AddScoped<CostSettlementService>();
         services.AddScoped<Items.UnitConversionService>();
+        services.AddScoped<Items.UnitSetupService>();
         services.AddScoped<Seed.InventorySeeder>();
         services.AddScoped<Transfers.TransferService>();
         services.AddScoped<Counting.StockCountService>();
@@ -96,6 +97,21 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
             Id, "Item", PermissionAction.Update,
             new LocalizedText("Change items", "تعديل الأصناف"),
             implies: [$"{Id}.Item.Read"]),
+
+        PermissionDescriptor.Define(
+            Id, "Unit", PermissionAction.Read,
+            new LocalizedText("View units of measure", "عرض وحدات القياس")),
+
+        PermissionDescriptor.Define(
+            Id, "Unit", PermissionAction.Update,
+            new LocalizedText("Maintain units of measure", "إدارة وحدات القياس"),
+            new LocalizedText(
+                "Say what the company measures in, and what one item's box holds. A wrong factor "
+                + "does not look like an error: it looks like a stock figure.",
+                "تحديد ما تقيس به الشركة، وما يحتويه كرتون الصنف. والمعامل الخاطئ لا يبدو خطأً: "
+                + "بل يبدو رصيد مخزون."),
+            implies: [$"{Id}.Unit.Read"],
+            isSensitive: true),
 
         PermissionDescriptor.Define(
             Id, "Location", PermissionAction.Read,
@@ -274,6 +290,12 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
             Order = 200,
         },
         Page("Items", new LocalizedText("Items", "الأصناف"), "/inventory/items", $"{Id}.Item.Read", 10),
+        Page(
+            "Units",
+            new LocalizedText("Units of measure", "وحدات القياس"),
+            "/inventory/units",
+            $"{Id}.Unit.Read",
+            25),
         Page(
             "Locations",
             new LocalizedText("Locations", "المواقع"),

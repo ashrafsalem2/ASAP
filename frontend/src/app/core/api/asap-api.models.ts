@@ -173,6 +173,34 @@ export interface StockLocation {
   isBlocked: boolean;
 }
 
+/** One unit the company counts, weighs or measures in. */
+export interface UnitOfMeasure {
+  code: string;
+  name: string;
+  nameArabic?: string;
+  decimalPlaces: number;
+  isActive: boolean;
+}
+
+/** One unit an item may be handled in, and what it holds. */
+export interface ItemUnit {
+  unitCode: string;
+  quantityPerUnit: number;
+  barcode?: string | null;
+  isBase: boolean;
+}
+
+/** What a scan came to. */
+export interface ResolvedQuantity {
+  itemNo: string;
+  description: string;
+  descriptionArabic?: string | null;
+  unitCode: string;
+  quantity: number;
+  baseQuantity: number;
+  baseUnitCode: string;
+}
+
 /** What is on hand for one item at one location. */
 export interface StockOnHandRow {
   itemNo: string;

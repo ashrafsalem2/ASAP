@@ -1,0 +1,180 @@
+<div class="page">
+  <h1>{{ t('inventory.units.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('inventory.units.intro') }}</p>
+  </section>
+
+  @if (loading()) {
+    <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+  } @else {
+    <section class="panel">
+      <h2 class="panel__title">{{ t('inventory.units.listTitle') }}</h2>
+      <p class="panel__body">{{ t('inventory.units.listIntro') }}</p>
+
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('inventory.units.code') }}</th>
+              <th>{{ t('inventory.units.name') }}</th>
+              <th class="numeric">{{ t('inventory.units.places') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (unit of units(); track unit.code) {
+              <tr>
+                <td class="code">
+                  {{ unit.code }}
+                  @if (!unit.isActive) {
+                    <span class="tag">{{ t('inventory.units.inactive') }}</span>
+                  }
+                </td>
+                <td>{{ unitName(unit) }}</td>
+                <td class="numeric">{{ unit.decimalPlaces }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel__body form-row">
+        <label>
+          {{ t('inventory.units.code') }}
+          <input [(ngModel)]="newCode" name="newCode" maxlength="10" />
+        </label>
+        <label>
+          {{ t('inventory.units.name') }}
+          <input [(ngModel)]="newName" name="newName" />
+        </label>
+        <label>
+          {{ t('inventory.units.nameArabic') }}
+          <input [(ngModel)]="newNameArabic" name="newNameArabic" dir="rtl" />
+        </label>
+        <label>
+          {{ t('inventory.units.places') }}
+          <input type="number" min="0" max="5" [(ngModel)]="newPlaces" name="newPlaces" />
+        </label>
+        <button type="button" class="button" [disabled]="busy()" (click)="addUnit()">
+          {{ t('inventory.units.addUnit') }}
+        </button>
+      </div>
+
+      <p class="panel__body hint">{{ t('inventory.units.placesHint') }}</p>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">{{ t('inventory.units.itemTitle') }}</h2>
+      <p class="panel__body">{{ t('inventory.units.itemIntro') }}</p>
+
+      <div class="panel__body form-row">
+        <label>
+          {{ t('inventory.units.item') }}
+          <select [value]="selectedItem()" (change)="onItemChange($event)">
+            @for (item of items(); track item.no) {
+              <option [value]="item.no">{{ item.no }} — {{ itemName(item) }}</option>
+            }
+          </select>
+        </label>
+      </div>
+
+      @if (itemUnits().length > 0) {
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('inventory.units.unit') }}</th>
+                <th class="numeric">{{ t('inventory.units.perUnit') }}</th>
+                <th>{{ t('inventory.units.barcode') }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (unit of itemUnits(); track unit.unitCode) {
+                <tr>
+                  <td class="code">
+                    {{ unit.unitCode }}
+                    @if (unit.isBase) {
+                      <span class="tag">{{ t('inventory.units.base') }}</span>
+                    }
+                  </td>
+                  <td class="numeric">{{ unit.quantityPerUnit }}</td>
+                  <td class="code">{{ unit.barcode }}</td>
+                  <td>
+                    @if (!unit.isBase) {
+                      <button
+                        type="button"
+                        class="button button--quiet"
+                        [disabled]="busy()"
+                        (click)="remove(unit.unitCode)"
+                      >
+                        {{ t('inventory.units.remove') }}
+                      </button>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+
+      @if (available().length > 0) {
+        <div class="panel__body form-row">
+          <label>
+            {{ t('inventory.units.unit') }}
+            <select [(ngModel)]="addUnitCode" name="addUnitCode">
+              <option value=""></option>
+              @for (unit of available(); track unit.code) {
+                <option [value]="unit.code">{{ unit.code }} — {{ unitName(unit) }}</option>
+              }
+            </select>
+          </label>
+          <label>
+            {{ t('inventory.units.perUnit') }}
+            <input type="number" min="0" step="any" [(ngModel)]="addPerUnit" name="addPerUnit" />
+          </label>
+          <label>
+            {{ t('inventory.units.barcode') }}
+            <input [(ngModel)]="addBarcode" name="addBarcode" />
+          </label>
+          <button type="button" class="button" [disabled]="busy()" (click)="addConversion()">
+            {{ t('inventory.units.addConversion') }}
+          </button>
+        </div>
+      }
+
+      <p class="panel__body hint">{{ t('inventory.units.itemHint') }}</p>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">{{ t('inventory.units.scanTitle') }}</h2>
+      <p class="panel__body">{{ t('inventory.units.scanIntro') }}</p>
+
+      <div class="panel__body form-row">
+        <label>
+          {{ t('inventory.units.barcode') }}
+          <input [(ngModel)]="barcode" name="barcode" (keyup.enter)="scan()" />
+        </label>
+        <button type="button" class="button" (click)="scan()">
+          {{ t('inventory.units.scanAction') }}
+        </button>
+      </div>
+
+      @if (scanned(); as hit) {
+        <p class="panel__body result">
+          {{
+            t('inventory.units.scanResult', {
+              itemNo: hit.itemNo,
+              description: scannedName(hit),
+              quantity: hit.quantity,
+              unitCode: hit.unitCode,
+              baseQuantity: hit.baseQuantity,
+              baseUnitCode: hit.baseUnitCode,
+            })
+          }}
+        </p>
+      }
+    </section>
+  }
+</div>

@@ -132,8 +132,11 @@ Everything else posts here, so it goes first.
 - **done** Items, units of measure and barcodes. Everything is stored in the base unit, because a
   stock figure with mixed units in it cannot be added up, so conversion happens once at the edge
   where somebody is standing at a till. A unit carries its own barcode and is looked for before the
-  item's, which is what makes scanning a case of twelve add twelve rather than one. Variants, and
-  categories as something a company can manage rather than an entity the seed fills in, still to come
+  item's, which is what makes scanning a case of twelve add twelve rather than one. A screen sets
+  both halves and answers "what does this barcode mean", refusing a barcode something else already
+  carries -- two rows with one barcode makes a scan return whichever the database reached first,
+  which nobody notices until a stock count. Variants, and categories as something a company can
+  manage rather than an entity the seed fills in, still to come
 - *in progress* Locations done; warehouses and bins to come
 - **done** Item ledger entries and value entries, quantity and cost tracked separately
 - **done** Costing methods: FIFO, average, standard (specific to come)

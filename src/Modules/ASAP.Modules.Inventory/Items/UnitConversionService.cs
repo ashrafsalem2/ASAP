@@ -8,6 +8,7 @@ namespace ASAP.Modules.Inventory.Items;
 /// <summary>What a scan or a keyed quantity came to.</summary>
 /// <param name="ItemNo">The item.</param>
 /// <param name="Description">What it is called, so a till can show it without asking again.</param>
+/// <param name="DescriptionArabic">The same in Arabic, because a till in Arabic asks the same question.</param>
 /// <param name="UnitCode">The unit that was scanned or named.</param>
 /// <param name="Quantity">How many of that unit.</param>
 /// <param name="BaseQuantity">The same amount in the unit everything is stored in.</param>
@@ -15,6 +16,7 @@ namespace ASAP.Modules.Inventory.Items;
 public readonly record struct ResolvedQuantity(
     string ItemNo,
     string Description,
+    string? DescriptionArabic,
     string UnitCode,
     decimal Quantity,
     decimal BaseQuantity,
@@ -73,6 +75,7 @@ public sealed class UnitConversionService(AsapDbContext context, IMessageCatalog
             return Result<ResolvedQuantity>.Success(new ResolvedQuantity(
                 itemOfUnit.No,
                 itemOfUnit.Description,
+                itemOfUnit.DescriptionArabic,
                 unit.UnitCode,
                 1m,
                 unit.ToBase(1m),
@@ -93,6 +96,7 @@ public sealed class UnitConversionService(AsapDbContext context, IMessageCatalog
         return Result<ResolvedQuantity>.Success(new ResolvedQuantity(
             item.No,
             item.Description,
+            item.DescriptionArabic,
             item.BaseUnitOfMeasure,
             1m,
             1m,
@@ -139,7 +143,13 @@ public sealed class UnitConversionService(AsapDbContext context, IMessageCatalog
             return tooPrecise is not null
                 ? Result<ResolvedQuantity>.Failure(tooPrecise)
                 : Result<ResolvedQuantity>.Success(new ResolvedQuantity(
-                    item.No, item.Description, item.BaseUnitOfMeasure, quantity, quantity, item.BaseUnitOfMeasure));
+                    item.No,
+                    item.Description,
+                    item.DescriptionArabic,
+                    item.BaseUnitOfMeasure,
+                    quantity,
+                    quantity,
+                    item.BaseUnitOfMeasure));
         }
 
         var unit = await context.Set<ItemUnit>()
@@ -179,6 +189,7 @@ public sealed class UnitConversionService(AsapDbContext context, IMessageCatalog
         return Result<ResolvedQuantity>.Success(new ResolvedQuantity(
             item.No,
             item.Description,
+            item.DescriptionArabic,
             unit.UnitCode,
             quantity,
             unit.ToBase(quantity),

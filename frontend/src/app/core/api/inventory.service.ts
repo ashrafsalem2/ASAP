@@ -5,6 +5,8 @@ import { environment } from '../../../environments/environment';
 import {
   CreateTransferRequest,
   Item,
+  ItemUnit,
+  ResolvedQuantity,
   SettlementReceipt,
   StockCount,
   StockCountPosted,
@@ -17,6 +19,7 @@ import {
   Transfer,
   TransferCreated,
   TransferMoveReceipt,
+  UnitOfMeasure,
 } from './asap-api.models';
 
 /** Talks to the Inventory endpoints. */
@@ -168,6 +171,59 @@ export class InventoryService {
       this.http.post<TransferMoveReceipt>(
         `${this.base}/transfers/${encodeURIComponent(transferNo)}/receive`,
         { shortages },
+      ),
+    );
+  }
+
+  /**
+   * The units this company counts, weighs and measures in.
+   *
+   * A setup screen asks for the inactive ones too, or the only way to switch one back on is to
+   * guess that it is there.
+   */
+  units(includeInactive = false): Promise<UnitOfMeasure[]> {
+    const params = includeInactive ? new HttpParams().set('includeInactive', 'true') : new HttpParams();
+
+    return firstValueFrom(this.http.get<UnitOfMeasure[]>(`${this.base}/units`, { params }));
+  }
+
+  /** The units one item may be handled in, base unit first. */
+  itemUnits(itemNo: string): Promise<ItemUnit[]> {
+    return firstValueFrom(
+      this.http.get<ItemUnit[]>(`${this.base}/items/${encodeURIComponent(itemNo)}/units`),
+    );
+  }
+
+  /** Says what a barcode is and how many it stands for. */
+  scan(barcode: string): Promise<ResolvedQuantity> {
+    return firstValueFrom(
+      this.http.get<ResolvedQuantity>(`${this.base}/scan/${encodeURIComponent(barcode)}`),
+    );
+  }
+
+  /** Adds a unit to the company's list, or changes one on it. */
+  saveUnit(unit: UnitOfMeasure): Promise<UnitOfMeasure> {
+    return firstValueFrom(this.http.post<UnitOfMeasure>(`${this.base}/units`, unit));
+  }
+
+  /** Says what one of a unit holds, for one item. */
+  saveItemUnit(
+    itemNo: string,
+    unit: { unitCode: string; quantityPerUnit: number; barcode?: string | null },
+  ): Promise<ItemUnit> {
+    return firstValueFrom(
+      this.http.post<ItemUnit>(
+        `${this.base}/items/${encodeURIComponent(itemNo)}/units`,
+        { ...unit, isActive: true },
+      ),
+    );
+  }
+
+  /** Takes a unit off an item. What already posted keeps the factor it posted with. */
+  removeItemUnit(itemNo: string, unitCode: string): Promise<void> {
+    return firstValueFrom(
+      this.http.delete<void>(
+        `${this.base}/items/${encodeURIComponent(itemNo)}/units/${encodeURIComponent(unitCode)}`,
       ),
     );
   }

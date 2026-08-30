@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <RootNamespace>Acme.Warranty</RootNamespace>
+    <Description>A worked example of an ASAP extension, built end to end: permissions, settings, bilingual messages, a menu entry and a service.</Description>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- An extension author writes <PackageReference Include="ASAP.Extensions.Sdk" />. This sample
+         lives in the same repository as the SDK, so it references the project to stay honest: a
+         sample built against a published package would go stale the first time the SDK changed. -->
+    <ProjectReference Include="..\..\src\Sdk\ASAP.Extensions.Sdk\ASAP.Extensions.Sdk.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Update="asap-extension.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

@@ -1,7 +1,21 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <RootNamespace>ASAP.Platform.Kernel</RootNamespace>
-    <Description>ASAP ERP kernel: dependency-free contracts shared by the platform, every module, and third-party extensions.</Description>
+    <Description>ASAP ERP kernel: dependency-free contracts shared by the platform, every module, and third-party extensions. This assembly is the compatibility contract — see docs/architecture/extension-compatibility.md.</Description>
+
+    <!-- Packed because it is the contract. The SDK depends on it, so an extension author who
+         installs the SDK and cannot restore the kernel has a package that does not work — and
+         "everything in the kernel is what you may rely on" is only true if they can get it. -->
+    <PackageId>ASAP.Platform.Kernel</PackageId>
+    <Version>1.0.0</Version>
+    <Authors>ASAP</Authors>
+    <PackageTags>asap;erp;contracts</PackageTags>
+    <IsPackable>true</IsPackable>
+
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />

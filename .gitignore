@@ -50,3 +50,8 @@ build/
 # Angular workspace
 frontend/.angular/
 frontend/dist/
+
+# Packed output. The packages are built from source on demand; committing them would let a stale
+# one be published from a tree that no longer matches it.
+**/bin/Release/*.nupkg
+**/bin/Release/*.snupkg

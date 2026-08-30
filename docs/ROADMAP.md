@@ -311,8 +311,19 @@ Everything else posts here, so it goes first.
 
 ## Phase 9 — Extensibility and documentation
 
-- The extension SDK published as a NuGet package
-- A worked sample extension, built end to end
+- **done** The extension SDK published as a NuGet package, with the kernel beside it — the
+  kernel is the compatibility contract, so a package that could not restore it would make the
+  contract untrue. Symbols and sources travel with both, so an author can step into ASAP's own
+  code rather than guess at it. The SDK is more than a reference: a base class that turns a
+  fourteen-member interface into the four members a first extension needs, helpers that build
+  permission, setting and message keys so the prefix cannot be got wrong, and the conformance
+  rules ASAP applies to its own modules shipped as one callable check
+- **done** A worked sample extension, built end to end: permissions, a setting, bilingual
+  messages with resolutions, a menu entry, a registered service, a manifest and its tests. Built
+  in this repository against the SDK project rather than a published package, so it cannot go
+  stale the first time the SDK changes. Its tests are the ones an author would write, starting
+  with the one-line conformance check — and the check itself is proved failing as well as
+  passing, because a check only ever run against something correct proves nothing
 - **done** Generated developer reference: every event, message code, permission and setting ASAP
   declares, read from the same registries the running system uses rather than transcribed from
   them. It describes the installation in front of you, extensions included, which is the answer to
@@ -322,7 +333,13 @@ Everything else posts here, so it goes first.
   itself. A conformance test refuses to let a message point at a topic that is missing, too short
   to be an explanation, or written in only one language — and refuses to let a topic exist that
   nothing points at, which is how a renamed message leaves its documentation behind
-- Upgrade and compatibility policy for extension authors
+- **done** Upgrade and compatibility policy for extension authors, written down rather than
+  implied: the kernel is the contract and nothing in it is removed or changes meaning within a
+  major version; members may be added, which is why every optional member of the module interface
+  has a default; everything outside the kernel may change between minor versions. An extension
+  declaring one major version is refused on the next rather than loaded and hoped for, because
+  one that half works writes half-correct figures into somebody's books and a wrong number that
+  arrived quietly is worse than a system that would not start
 
 ---
 

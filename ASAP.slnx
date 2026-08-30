@@ -23,6 +23,9 @@
   <Folder Name="/src/Sdk/">
     <Project Path="src/Sdk/ASAP.Extensions.Sdk/ASAP.Extensions.Sdk.csproj" />
   </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/Acme.Warranty/Acme.Warranty.csproj" />
+  </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/ASAP.Platform.Tests/ASAP.Platform.Tests.csproj" />
     <Project Path="tests/ASAP.Modules.Finance.Tests/ASAP.Modules.Finance.Tests.csproj" />
@@ -33,6 +36,7 @@
     <Project Path="tests/ASAP.Modules.Promotions.Tests/ASAP.Modules.Promotions.Tests.csproj" />
     <Project Path="tests/ASAP.Modules.Hr.Tests/ASAP.Modules.Hr.Tests.csproj" />
     <Project Path="tests/ASAP.Bridge.Tests/ASAP.Bridge.Tests.csproj" />
+    <Project Path="tests/Acme.Warranty.Tests/Acme.Warranty.Tests.csproj" />
     <Project Path="tests/ASAP.Conformance.Tests/ASAP.Conformance.Tests.csproj" />
   </Folder>
 </Solution>

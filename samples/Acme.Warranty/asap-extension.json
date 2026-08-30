@@ -1,0 +1,11 @@
+{
+  "id": "Acme.Warranty",
+  "name": "Warranty tracking",
+  "version": "1.0.0",
+  "publisher": "Acme Software",
+  "assembly": "Acme.Warranty.dll",
+  "platformVersion": "1.0",
+  "requires": [ "Sales" ],
+  "description": "Tracks how long the things a shop sells stay under warranty, and answers whether a particular sale still is.",
+  "supportUrl": "https://example.invalid/acme/warranty"
+}

@@ -22,6 +22,10 @@ public sealed record OpenSessionRequest(string StationCode, decimal OpeningFloat
 /// <param name="OverrideReason">Why a protection is being pushed past.</param>
 public sealed record CloseSessionRequest(decimal DeclaredCash, string? OverrideReason = null);
 
+/// <summary>Which bin a till sells off.</summary>
+/// <param name="PickBinCode">The bin, or null where the location does not track them.</param>
+public sealed record SetPickBinRequest(string? PickBinCode);
+
 /// <summary>One thing being rung up, as a client sends it.</summary>
 /// <param name="Type">Whether it sells stock or a charge.</param>
 /// <param name="No">The item number, or the account number on a charge line.</param>
@@ -102,7 +106,8 @@ public sealed record PosStationView(
     string LocationCode,
     string DefaultCustomerNo,
     bool IsBlocked,
-    string? OpenSessionNo);
+    string? OpenSessionNo,
+    string? PickBinCode = null);
 
 /// <summary>What a client sends to write a print template.</summary>
 /// <param name="Code">Its code.</param>
@@ -231,6 +236,10 @@ public static class PosEndpoints
         group.MapPost("/sessions", OpenAsync)
              .WithName("OpenPosSession")
              .WithSummary("Opens a drawer at a till with a counted float.");
+
+        group.MapPost("/stations/{stationCode}/pick-bin", SetPickBinAsync)
+             .WithName("SetTillPickBin")
+             .WithSummary("Says which bin a till sells off, where its location tracks them.");
 
         group.MapGet("/sessions/{sessionNo}/reading", ReadingAsync)
              .WithName("PosXReading")
@@ -440,7 +449,41 @@ public static class PosEndpoints
             s.LocationCode,
             s.DefaultCustomerNo,
             s.IsBlocked,
-            openByStation.GetValueOrDefault(s.Code))));
+            openByStation.GetValueOrDefault(s.Code),
+            s.PickBinCode)));
+    }
+
+    private static async Task<IResult> SetPickBinAsync(
+        string stationCode,
+        SetPickBinRequest request,
+        AsapDbContext context,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, "Pos.Station.Update"))
+        {
+            return Forbidden("Pos.Station.Update", "set a till's shelf", http);
+        }
+
+        var station = await context.Set<PosStation>()
+            .FirstOrDefaultAsync(s => s.Code == stationCode, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (station is null)
+        {
+            return Results.NotFound();
+        }
+
+        station.PickBinCode = string.IsNullOrWhiteSpace(request.PickBinCode)
+            ? null
+            : request.PickBinCode.Trim().ToUpperInvariant();
+
+        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(new { code = station.Code, pickBinCode = station.PickBinCode });
     }
 
     private static async Task<IResult> SessionsAsync(

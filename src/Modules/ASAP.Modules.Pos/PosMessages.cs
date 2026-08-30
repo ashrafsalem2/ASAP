@@ -73,6 +73,9 @@ public static class PosMessages
     /// <summary>The item scanned is not in the catalogue.</summary>
     public static readonly MessageCode ItemNotFound = new("POS.LINE.ITEM_NOT_FOUND");
 
+    /// <summary>The till sells from a location that tracks bins and has no shelf set.</summary>
+    public static readonly MessageCode TillHasNoPickBin = new("POS.STATION.NO_PICK_BIN");
+
     /// <summary>A line would sell below what the goods cost.</summary>
     public static readonly MessageCode BelowCost = new("POS.LINE.BELOW_COST");
 
@@ -384,6 +387,25 @@ public static class PosMessages
                 "Key a quantity, or remove the line.",
                 "أدخل كمية، أو احذف السطر."),
             HelpTopic = "pos/receipts",
+        },
+        new()
+        {
+            Code = TillHasNoPickBin,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("This till has no shelf set", "لم يُحدَّد رف لهذه النقطة"),
+            Detail = new LocalizedText(
+                "{StationCode} sells from {Location}, which tracks stock down to the bin, and "
+                + "nobody has said which bin the shop floor is.",
+                "تبيع النقطة {StationCode} من الموقع {Location} الذي يتتبع المخزون حتى الرف، ولم "
+                + "يحدد أحد أي رف هو أرض المتجر."),
+            Resolution = new LocalizedText(
+                "Set the till's shelf in station setup. It is asked once there rather than on "
+                + "every sale, because a cashier took the goods off the shop floor and has no way "
+                + "to say where that is on a warehouse map.",
+                "حدّد رف النقطة في إعداد النقاط. ويُسأل عنه مرة واحدة هناك لا في كل بيعة، لأن "
+                + "الكاشير أخذ البضاعة من أرض المتجر ولا سبيل له إلى بيان موضعها على خريطة "
+                + "المستودع."),
+            HelpTopic = "pos/stations",
         },
         new()
         {

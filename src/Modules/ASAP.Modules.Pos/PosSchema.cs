@@ -55,6 +55,8 @@ public sealed partial class PosSchema : IModuleSchema
         {
             builder.ToTable("PosStations", SchemaName);
 
+            builder.Property(s => s.PickBinCode).HasMaxLength(32);
+
             builder.Property(s => s.Code).HasMaxLength(20).IsRequired();
             builder.Property(s => s.Name).HasMaxLength(200).IsRequired();
             builder.Property(s => s.NameArabic).HasMaxLength(200);

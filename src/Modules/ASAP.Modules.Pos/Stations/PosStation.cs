@@ -34,6 +34,29 @@ public sealed class PosStation : CompanyEntity
     public required string LocationCode { get; set; }
 
     /// <summary>
+    /// The bin this till sells off, where its location tracks them.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Stated once here rather than asked for on every sale, because a cashier cannot answer it.
+    /// They took the goods off the shop floor; which shelf the shop floor is on the warehouse map
+    /// is a fact about the building, and one somebody can write down in advance.
+    /// </para>
+    /// <para>
+    /// This is not the general default that bins deliberately refuse. The rule that goods leaving
+    /// a bin-tracked location must name a bin exists because guessing which shelf they came off
+    /// makes a bin hold stock nobody can find. Nothing is guessed here: somebody stated it, for
+    /// this till, and it is the same shelf every time.
+    /// </para>
+    /// <para>
+    /// Null at a location that does not track bins, which is most shop floors. Null at one that
+    /// does is a till that cannot sell, and it says so rather than failing with a message telling
+    /// the cashier to name a bin they have no way to name.
+    /// </para>
+    /// </remarks>
+    public string? PickBinCode { get; set; }
+
+    /// <summary>
     /// The customer a walk-in sale is recorded against.
     /// </summary>
     /// <remarks>

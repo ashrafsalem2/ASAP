@@ -267,6 +267,7 @@ public sealed class PosReceiptService(
         // took the money and then discovered that would have to give it back.
         var cost = await MoveStockAsync(
                 receipt,
+                station,
                 built,
                 heldOverridePermissions,
                 overrideReason,
@@ -1097,6 +1098,7 @@ public sealed class PosReceiptService(
     /// </remarks>
     private async Task<decimal> MoveStockAsync(
         PosReceipt receipt,
+        PosStation station,
         IReadOnlyList<BuiltLine> lines,
         IReadOnlySet<string>? held,
         string? overrideReason,
@@ -1120,11 +1122,29 @@ public sealed class PosReceiptService(
 
                 // Carried from the line. A till that could not say which size would be unable to
                 // sell anything an item has variants for.
-                VariantCode: l.VariantCode))
+                VariantCode: l.VariantCode,
+
+                // The till's own shelf, stated once in station setup. A cashier took the goods off
+                // the shop floor and cannot say where that is on a warehouse map, so this is not
+                // the guess the bin rules refuse -- somebody wrote it down in advance.
+                BinCode: station.PickBinCode))
             .ToList();
 
         if (movements.Count == 0)
         {
+            return 0m;
+        }
+
+        // Said here rather than left to Inventory, whose refusal tells the reader to name a bin.
+        // That is sound advice on a warehouse journal and useless at a till, where the person
+        // reading it has a queue and no field to answer with.
+        if (string.IsNullOrWhiteSpace(station.PickBinCode)
+            && await LocationTracksBinsAsync(receipt.LocationCode, cancellationToken).ConfigureAwait(false))
+        {
+            found.Add(messages.Render(
+                PosMessages.TillHasNoPickBin,
+                Args(("StationCode", station.Code), ("Location", receipt.LocationCode))));
+
             return 0m;
         }
 
@@ -1624,6 +1644,12 @@ public sealed class PosReceiptService(
 
         return new UnitLookup(byItemAndCode, places);
     }
+
+    /// <summary>Whether the till's location tracks stock down to a bin.</summary>
+    private Task<bool> LocationTracksBinsAsync(string locationCode, CancellationToken cancellationToken)
+        => context.Set<Inventory.Locations.Location>()
+            .AsNoTracking()
+            .AnyAsync(l => l.Code == locationCode && l.UsesBins, cancellationToken);
 
     private async Task<Dictionary<string, Item>> ResolveItemsAsync(
         IReadOnlyList<PosLineRequest> lines,

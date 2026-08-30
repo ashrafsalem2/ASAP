@@ -78,6 +78,7 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
         services.AddScoped<Items.UnitConversionService>();
         services.AddScoped<Items.UnitSetupService>();
         services.AddScoped<Locations.BinSetupService>();
+        services.AddScoped<Adjustments.AdjustmentReasonService>();
         services.AddScoped<Seed.InventorySeeder>();
         services.AddScoped<Transfers.TransferService>();
         services.AddScoped<Counting.StockCountService>();
@@ -165,6 +166,21 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
             isSensitive: true),
 
         PermissionDescriptor.Define(
+            Id, "AdjustmentReason", PermissionAction.Read,
+            new LocalizedText("View adjustment reasons", "عرض أسباب التسوية")),
+
+        PermissionDescriptor.Define(
+            Id, "AdjustmentReason", PermissionAction.Update,
+            new LocalizedText("Maintain adjustment reasons", "إدارة أسباب التسوية"),
+            new LocalizedText(
+                "Say what stock may be written off for, and which account each write-off lands "
+                + "in. A reason carries the account, so the person at the shelf does not have to.",
+                "تحديد ما يجوز شطب المخزون لأجله، والحساب الذي يقع فيه كل شطب. فالسبب يحمل "
+                + "الحساب، ولا يحتاج من يقف عند الرف إلى معرفته."),
+            implies: [$"{Id}.AdjustmentReason.Read"],
+            isSensitive: true),
+
+        PermissionDescriptor.Define(
             Id, "Revaluation", PermissionAction.Post,
             new LocalizedText("Write stock up or down", "رفع أو خفض قيمة المخزون"),
             new LocalizedText(
@@ -231,6 +247,28 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
             DefaultValue = "COUNT",
             RequiresPermission = $"{Id}.Item.Update",
             HelpTopic = "inventory/stock-count",
+        },
+        new()
+        {
+            Key = $"{Id}.Adjustment.ReasonRequired",
+            Module = Id,
+            Group = new LocalizedText("Adjustments", "التسويات"),
+            DisplayName = new LocalizedText("An adjustment has to say why", "التسوية يجب أن تذكر السبب"),
+            Description = new LocalizedText(
+                "When on, every stock adjustment names a reason from the company's list. Off, a "
+                + "reason is optional and an adjustment without one is gathered under its own row "
+                + "in the shrinkage report rather than hidden. A corner shop writing off a broken "
+                + "bottle should not have to maintain a code list; a chain that cannot say what "
+                + "its shrinkage was made of should.",
+                "عند التفعيل، تحدد كل تسوية مخزون سببًا من قائمة الشركة. وعند الإيقاف يكون السبب "
+                + "اختياريًا، وتُجمع التسوية بلا سبب في سطر خاص بها في تقرير الفاقد بدل إخفائها. "
+                + "فالمتجر الصغير الذي يشطب زجاجة مكسورة لا يحتاج إلى قائمة رموز؛ أما السلسلة "
+                + "التي لا تستطيع بيان مكونات فاقدها فتحتاجها."),
+            ValueType = SetupValueType.Boolean,
+            Scope = SetupScope.Company,
+            DefaultValue = "false",
+            RequiresPermission = $"{Id}.AdjustmentReason.Update",
+            HelpTopic = "inventory/adjustment-reasons",
         },
         new()
         {
@@ -317,6 +355,12 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
             Order = 200,
         },
         Page("Items", new LocalizedText("Items", "الأصناف"), "/inventory/items", $"{Id}.Item.Read", 10),
+        Page(
+            "AdjustmentReasons",
+            new LocalizedText("Adjustment reasons", "أسباب التسوية"),
+            "/inventory/adjustment-reasons",
+            $"{Id}.AdjustmentReason.Read",
+            28),
         Page(
             "Bins",
             new LocalizedText("Bins", "الأرفف"),

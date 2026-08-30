@@ -38,6 +38,7 @@ public sealed partial class InventorySeeder(AsapDbContext context, ILogger<Inven
         // Ahead of the early return, and checking for itself. A company that already has
         // locations is exactly the one that would otherwise never receive units.
         await SeedUnitsAsync(tenantId, companyId, cancellationToken).ConfigureAwait(false);
+        await SeedAdjustmentReasonsAsync(tenantId, companyId, cancellationToken).ConfigureAwait(false);
 
         if (alreadySet)
         {
@@ -103,5 +104,65 @@ public sealed partial class InventorySeeder(AsapDbContext context, ILogger<Inven
             companyId);
 
         return true;
+    }
+
+    /// <summary>
+    /// Adds the reasons a company writes stock off for.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Shipped, unlike a box's contents, because breakage and theft and expiry mean the same thing
+    /// in every shop and a company should not have to invent the words. The accounts they point at
+    /// are shipped for the same reason: a write-off that lands nowhere in particular is what this
+    /// whole list exists to stop.
+    /// </para>
+    /// <para>
+    /// Directions are set the way the world works. Breakage cannot increase stock and goods found
+    /// cannot decrease it. A count difference is the only one that genuinely goes either way,
+    /// which is why it is the only one left open.
+    /// </para>
+    /// </remarks>
+    private async Task SeedAdjustmentReasonsAsync(
+        Guid tenantId,
+        Guid companyId,
+        CancellationToken cancellationToken)
+    {
+        if (await context.Set<Adjustments.AdjustmentReason>().AnyAsync(cancellationToken).ConfigureAwait(false))
+        {
+            return;
+        }
+
+        Add("COUNT", "Stock count difference", "فرق جرد", "5200", Adjustments.AdjustmentDirection.Either);
+        Add("BREAKAGE", "Broken or damaged", "تالف أو مكسور", "5210", Adjustments.AdjustmentDirection.DecreaseOnly);
+
+        // A note is demanded on this one and no other. Everything else here is an accident; this
+        // is the one somebody will be asked about, and a row nobody wrote anything against is a
+        // row that has to be reconstructed from memory months afterwards.
+        Add("THEFT", "Missing or stolen", "مفقود أو مسروق", "5220", Adjustments.AdjustmentDirection.DecreaseOnly, requiresNote: true);
+
+        Add("EXPIRY", "Past its date", "منتهي الصلاحية", "5230", Adjustments.AdjustmentDirection.DecreaseOnly);
+        Add("SAMPLE", "Given away as a sample", "عينة مجانية", "5240", Adjustments.AdjustmentDirection.DecreaseOnly);
+        Add("FOUND", "Found on the shelf", "بضاعة موجودة", "5200", Adjustments.AdjustmentDirection.IncreaseOnly);
+
+        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        void Add(
+            string code,
+            string name,
+            string arabic,
+            string account,
+            Adjustments.AdjustmentDirection direction,
+            bool requiresNote = false)
+            => context.Set<Adjustments.AdjustmentReason>().Add(new Adjustments.AdjustmentReason
+            {
+                TenantId = tenantId,
+                CompanyId = companyId,
+                Code = code,
+                Name = name,
+                NameArabic = arabic,
+                ContraAccountNo = account,
+                Direction = direction,
+                RequiresNote = requiresNote,
+            });
     }
 }

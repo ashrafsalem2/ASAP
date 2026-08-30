@@ -1,5 +1,6 @@
 using ASAP.Api.Infrastructure;
 using ASAP.Modules.Inventory;
+using ASAP.Modules.Inventory.Adjustments;
 using ASAP.Modules.Inventory.Costing;
 using ASAP.Modules.Inventory.Counting;
 using ASAP.Modules.Inventory.Items;
@@ -123,6 +124,55 @@ public sealed record SaveItemUnitRequest(
     decimal QuantityPerUnit,
     string? Barcode = null,
     bool IsActive = true);
+
+/// <summary>One reason stock may be adjusted for.</summary>
+/// <param name="Code">Its code.</param>
+/// <param name="Name">What it is called.</param>
+/// <param name="NameArabic">What it is called in Arabic.</param>
+/// <param name="ContraAccountNo">Where the value lands, or null for the category's variance account.</param>
+/// <param name="Direction">Which way it may move stock.</param>
+/// <param name="RequiresNote">Whether it needs something written against it.</param>
+/// <param name="IsActive">Whether it may still be chosen.</param>
+public sealed record AdjustmentReasonView(
+    string Code,
+    string Name,
+    string? NameArabic,
+    string? ContraAccountNo,
+    string Direction,
+    bool RequiresNote,
+    bool IsActive);
+
+/// <summary>A reason as a client sends it.</summary>
+/// <param name="Code">Its code.</param>
+/// <param name="Name">What it is called.</param>
+/// <param name="NameArabic">What it is called in Arabic.</param>
+/// <param name="ContraAccountNo">Where the value lands, or null for the category's variance account.</param>
+/// <param name="Direction">Which way it may move stock.</param>
+/// <param name="RequiresNote">Whether it needs something written against it.</param>
+/// <param name="IsActive">Whether it may still be chosen.</param>
+public sealed record SaveAdjustmentReasonRequest(
+    string Code,
+    string Name,
+    string? NameArabic = null,
+    string? ContraAccountNo = null,
+    AdjustmentDirection Direction = AdjustmentDirection.Either,
+    bool RequiresNote = false,
+    bool IsActive = true);
+
+/// <summary>What was adjusted under one reason.</summary>
+/// <param name="ReasonCode">The reason, or empty where none was given.</param>
+/// <param name="ReasonName">What it is called.</param>
+/// <param name="ReasonNameArabic">The same in Arabic.</param>
+/// <param name="EntryCount">How many adjustments carried it.</param>
+/// <param name="Quantity">The net quantity moved under it.</param>
+/// <param name="CostAmount">What that was worth.</param>
+public sealed record ShrinkageView(
+    string ReasonCode,
+    string ReasonName,
+    string? ReasonNameArabic,
+    int EntryCount,
+    decimal Quantity,
+    decimal CostAmount);
 
 /// <summary>What stock is worth right now, as the client sees it.</summary>
 /// <param name="ItemNo">The item.</param>
@@ -343,6 +393,18 @@ public static class InventoryEndpoints
         group.MapPost("/stock/revalue", RevalueAsync)
              .WithName("RevalueStock")
              .WithSummary("Writes stock up or down without changing how much there is.");
+
+        group.MapGet("/adjustment-reasons", ReasonsAsync)
+             .WithName("AdjustmentReasons")
+             .WithSummary("The reasons this company adjusts stock for.");
+
+        group.MapPost("/adjustment-reasons", SaveReasonAsync)
+             .WithName("SaveAdjustmentReason")
+             .WithSummary("Adds an adjustment reason, or changes one already there.");
+
+        group.MapGet("/reports/shrinkage", ShrinkageAsync)
+             .WithName("ShrinkageReport")
+             .WithSummary("What was adjusted under each reason, and what it was worth.");
 
         return app;
     }
@@ -666,6 +728,10 @@ public static class InventoryEndpoints
             .GetAsync<bool>($"{InventoryModule.Id}.Costing.AllowNegativeInventory", cancellationToken)
             .ConfigureAwait(false);
 
+        var reasonRequired = await setup
+            .GetAsync<bool>($"{InventoryModule.Id}.Adjustment.ReasonRequired", cancellationToken)
+            .ConfigureAwait(false);
+
         // Only the overrides this caller actually holds. The availability rules downgrade a block
         // to a warning when the permission is present, exactly as the ledger poster does.
         var overrides = new[] { "Inventory.Stock.Override" }
@@ -681,7 +747,8 @@ public static class InventoryEndpoints
                 allowsNegative,
                 overrides,
                 request.OverrideReason,
-                cancellationToken)
+                cancellationToken,
+                reasonRequired)
             .ConfigureAwait(false);
 
         if (result.Failed)
@@ -1076,6 +1143,100 @@ public static class InventoryEndpoints
                     resolution = m.Resolution,
                 }),
             });
+    }
+
+    private static async Task<IResult> ReasonsAsync(
+        AdjustmentReasonService reasons,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken,
+        bool includeWithdrawn = false)
+    {
+        if (!Can(user, "Inventory.AdjustmentReason.Read"))
+        {
+            return Forbidden("Inventory.AdjustmentReason.Read", "view adjustment reasons", http);
+        }
+
+        var rows = await reasons.ReasonsAsync(includeWithdrawn, cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(rows.Select(static r => new AdjustmentReasonView(
+            r.Code,
+            r.Name,
+            r.NameArabic,
+            r.ContraAccountNo,
+            r.Direction.ToString(),
+            r.RequiresNote,
+            r.IsActive)));
+    }
+
+    private static async Task<IResult> SaveReasonAsync(
+        SaveAdjustmentReasonRequest request,
+        AdjustmentReasonService reasons,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, "Inventory.AdjustmentReason.Update"))
+        {
+            return Forbidden("Inventory.AdjustmentReason.Update", "maintain adjustment reasons", http);
+        }
+
+        var result = await reasons
+            .SaveAsync(
+                new AdjustmentReasonRequest(
+                    request.Code,
+                    request.Name,
+                    request.NameArabic,
+                    request.ContraAccountNo,
+                    request.Direction,
+                    request.RequiresNote,
+                    request.IsActive),
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed
+            ? Refused(result, http)
+            : Results.Ok(new AdjustmentReasonView(
+                result.Value.Code,
+                result.Value.Name,
+                result.Value.NameArabic,
+                result.Value.ContraAccountNo,
+                result.Value.Direction.ToString(),
+                result.Value.RequiresNote,
+                result.Value.IsActive));
+    }
+
+    private static async Task<IResult> ShrinkageAsync(
+        AdjustmentReasonService reasons,
+        IUserContext user,
+        IClock clock,
+        HttpContext http,
+        CancellationToken cancellationToken,
+        DateOnly? from = null,
+        DateOnly? to = null,
+        string? locationCode = null)
+    {
+        if (!Can(user, "Inventory.Stock.Read"))
+        {
+            return Forbidden("Inventory.Stock.Read", "read the shrinkage report", http);
+        }
+
+        var last = to ?? clock.Today;
+        var first = from ?? last.AddMonths(-1);
+
+        var rows = await reasons
+            .ShrinkageAsync(first, last, locationCode, cancellationToken)
+            .ConfigureAwait(false);
+
+        return Results.Ok(rows.Select(static r => new ShrinkageView(
+            r.ReasonCode,
+            r.ReasonName,
+            r.ReasonNameArabic,
+            r.EntryCount,
+            r.Quantity,
+            r.CostAmount)));
     }
 
     private static bool Can(IUserContext user, string permission)

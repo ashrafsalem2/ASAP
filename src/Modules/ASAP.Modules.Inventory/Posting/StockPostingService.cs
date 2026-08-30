@@ -39,6 +39,11 @@ namespace ASAP.Modules.Inventory.Posting;
 /// location's receiving bin; an issue with no bin at a bin-tracked location is refused, because
 /// guessing which shelf it came off would make the bins wrong from that moment on.
 /// </param>
+/// <param name="ReasonCode">
+/// Why, on an adjustment. The reason carries the account the loss lands in, so the person at the
+/// shelf says "breakage" without having to know which account that is.
+/// </param>
+/// <param name="Note">What the person adjusting wrote, where they wrote anything.</param>
 public sealed record StockMovementRequest(
     string ItemNo,
     string LocationCode,
@@ -47,7 +52,9 @@ public sealed record StockMovementRequest(
     ItemLedgerEntryType EntryType = ItemLedgerEntryType.PositiveAdjustment,
     decimal SalesAmount = 0m,
     string? ContraAccountNo = null,
-    string? BinCode = null);
+    string? BinCode = null,
+    string? ReasonCode = null,
+    string? Note = null);
 
 /// <summary>What a stock posting produced.</summary>
 /// <param name="TransactionNo">The number grouping every entry written.</param>
@@ -101,6 +108,11 @@ public sealed partial class StockPostingService(
     /// <param name="heldOverridePermissions">Override permissions the caller holds.</param>
     /// <param name="overrideReason">Why a protection was pushed past, recorded with the override.</param>
     /// <param name="cancellationToken">Cancels the work.</param>
+    /// <param name="reasonRequired">
+    /// Whether an adjustment has to say why. A company setting rather than a rule, because a
+    /// corner shop writing off a broken bottle should not have to maintain a code list, and a
+    /// chain that cannot say what its shrinkage was made of should.
+    /// </param>
     public async Task<Result<StockPostingReceipt>> PostAsync(
         IReadOnlyList<StockMovementRequest> requests,
         DateOnly postingDate,
@@ -109,11 +121,12 @@ public sealed partial class StockPostingService(
         bool companyAllowsNegative,
         IReadOnlySet<string>? heldOverridePermissions = null,
         string? overrideReason = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        bool reasonRequired = false)
     {
         ArgumentNullException.ThrowIfNull(requests);
 
-        var resolved = await ResolveAsync(requests, cancellationToken).ConfigureAwait(false);
+        var resolved = await ResolveAsync(requests, reasonRequired, cancellationToken).ConfigureAwait(false);
 
         if (resolved.Failed)
         {
@@ -181,7 +194,10 @@ public sealed partial class StockPostingService(
 
             // Estimated cost is excluded: a figure nobody has confirmed must not reach the
             // inventory account, or the ledger drifts from the valuation by the amount in doubt.
-            settledByEntry.Add((outcome.Entry, outcome.CostAmount - outcome.EstimatedCostAmount, request.ContraAccountNo));
+            settledByEntry.Add((
+                outcome.Entry,
+                outcome.CostAmount - outcome.EstimatedCostAmount,
+                request.ContraAccountNo ?? movement.ContraAccountNo));
         }
 
         await RequestLedgerPostingAsync(
@@ -253,6 +269,8 @@ public sealed partial class StockPostingService(
             // bin named lands in the receiving bay and the entry has to say so.
             BinId = movement.Bin?.Id,
             BinCode = movement.Bin?.Code,
+            ReasonCode = request.ReasonCode?.Trim().ToUpperInvariant(),
+            Note = request.Note?.Trim(),
             Quantity = request.Quantity,
             DocumentNo = documentNo,
             TransactionNo = transactionNo,
@@ -474,6 +492,7 @@ public sealed partial class StockPostingService(
     /// </remarks>
     private async Task<Result<List<MovementView>>> ResolveAsync(
         IReadOnlyList<StockMovementRequest> requests,
+        bool reasonRequired,
         CancellationToken cancellationToken)
     {
         var itemNos = requests.Select(static r => r.ItemNo).Distinct().ToList();
@@ -498,6 +517,21 @@ public sealed partial class StockPostingService(
             .Where(b => locationIds.Contains(b.LocationId))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
+
+        var reasonCodes = requests
+            .Select(static r => r.ReasonCode)
+            .Where(static c => !string.IsNullOrWhiteSpace(c))
+            .Select(static c => c!.Trim().ToUpperInvariant())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        var reasons = reasonCodes.Count == 0
+            ? []
+            : await context.Set<Adjustments.AdjustmentReason>()
+                .AsNoTracking()
+                .Where(r => reasonCodes.Contains(r.Code))
+                .ToDictionaryAsync(static r => r.Code, StringComparer.OrdinalIgnoreCase, cancellationToken)
+                .ConfigureAwait(false);
 
         var missing = new List<AsapMessage>();
         var movements = new List<MovementView>();
@@ -543,6 +577,14 @@ public sealed partial class StockPostingService(
                 continue;
             }
 
+            var reasonRefusal = CheckReason(request, reasons, reasonRequired, index + 1);
+
+            if (reasonRefusal is not null)
+            {
+                missing.Add(reasonRefusal);
+                continue;
+            }
+
             var onHand = await OnHandAsync(item.Id, location.Id, cancellationToken).ConfigureAwait(false);
 
             var inBin = binResult.Bin is null
@@ -577,12 +619,107 @@ public sealed partial class StockPostingService(
                 Bin = binResult.Bin,
                 BinQuantityOnHand = inBin,
                 BinsHoldingIt = elsewhere,
+                ContraAccountNo = ContraFor(request, reasons),
             });
         }
 
         return missing.Count > 0
             ? Result<List<MovementView>>.Failure(missing)
             : Result<List<MovementView>>.Success(movements);
+    }
+
+    /// <summary>Where an adjustment's value posts against, when its reason names an account.</summary>
+    private static string? ContraFor(
+        StockMovementRequest request,
+        IReadOnlyDictionary<string, Adjustments.AdjustmentReason> reasons)
+    {
+        var code = request.ReasonCode?.Trim();
+
+        return code is { Length: > 0 } named
+            && reasons.TryGetValue(named, out var reason)
+            && reason.ContraAccountNo is { Length: > 0 } account
+                ? account
+                : null;
+    }
+
+    /// <summary>
+    /// Says why an adjustment's reason will not do, when it will not.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Only adjustments are asked. A sale, a purchase and a transfer already say why they happened
+    /// -- the document behind them is the reason -- and demanding a code as well would be asking
+    /// the same question twice.
+    /// </para>
+    /// <para>
+    /// The direction check is the one that earns its place. Breakage cannot increase stock and
+    /// goods found cannot decrease it, and a reason used the wrong way round produces an entry
+    /// that looks perfectly valid in every report that reads it.
+    /// </para>
+    /// </remarks>
+    private AsapMessage? CheckReason(
+        StockMovementRequest request,
+        IReadOnlyDictionary<string, Adjustments.AdjustmentReason> reasons,
+        bool reasonRequired,
+        int lineNo)
+    {
+        var isAdjustment = request.EntryType
+            is ItemLedgerEntryType.PositiveAdjustment or ItemLedgerEntryType.NegativeAdjustment;
+
+        if (!isAdjustment)
+        {
+            return null;
+        }
+
+        var target = MessageTarget.OnField($"Lines[{lineNo}]");
+        var wanted = request.ReasonCode?.Trim();
+
+        if (string.IsNullOrEmpty(wanted))
+        {
+            return reasonRequired
+                ? messages.Render(
+                    InventoryMessages.ReasonRequired,
+                    Args(("LineNo", lineNo), ("ItemNo", request.ItemNo), ("Quantity", request.Quantity)),
+                    target)
+                : null;
+        }
+
+        if (!reasons.TryGetValue(wanted, out var reason))
+        {
+            return messages.Render(
+                InventoryMessages.ReasonNotFound,
+                Args(("LineNo", lineNo), ("ReasonCode", wanted)),
+                target);
+        }
+
+        if (!reason.IsActive)
+        {
+            return messages.Render(
+                InventoryMessages.ReasonNotInUse,
+                Args(("LineNo", lineNo), ("ReasonCode", reason.Code)),
+                target);
+        }
+
+        if (!reason.Permits(request.Quantity))
+        {
+            return messages.Render(
+                InventoryMessages.ReasonWrongDirection,
+                Args(
+                    ("LineNo", lineNo),
+                    ("ReasonCode", reason.Code),
+                    ("ReasonName", reason.Name),
+                    ("Quantity", Math.Abs(request.Quantity)),
+                    ("Direction", reason.Direction is Adjustments.AdjustmentDirection.IncreaseOnly ? "up" : "down"),
+                    ("Actual", request.Quantity > 0m ? "up" : "down")),
+                target);
+        }
+
+        return reason.RequiresNote && string.IsNullOrWhiteSpace(request.Note)
+            ? messages.Render(
+                InventoryMessages.ReasonNeedsANote,
+                Args(("LineNo", lineNo), ("ReasonCode", reason.Code), ("ReasonName", reason.Name)),
+                target)
+            : null;
     }
 
     /// <summary>What a line's bin came to, or why the line cannot stand.</summary>

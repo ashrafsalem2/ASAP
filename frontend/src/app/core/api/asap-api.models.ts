@@ -174,6 +174,27 @@ export interface StockLocation {
   usesBins: boolean;
 }
 
+/** One reason stock may be adjusted for. */
+export interface AdjustmentReason {
+  code: string;
+  name: string;
+  nameArabic?: string | null;
+  contraAccountNo?: string | null;
+  direction: 'Either' | 'IncreaseOnly' | 'DecreaseOnly';
+  requiresNote: boolean;
+  isActive: boolean;
+}
+
+/** What was adjusted under one reason. */
+export interface ShrinkageRow {
+  reasonCode: string;
+  reasonName: string;
+  reasonNameArabic?: string | null;
+  entryCount: number;
+  quantity: number;
+  costAmount: number;
+}
+
 /** One bin at a location. */
 export interface Bin {
   code: string;

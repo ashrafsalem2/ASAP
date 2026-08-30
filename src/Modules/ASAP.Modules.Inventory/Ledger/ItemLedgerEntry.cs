@@ -66,6 +66,18 @@ public sealed class ItemLedgerEntry : LedgerEntity
     /// <summary>Location code, copied for the same reason as the item number.</summary>
     public required string LocationCode { get; set; }
 
+    /// <summary>
+    /// Why it was adjusted, on an adjustment.
+    /// </summary>
+    /// <remarks>
+    /// Copied rather than joined, for the same reason the item number is: a shrinkage report run
+    /// next year must not change its answer because somebody renamed a reason since.
+    /// </remarks>
+    public string? ReasonCode { get; set; }
+
+    /// <summary>What the person adjusting wrote, where they wrote anything.</summary>
+    public string? Note { get; set; }
+
     /// <summary>The bin it moved at, where the location tracks them.</summary>
     public Guid? BinId { get; set; }
 

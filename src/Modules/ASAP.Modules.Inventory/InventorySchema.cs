@@ -124,6 +124,21 @@ public sealed partial class InventorySchema : IModuleSchema
                    .HasFilter("[IsDeleted] = 0");
         });
 
+        modelBuilder.Entity<Adjustments.AdjustmentReason>(builder =>
+        {
+            builder.ToTable("AdjustmentReasons", SchemaName);
+
+            builder.Property(r => r.Code).HasMaxLength(32).IsRequired();
+            builder.Property(r => r.Name).HasMaxLength(200).IsRequired();
+            builder.Property(r => r.NameArabic).HasMaxLength(200);
+            builder.Property(r => r.ContraAccountNo).HasMaxLength(20);
+            builder.Property(r => r.RowVersion).IsRowVersion();
+
+            builder.HasIndex(r => new { r.CompanyId, r.Code })
+                   .IsUnique()
+                   .HasFilter("[IsDeleted] = 0");
+        });
+
         modelBuilder.Entity<Bin>(builder =>
         {
             builder.ToTable("Bins", SchemaName);
@@ -156,6 +171,11 @@ public sealed partial class InventorySchema : IModuleSchema
             builder.Property(e => e.ItemNo).HasMaxLength(32).IsRequired();
             builder.Property(e => e.LocationCode).HasMaxLength(32).IsRequired();
             builder.Property(e => e.BinCode).HasMaxLength(32);
+            builder.Property(e => e.ReasonCode).HasMaxLength(32);
+            builder.Property(e => e.Note).HasMaxLength(500);
+
+            // "What did we write off for breakage last quarter" reads this one.
+            builder.HasIndex(e => new { e.CompanyId, e.ReasonCode, e.PostingDate });
             builder.Property(e => e.DocumentNo).HasMaxLength(64);
             builder.Property(e => e.SourceCode).HasMaxLength(32).IsRequired();
             builder.Property(e => e.SerialNo).HasMaxLength(64);

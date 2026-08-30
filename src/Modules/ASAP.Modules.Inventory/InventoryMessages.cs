@@ -70,6 +70,24 @@ public static class InventoryMessages
     /// <summary>The stock is already worth that.</summary>
     public static readonly MessageCode RevaluationChangesNothing = new("INV.REVAL.NO_CHANGE");
 
+    /// <summary>An adjustment named a reason the company has not got.</summary>
+    public static readonly MessageCode ReasonNotFound = new("INV.REASON.NOT_FOUND");
+
+    /// <summary>The reason is withdrawn from use.</summary>
+    public static readonly MessageCode ReasonNotInUse = new("INV.REASON.NOT_IN_USE");
+
+    /// <summary>The reason cannot move stock that way.</summary>
+    public static readonly MessageCode ReasonWrongDirection = new("INV.REASON.WRONG_DIRECTION");
+
+    /// <summary>The reason wants something written against it.</summary>
+    public static readonly MessageCode ReasonNeedsANote = new("INV.REASON.NOTE_REQUIRED");
+
+    /// <summary>An adjustment gave no reason where the company requires one.</summary>
+    public static readonly MessageCode ReasonRequired = new("INV.REASON.REQUIRED");
+
+    /// <summary>A reason was saved without a code.</summary>
+    public static readonly MessageCode ReasonCodeRequired = new("INV.REASON.CODE_REQUIRED");
+
     /// <summary>Stock would go below zero and the company does not permit it.</summary>
     public static readonly MessageCode NegativeInventoryBlocked = new("INV.STOCK.NEGATIVE_BLOCKED");
 
@@ -484,6 +502,101 @@ public static class InventoryMessages
                 + "would be a row that means nothing.",
                 "لم يُرحّل شيء، وهذا هو الجواب الصادق. فقيد بتغيير مقداره صفر سطر لا يعني شيئًا."),
             HelpTopic = "inventory/revaluation",
+        },
+        new()
+        {
+            Code = ReasonNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such reason", "لا يوجد سبب بهذا الرمز"),
+            Detail = new LocalizedText(
+                "Line {LineNo} gave {ReasonCode}, and this company has no adjustment reason by "
+                + "that code.",
+                "أعطى السطر {LineNo} الرمز {ReasonCode}، ولا يوجد في هذه الشركة سبب تسوية بهذا الرمز."),
+            Resolution = new LocalizedText(
+                "Choose one from the list, or add it. Free text here would give every shop its own "
+                + "spelling of breakage and a shrinkage report that adds up none of them.",
+                "اختر واحدًا من القائمة، أو أضفه. فالنص الحر هنا يعطي كل متجر تهجئته الخاصة "
+                + "للتلف، وتقرير فاقد لا يجمع أيًّا منها."),
+            HelpTopic = "inventory/adjustment-reasons",
+        },
+        new()
+        {
+            Code = ReasonNotInUse,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("That reason is withdrawn", "هذا السبب موقوف"),
+            Detail = new LocalizedText(
+                "{ReasonCode} is no longer in use.",
+                "الرمز {ReasonCode} لم يعد مستخدمًا."),
+            Resolution = new LocalizedText(
+                "Choose one that is. Withdrawn rather than deleted, because entries already posted "
+                + "against it still point at it and a report covering last year has to name it.",
+                "اختر سببًا ساريًا. وقد أُوقف بدل حذفه، لأن القيود المرحّلة عليه ما زالت تشير إليه "
+                + "وعلى تقرير العام الماضي أن يسمّيه."),
+            HelpTopic = "inventory/adjustment-reasons",
+        },
+        new()
+        {
+            Code = ReasonWrongDirection,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("That reason does not work that way", "هذا السبب لا يعمل بهذا الاتجاه"),
+            Detail = new LocalizedText(
+                "{ReasonCode} {ReasonName} only moves stock {Direction}, and line {LineNo} moves "
+                + "it {Actual} by {Quantity:0.#####}.",
+                "السبب {ReasonCode} {ReasonName} لا يحرك المخزون إلا {Direction}، والسطر {LineNo} "
+                + "يحركه {Actual} بمقدار {Quantity:0.#####}."),
+            Resolution = new LocalizedText(
+                "Check the sign, or choose the reason that matches. Breakage cannot increase stock "
+                + "and goods found cannot decrease it, and either way round produces an entry that "
+                + "looks perfectly valid in every report that reads it.",
+                "تحقق من الإشارة، أو اختر السبب المطابق. فالتلف لا يزيد المخزون، والبضاعة الموجودة "
+                + "لا تنقصه، وأي منهما بالمقلوب يُنتج قيدًا يبدو سليمًا تمامًا في كل تقرير يقرؤه."),
+            HelpTopic = "inventory/adjustment-reasons",
+        },
+        new()
+        {
+            Code = ReasonNeedsANote,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("This one needs an explanation", "هذا السبب يحتاج بيانًا"),
+            Detail = new LocalizedText(
+                "{ReasonCode} {ReasonName} was chosen on line {LineNo}, and nothing was written "
+                + "against it.",
+                "اختير السبب {ReasonCode} {ReasonName} في السطر {LineNo}، ولم يُكتب معه شيء."),
+            Resolution = new LocalizedText(
+                "Say what happened. A write-off with nothing written against it is a row somebody "
+                + "has to reconstruct from memory months afterwards.",
+                "بيّن ما حدث. فالشطب بلا بيان سطر سيضطر أحدهم إلى استعادته من الذاكرة بعد أشهر."),
+            HelpTopic = "inventory/adjustment-reasons",
+        },
+        new()
+        {
+            Code = ReasonRequired,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("Say why", "بيّن السبب"),
+            Detail = new LocalizedText(
+                "Line {LineNo} adjusts {ItemNo} by {Quantity:0.#####} and gives no reason. This "
+                + "company requires one.",
+                "يسوّي السطر {LineNo} الصنف {ItemNo} بمقدار {Quantity:0.#####} دون ذكر سبب. وهذه "
+                + "الشركة تشترط ذكره."),
+            Resolution = new LocalizedText(
+                "Choose a reason. Breakage, theft and expiry have the same effect on quantity and "
+                + "almost nothing else in common, and one figure covering all three answers none "
+                + "of the questions anybody asks about it.",
+                "اختر سببًا. فالتلف والسرقة وانتهاء الصلاحية أثرها واحد على الكمية ولا يجمعها شيء "
+                + "آخر تقريبًا، ورقم واحد يشملها جميعًا لا يجيب عن أي سؤال يطرحه أحد."),
+            HelpTopic = "inventory/adjustment-reasons",
+        },
+        new()
+        {
+            Code = ReasonCodeRequired,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("A reason needs a code", "السبب يحتاج رمزًا"),
+            Detail = new LocalizedText(
+                "No code was given, and a reason is named by its code on every entry it appears on.",
+                "لم يُعطَ رمز، والسبب يُسمّى برمزه في كل قيد يظهر فيه."),
+            Resolution = new LocalizedText(
+                "Give it a short code a report can group by: BREAKAGE, THEFT, EXPIRY.",
+                "أعطه رمزًا قصيرًا يستطيع التقرير التجميع به: BREAKAGE أو THEFT أو EXPIRY."),
+            HelpTopic = "inventory/adjustment-reasons",
         },
         new()
         {

@@ -159,8 +159,17 @@ Everything else posts here, so it goes first.
   against the open receipts themselves, per remaining unit, and every open receipt lands on the new
   figure whatever it was bought at. Only what is on hand: goods already sold have their cost of
   sales booked against the revenue they earned. The loss lands on variance rather than cost of
-  sales, because nothing was sold. Adjustments and physical count done; adjustment reason codes,
-  revaluing a whole category at once, and lower-of-cost-or-market as a routine still to come
+  sales, because nothing was sold. Revaluing a whole category at once, and lower-of-cost-or-market
+  as a routine, still to come
+- **done** Adjustment reasons. Without one every write-off is a bare negative adjustment and
+  breakage, theft and expiry are indistinguishable -- same effect on quantity, almost nothing else
+  in common, and one figure covering all three is a number nobody can act on. A reason carries the
+  account, so somebody at the shelf says "breakage" and the cost reaches the breakage account
+  without them knowing which one it is. Direction is checked because a reason used the wrong way
+  round produces an entry that looks valid in every report that reads it, and a note can be demanded
+  on the ones somebody will be asked about. Requiring a reason at all is a company setting, and an
+  adjustment without one gets its own row in the shrinkage report rather than being dropped -- the
+  gap would otherwise be exactly the entries nobody explained. A limit per reason still to come
 - **done** Transfer orders, in-transit tracking, shipment and receipt including short receipts
   (transfer *requests* — a branch asking rather than being sent — still to come)
 - Reorder policy, reservations, item availability

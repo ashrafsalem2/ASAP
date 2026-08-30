@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
+  AdjustmentReason,
   Bin,
   BinContent,
   CreateTransferRequest,
@@ -17,6 +18,7 @@ import {
   StockMovement,
   StockMovementRequest,
   StockOnHandRow,
+  ShrinkageRow,
   StockPostingReceipt,
   Transfer,
   TransferCreated,
@@ -272,6 +274,42 @@ export class InventoryService {
         `${this.base}/locations/${encodeURIComponent(locationCode)}/bin-tracking`,
         { usesBins },
       ),
+    );
+  }
+
+  /** The reasons this company adjusts stock for. */
+  adjustmentReasons(includeWithdrawn = false): Promise<AdjustmentReason[]> {
+    const params = includeWithdrawn
+      ? new HttpParams().set('includeWithdrawn', 'true')
+      : new HttpParams();
+
+    return firstValueFrom(
+      this.http.get<AdjustmentReason[]>(`${this.base}/adjustment-reasons`, { params }),
+    );
+  }
+
+  /** Adds a reason, or changes one already there. */
+  saveAdjustmentReason(reason: AdjustmentReason): Promise<AdjustmentReason> {
+    return firstValueFrom(
+      this.http.post<AdjustmentReason>(`${this.base}/adjustment-reasons`, reason),
+    );
+  }
+
+  /**
+   * What was adjusted under each reason, and what it was worth.
+   *
+   * Adjustments made without a reason come back under a row of their own rather than being
+   * dropped, so the report and the ledger agree.
+   */
+  shrinkage(from: string, to: string, locationCode?: string): Promise<ShrinkageRow[]> {
+    let params = new HttpParams().set('from', from).set('to', to);
+
+    if (locationCode) {
+      params = params.set('locationCode', locationCode);
+    }
+
+    return firstValueFrom(
+      this.http.get<ShrinkageRow[]>(`${this.base}/reports/shrinkage`, { params }),
     );
   }
 }

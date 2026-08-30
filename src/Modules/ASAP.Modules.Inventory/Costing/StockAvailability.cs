@@ -73,6 +73,17 @@ public sealed record MovementView(
     /// else has it either, which is a different problem and gets a different answer.
     /// </remarks>
     public IReadOnlyList<string> BinsHoldingIt { get; init; } = [];
+
+    /// <summary>
+    /// Where the value posts against, taken from the adjustment reason.
+    /// </summary>
+    /// <remarks>
+    /// The whole point of a reason carrying an account. Somebody at the shelf says breakage and
+    /// the cost reaches the breakage account without them knowing which one that is. A contra
+    /// named on the request itself still wins, because the module owning the document behind a
+    /// movement knows better than a code list does.
+    /// </remarks>
+    public string? ContraAccountNo { get; init; }
 }
 
 /// <summary>

@@ -1,0 +1,161 @@
+<div class="page">
+  <h1>{{ t('inventory.reasons.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('inventory.reasons.intro') }}</p>
+  </section>
+
+  @if (loading()) {
+    <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+  } @else {
+    <section class="panel">
+      <h2 class="panel__title">{{ t('inventory.reasons.listTitle') }}</h2>
+
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('inventory.reasons.code') }}</th>
+              <th>{{ t('inventory.reasons.name') }}</th>
+              <th>{{ t('inventory.reasons.account') }}</th>
+              <th>{{ t('inventory.reasons.direction') }}</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (reason of reasons(); track reason.code) {
+              <tr>
+                <td class="code">
+                  {{ reason.code }}
+                  @if (reason.requiresNote) {
+                    <span class="tag">{{ t('inventory.reasons.needsNote') }}</span>
+                  }
+                  @if (!reason.isActive) {
+                    <span class="tag">{{ t('inventory.reasons.withdrawn') }}</span>
+                  }
+                </td>
+                <td>{{ reasonName(reason) }}</td>
+                <td class="code">{{ reason.contraAccountNo }}</td>
+                <td>{{ directionLabel(reason.direction) }}</td>
+                <td>
+                  <button
+                    type="button"
+                    class="button button--quiet"
+                    [disabled]="busy()"
+                    (click)="setActive(reason, !reason.isActive)"
+                  >
+                    {{
+                      reason.isActive
+                        ? t('inventory.reasons.withdraw')
+                        : t('inventory.reasons.restore')
+                    }}
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel__body form-row">
+        <label>
+          {{ t('inventory.reasons.code') }}
+          <input [(ngModel)]="newCode" name="newCode" maxlength="32" />
+        </label>
+        <label>
+          {{ t('inventory.reasons.name') }}
+          <input [(ngModel)]="newName" name="newName" />
+        </label>
+        <label>
+          {{ t('inventory.reasons.nameArabic') }}
+          <input [(ngModel)]="newNameArabic" name="newNameArabic" dir="rtl" />
+        </label>
+        <label>
+          {{ t('inventory.reasons.account') }}
+          <input [(ngModel)]="newAccount" name="newAccount" maxlength="20" />
+        </label>
+        <label>
+          {{ t('inventory.reasons.direction') }}
+          <select [(ngModel)]="newDirection" name="newDirection">
+            <option value="Either">{{ t('inventory.reasons.either') }}</option>
+            <option value="IncreaseOnly">{{ t('inventory.reasons.increaseOnly') }}</option>
+            <option value="DecreaseOnly">{{ t('inventory.reasons.decreaseOnly') }}</option>
+          </select>
+        </label>
+        <label class="check">
+          <input type="checkbox" [(ngModel)]="newRequiresNote" name="newRequiresNote" />
+          {{ t('inventory.reasons.needsNote') }}
+        </label>
+        <button type="button" class="button" [disabled]="busy()" (click)="add()">
+          {{ t('inventory.reasons.add') }}
+        </button>
+      </div>
+
+      <p class="panel__body hint">{{ t('inventory.reasons.listHint') }}</p>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">{{ t('inventory.reasons.reportTitle') }}</h2>
+
+      <div class="panel__body form-row">
+        <label>
+          {{ t('inventory.reasons.from') }}
+          <input type="date" [(ngModel)]="from" name="from" (change)="report()" />
+        </label>
+        <label>
+          {{ t('inventory.reasons.to') }}
+          <input type="date" [(ngModel)]="to" name="to" (change)="report()" />
+        </label>
+        <label>
+          {{ t('inventory.reasons.location') }}
+          <select [(ngModel)]="location" name="location" (change)="report()">
+            <option value="">{{ t('inventory.reasons.everywhere') }}</option>
+            @for (place of locations(); track place.code) {
+              <option [value]="place.code">{{ place.code }}</option>
+            }
+          </select>
+        </label>
+      </div>
+
+      @if (shrinkage().length === 0) {
+        <p class="empty">{{ t('inventory.reasons.nothingAdjusted') }}</p>
+      } @else {
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('inventory.reasons.reason') }}</th>
+                <th class="numeric">{{ t('inventory.reasons.entries') }}</th>
+                <th class="numeric">{{ t('inventory.reasons.quantity') }}</th>
+                <th class="numeric">{{ t('inventory.reasons.value') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of shrinkage(); track row.reasonCode) {
+                <tr>
+                  <td>
+                    @if (row.reasonCode) {
+                      <span class="code">{{ row.reasonCode }}</span>
+                    }
+                    {{ rowName(row) }}
+                  </td>
+                  <td class="numeric">{{ row.entryCount }}</td>
+                  <td class="numeric">{{ row.quantity }}</td>
+                  <td class="numeric">{{ row.costAmount }}</td>
+                </tr>
+              }
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="3">{{ t('inventory.reasons.total') }}</td>
+                <td class="numeric">{{ total() }}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      }
+
+      <p class="panel__body hint">{{ t('inventory.reasons.reportHint') }}</p>
+    </section>
+  }
+</div>

@@ -260,6 +260,16 @@ public sealed class FinanceSeeder(
         Add("5000", "COST OF SALES", "تكلفة المبيعات", GlAccountCategory.CostOfGoodsSold, GlAccountType.Heading, 0);
         Add("5100", "Cost of goods sold", "تكلفة البضاعة المباعة", GlAccountCategory.CostOfGoodsSold, directPosting: false);
         Add("5200", "Inventory adjustment", "تسوية المخزون", GlAccountCategory.CostOfGoodsSold, directPosting: false);
+
+        // What stock was written off for, split because the three have almost nothing in common
+        // beyond their effect on quantity: breakage is a warehouse conversation, shrinkage is a
+        // security one, expiry is a buying one. A single figure covering all three answers none of
+        // them, and it is the sort of number nobody can act on.
+        Add("5210", "Stock breakage", "تلف المخزون", GlAccountCategory.CostOfGoodsSold);
+        Add("5220", "Stock shrinkage", "فاقد المخزون", GlAccountCategory.CostOfGoodsSold);
+        Add("5230", "Stock expiry", "انتهاء صلاحية المخزون", GlAccountCategory.CostOfGoodsSold);
+        Add("5240", "Samples and donations", "العينات والتبرعات", GlAccountCategory.CostOfGoodsSold);
+
         Add("5300", "Purchase variance", "فروقات الشراء", GlAccountCategory.CostOfGoodsSold, directPosting: false);
 
         // Expenses

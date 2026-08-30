@@ -124,12 +124,38 @@ public sealed partial class InventorySchema : IModuleSchema
                    .HasFilter("[IsDeleted] = 0");
         });
 
+        modelBuilder.Entity<Bin>(builder =>
+        {
+            builder.ToTable("Bins", SchemaName);
+
+            builder.Property(b => b.Code).HasMaxLength(32).IsRequired();
+            builder.Property(b => b.Name).HasMaxLength(200);
+            builder.Property(b => b.NameArabic).HasMaxLength(200);
+            builder.Property(b => b.RowVersion).IsRowVersion();
+
+            builder.HasOne(b => b.Location)
+                   .WithMany()
+                   .HasForeignKey(b => b.LocationId)
+                   .OnDelete(DeleteBehavior.Restrict);
+
+            // Unique within its location, not within the company: two warehouses both having an
+            // A-01 is ordinary, and forcing them apart would put the warehouse name in every code
+            // twice.
+            builder.HasIndex(b => new { b.LocationId, b.Code })
+                   .IsUnique()
+                   .HasFilter("[IsDeleted] = 0");
+
+            // The order a picker walks them in.
+            builder.HasIndex(b => new { b.LocationId, b.PickOrder });
+        });
+
         modelBuilder.Entity<ItemLedgerEntry>(builder =>
         {
             builder.ToTable("ItemLedgerEntries", SchemaName);
 
             builder.Property(e => e.ItemNo).HasMaxLength(32).IsRequired();
             builder.Property(e => e.LocationCode).HasMaxLength(32).IsRequired();
+            builder.Property(e => e.BinCode).HasMaxLength(32);
             builder.Property(e => e.DocumentNo).HasMaxLength(64);
             builder.Property(e => e.SourceCode).HasMaxLength(32).IsRequired();
             builder.Property(e => e.SerialNo).HasMaxLength(64);

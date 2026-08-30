@@ -171,6 +171,27 @@ export interface StockLocation {
   isSellable: boolean;
   isInTransit: boolean;
   isBlocked: boolean;
+  usesBins: boolean;
+}
+
+/** One bin at a location. */
+export interface Bin {
+  code: string;
+  name?: string | null;
+  nameArabic?: string | null;
+  isReceiving: boolean;
+  pickOrder: number;
+  isBlocked: boolean;
+}
+
+/** What is standing on one shelf. */
+export interface BinContent {
+  binCode: string;
+  binName?: string | null;
+  itemNo: string;
+  description: string;
+  descriptionArabic?: string | null;
+  quantity: number;
 }
 
 /** One unit the company counts, weighs or measures in. */

@@ -34,6 +34,11 @@ namespace ASAP.Modules.Inventory.Posting;
 /// against goods-received-not-invoiced, which Inventory has no business knowing about.
 /// </param>
 /// <param name="SalesAmount">What the goods sold for, on an issue.</param>
+/// <param name="BinCode">
+/// Which bin inside the location, where the location tracks them. Null lets a receipt fall to the
+/// location's receiving bin; an issue with no bin at a bin-tracked location is refused, because
+/// guessing which shelf it came off would make the bins wrong from that moment on.
+/// </param>
 public sealed record StockMovementRequest(
     string ItemNo,
     string LocationCode,
@@ -41,7 +46,8 @@ public sealed record StockMovementRequest(
     decimal UnitCost = 0m,
     ItemLedgerEntryType EntryType = ItemLedgerEntryType.PositiveAdjustment,
     decimal SalesAmount = 0m,
-    string? ContraAccountNo = null);
+    string? ContraAccountNo = null,
+    string? BinCode = null);
 
 /// <summary>What a stock posting produced.</summary>
 /// <param name="TransactionNo">The number grouping every entry written.</param>
@@ -242,6 +248,11 @@ public sealed partial class StockPostingService(
             PostingDate = postingDate,
             LocationId = location.Id,
             LocationCode = location.Code,
+
+            // Copied off the resolved movement rather than the request, because a receipt with no
+            // bin named lands in the receiving bay and the entry has to say so.
+            BinId = movement.Bin?.Id,
+            BinCode = movement.Bin?.Code,
             Quantity = request.Quantity,
             DocumentNo = documentNo,
             TransactionNo = transactionNo,
@@ -459,6 +470,16 @@ public sealed partial class StockPostingService(
             .ToDictionaryAsync(static l => l.Code, StringComparer.OrdinalIgnoreCase, cancellationToken)
             .ConfigureAwait(false);
 
+        // Every bin at every location on this posting, loaded once. A warehouse posting is the
+        // one place a query per line is felt, and a put-away sheet is a hundred lines.
+        var locationIds = locations.Values.Select(static l => l.Id).ToList();
+
+        var bins = await context.Set<Locations.Bin>()
+            .AsNoTracking()
+            .Where(b => locationIds.Contains(b.LocationId))
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
         var missing = new List<AsapMessage>();
         var movements = new List<MovementView>();
 
@@ -495,7 +516,28 @@ public sealed partial class StockPostingService(
                 continue;
             }
 
+            var binResult = ResolveBin(request, location, bins, index + 1);
+
+            if (binResult.Refusal is { } binRefusal)
+            {
+                missing.Add(binRefusal);
+                continue;
+            }
+
             var onHand = await OnHandAsync(item.Id, location.Id, cancellationToken).ConfigureAwait(false);
+
+            var inBin = binResult.Bin is null
+                ? 0m
+                : await BinOnHandAsync(item.Id, binResult.Bin.Id, cancellationToken).ConfigureAwait(false);
+
+            // Only asked when the shelf is actually short. "Where is it then" is a query, and
+            // running it on every line of a put-away sheet to answer a question nobody asked
+            // would make the ordinary case pay for the exception.
+            var elsewhere = binResult.Bin is not null && request.Quantity < 0m
+                && inBin + request.Quantity < 0m
+                ? await BinsHoldingAsync(item.Id, location.Id, binResult.Bin.Id, cancellationToken)
+                    .ConfigureAwait(false)
+                : [];
 
             movements.Add(new MovementView(
                 index + 1,
@@ -511,13 +553,174 @@ public sealed partial class StockPostingService(
                 new LocationView(location.Code, location.Name, location.IsBlocked, location.IsSellable),
                 request.Quantity,
                 onHand,
-                request.EntryType));
+                request.EntryType)
+            {
+                Bin = binResult.Bin,
+                BinQuantityOnHand = inBin,
+                BinsHoldingIt = elsewhere,
+            });
         }
 
         return missing.Count > 0
             ? Result<List<MovementView>>.Failure(missing)
             : Result<List<MovementView>>.Success(movements);
     }
+
+    /// <summary>What a line's bin came to, or why the line cannot stand.</summary>
+    private readonly record struct ResolvedBin(Locations.Bin? Bin, AsapMessage? Refusal);
+
+    /// <summary>
+    /// Works out which bin a line moves at, and whether it may.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A location that does not track bins takes no bin at all, and one that does takes nothing
+    /// else. Both directions are refused rather than shrugged at: a bin recorded where nothing
+    /// reads it looks like tracking that never happened, and a movement with no bin at a tracked
+    /// location leaves the shelves holding a picture that is wrong from that line onwards.
+    /// </para>
+    /// <para>
+    /// The one softening is the receiving bin, and only for goods coming in. Something arriving
+    /// with nowhere named has physically arrived somewhere, and the receiving bay is that
+    /// somewhere. Goods going out get no such default: guessing which shelf they came off is how
+    /// a bin ends up holding stock nobody can find.
+    /// </para>
+    /// </remarks>
+    private ResolvedBin ResolveBin(
+        StockMovementRequest request,
+        Location location,
+        List<Locations.Bin> bins,
+        int lineNo)
+    {
+        var target = MessageTarget.OnField($"Lines[{lineNo}]");
+        var wanted = request.BinCode?.Trim();
+
+        if (!location.UsesBins)
+        {
+            return string.IsNullOrEmpty(wanted)
+                ? new ResolvedBin(null, null)
+                : new ResolvedBin(null, messages.Render(
+                    InventoryMessages.BinNotUsedHere,
+                    Args(("LineNo", lineNo), ("BinCode", wanted), ("Location", location.Code)),
+                    target));
+        }
+
+        if (string.IsNullOrEmpty(wanted))
+        {
+            var receiving = bins.Find(b =>
+                b.LocationId == location.Id && b.IsReceiving && !b.IsBlocked);
+
+            // Only for goods coming in. What goes out came off a particular shelf, and the system
+            // does not know which one.
+            if (request.Quantity > 0m && receiving is not null)
+            {
+                return new ResolvedBin(receiving, null);
+            }
+
+            return new ResolvedBin(null, messages.Render(
+                InventoryMessages.BinRequired,
+                Args(("LineNo", lineNo), ("Location", location.Code)),
+                target));
+        }
+
+        var bin = bins.Find(b =>
+            b.LocationId == location.Id
+            && string.Equals(b.Code, wanted, StringComparison.OrdinalIgnoreCase));
+
+        if (bin is null)
+        {
+            return new ResolvedBin(null, messages.Render(
+                InventoryMessages.BinNotFound,
+                Args(("BinCode", wanted), ("Location", location.Code)),
+                target));
+        }
+
+        // Blocked only stops goods arriving. What is already in a blocked bin is still physically
+        // there, and refusing to take it out would strand it until somebody unblocked a shelf
+        // that is out of use precisely because nothing should be added to it.
+        return bin.IsBlocked && request.Quantity > 0m
+            ? new ResolvedBin(null, messages.Render(
+                InventoryMessages.BinBlocked,
+                Args(("BinCode", bin.Code), ("Location", location.Code)),
+                target))
+            : new ResolvedBin(bin, null);
+    }
+
+    private static Dictionary<string, object?> Args(params (string Key, object? Value)[] pairs)
+    {
+        var arguments = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var (key, value) in pairs)
+        {
+            arguments[key] = value;
+        }
+
+        return arguments;
+    }
+
+    /// <summary>
+    /// Which other bins at this location are holding the item, and how many.
+    /// </summary>
+    /// <remarks>
+    /// In pick order, because the answer is going to send somebody walking and the shortest walk
+    /// is a fact about the floor plan rather than about how the shelves are named.
+    /// </remarks>
+    private async Task<IReadOnlyList<string>> BinsHoldingAsync(
+        Guid itemId,
+        Guid locationId,
+        Guid exceptBinId,
+        CancellationToken cancellationToken)
+    {
+        var held = await context.Set<ItemLedgerEntry>()
+            .Where(e => e.ItemId == itemId && e.LocationId == locationId && e.BinId != null
+                && e.BinId != exceptBinId)
+            .GroupBy(static e => e.BinId)
+            .Select(static g => new { BinId = g.Key, Quantity = g.Sum(static e => e.Quantity) })
+            .Where(static g => g.Quantity > 0m)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (held.Count == 0)
+        {
+            return [];
+        }
+
+        var ids = held.Select(static h => h.BinId!.Value).ToList();
+
+        var order = await context.Set<Locations.Bin>()
+            .AsNoTracking()
+            .Where(b => ids.Contains(b.Id))
+            .Select(static b => new { b.Id, b.Code, b.PickOrder })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return
+        [
+            .. held
+                .Join(order, static h => h.BinId!.Value, static o => o.Id, static (h, o) => new
+                {
+                    o.Code,
+                    o.PickOrder,
+                    h.Quantity,
+                })
+                .OrderBy(static x => x.PickOrder)
+                .ThenBy(static x => x.Code, StringComparer.OrdinalIgnoreCase)
+                .Select(static x => $"{x.Code} ({x.Quantity:0.#####})"),
+        ];
+    }
+
+    /// <summary>
+    /// What one bin holds of one item.
+    /// </summary>
+    /// <remarks>
+    /// Summed from the same ledger the location total comes from, so the bins add up to the
+    /// location by construction rather than by a reconciliation somebody has to run.
+    /// </remarks>
+    private async Task<decimal> BinOnHandAsync(Guid itemId, Guid binId, CancellationToken cancellationToken)
+        => await context.Set<ItemLedgerEntry>()
+            .Where(e => e.ItemId == itemId && e.BinId == binId)
+            .SumAsync(static e => (decimal?)e.Quantity, cancellationToken)
+            .ConfigureAwait(false) ?? 0m;
 
     /// <summary>
     /// What is on hand for one item at one location.

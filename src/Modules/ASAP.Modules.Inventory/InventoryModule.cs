@@ -76,6 +76,7 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
         services.AddScoped<CostSettlementService>();
         services.AddScoped<Items.UnitConversionService>();
         services.AddScoped<Items.UnitSetupService>();
+        services.AddScoped<Locations.BinSetupService>();
         services.AddScoped<Seed.InventorySeeder>();
         services.AddScoped<Transfers.TransferService>();
         services.AddScoped<Counting.StockCountService>();
@@ -121,6 +122,20 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
             Id, "Location", PermissionAction.Update,
             new LocalizedText("Maintain locations", "إدارة المواقع"),
             implies: [$"{Id}.Location.Read"]),
+
+        PermissionDescriptor.Define(
+            Id, "Bin", PermissionAction.Read,
+            new LocalizedText("View bins and what is on them", "عرض الأرفف وما عليها")),
+
+        PermissionDescriptor.Define(
+            Id, "Bin", PermissionAction.Update,
+            new LocalizedText("Maintain bins", "إدارة الأرفف"),
+            new LocalizedText(
+                "Lay out the shelves inside a location and say which one goods land in. Nothing "
+                + "here changes a valuation: a bin says where stock is, not how much there is.",
+                "ترتيب الأرفف داخل الموقع وتحديد أين تصل البضاعة. ولا شيء هنا يغيّر تقييمًا: "
+                + "فالرف يحدد مكان المخزون لا كميته."),
+            implies: [$"{Id}.Bin.Read"]),
 
         PermissionDescriptor.Define(
             Id, "Stock", PermissionAction.Read,
@@ -290,6 +305,12 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
             Order = 200,
         },
         Page("Items", new LocalizedText("Items", "الأصناف"), "/inventory/items", $"{Id}.Item.Read", 10),
+        Page(
+            "Bins",
+            new LocalizedText("Bins", "الأرفف"),
+            "/inventory/bins",
+            $"{Id}.Bin.Read",
+            22),
         Page(
             "Units",
             new LocalizedText("Units of measure", "وحدات القياس"),

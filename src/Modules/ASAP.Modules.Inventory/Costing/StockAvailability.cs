@@ -49,7 +49,31 @@ public sealed record MovementView(
     LocationView Location,
     decimal Quantity,
     decimal QuantityOnHand,
-    Ledger.ItemLedgerEntryType EntryType = Ledger.ItemLedgerEntryType.Sale);
+    Ledger.ItemLedgerEntryType EntryType = Ledger.ItemLedgerEntryType.Sale)
+{
+    /// <summary>The bin it moves at, where the location tracks them.</summary>
+    public Locations.Bin? Bin { get; init; }
+
+    /// <summary>
+    /// What that bin holds of this item now.
+    /// </summary>
+    /// <remarks>
+    /// Kept beside the location's figure rather than instead of it, because the two answer
+    /// different questions and only one of them is about how much stock there is. A bin short of
+    /// something the location has is a shelf in the wrong place, not a shortage.
+    /// </remarks>
+    public decimal BinQuantityOnHand { get; init; }
+
+    /// <summary>
+    /// The other bins at this location holding the item, worked out only when this one is short.
+    /// </summary>
+    /// <remarks>
+    /// Carried rather than looked up during the check, because the check is pure arithmetic and
+    /// the answer to "where is it then" is a query. Empty when the shelf is short and nothing
+    /// else has it either, which is a different problem and gets a different answer.
+    /// </remarks>
+    public IReadOnlyList<string> BinsHoldingIt { get; init; } = [];
+}
 
 /// <summary>
 /// Decides whether stock may move, and says what it means when it goes below zero.
@@ -160,6 +184,8 @@ public sealed class StockAvailability(IMessageCatalog messages)
             found.Add(Raise(InventoryMessages.LocationNotSellable, arguments, target, held));
         }
 
+        CheckBin(movement, arguments, target, found);
+
         var requested = -movement.Quantity;
         var balance = movement.QuantityOnHand + movement.Quantity;
 
@@ -187,6 +213,60 @@ public sealed class StockAvailability(IMessageCatalog messages)
         // Permitted, and said out loud. The sale proceeds; this is the record that part of its
         // cost is an estimate, which is what the settlement routine will come back for.
         found.Add(Raise(InventoryMessages.NegativeInventoryAllowed, arguments, target, held));
+    }
+
+    /// <summary>
+    /// Says when the shelf the goods were taken from has not got them.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A warning rather than a refusal, and deliberately. The location still has the stock, so
+    /// nothing about the valuation or the cost is in doubt -- what is wrong is the record of which
+    /// shelf it is standing on, which is a put-away or a pick that went to the wrong place.
+    /// Blocking the issue would stop a picker who is holding the goods in their hand.
+    /// </para>
+    /// <para>
+    /// Two shapes, because they have different answers. Other bins hold it, and somebody should
+    /// move the stock between bins to say where it really is; or nothing is in any bin, which is
+    /// what stock received before the location started tracking bins looks like and wants a count
+    /// onto the shelves once.
+    /// </para>
+    /// </remarks>
+    private void CheckBin(
+        MovementView movement,
+        Dictionary<string, object?> arguments,
+        MessageTarget target,
+        List<AsapMessage> found)
+    {
+        if (movement.Bin is null || movement.Quantity >= 0m)
+        {
+            return;
+        }
+
+        var afterwards = movement.BinQuantityOnHand + movement.Quantity;
+
+        if (afterwards >= 0m)
+        {
+            return;
+        }
+
+        var binArguments = new Dictionary<string, object?>(arguments, StringComparer.OrdinalIgnoreCase)
+        {
+            ["BinCode"] = movement.Bin.Code,
+            ["BinQuantity"] = movement.BinQuantityOnHand,
+            ["Requested"] = -movement.Quantity,
+            ["LocationQuantity"] = movement.QuantityOnHand,
+        };
+
+        if (movement.BinsHoldingIt.Count == 0)
+        {
+            found.Add(messages.Render(InventoryMessages.BinStockNotPutAway, binArguments, target));
+            return;
+        }
+
+        binArguments["Elsewhere"] = string.Join(", ", movement.BinsHoldingIt);
+
+        found.Add(messages.Render(InventoryMessages.BinShortOfStock, binArguments, target));
     }
 
     private void WarnIfBelowReorderPoint(

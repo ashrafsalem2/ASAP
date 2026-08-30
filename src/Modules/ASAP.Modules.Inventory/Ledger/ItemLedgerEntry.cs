@@ -66,6 +66,20 @@ public sealed class ItemLedgerEntry : LedgerEntity
     /// <summary>Location code, copied for the same reason as the item number.</summary>
     public required string LocationCode { get; set; }
 
+    /// <summary>The bin it moved at, where the location tracks them.</summary>
+    public Guid? BinId { get; set; }
+
+    /// <summary>
+    /// Bin code, copied for the same reason as the location code. Null where the location does
+    /// not track bins, which is most of them.
+    /// </summary>
+    /// <remarks>
+    /// The quantity on this entry belongs to the location whatever the bin says. A bin is a
+    /// refinement of a location, not a second answer to how much there is, so summing by location
+    /// gives the same figure whether bins are used or not.
+    /// </remarks>
+    public string? BinCode { get; set; }
+
     /// <summary>
     /// The signed quantity. Positive is stock coming in, negative going out.
     /// </summary>

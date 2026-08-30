@@ -137,7 +137,17 @@ Everything else posts here, so it goes first.
   carries -- two rows with one barcode makes a scan return whichever the database reached first,
   which nobody notices until a stock count. Variants, and categories as something a company can
   manage rather than an entity the seed fills in, still to come
-- *in progress* Locations done; warehouses and bins to come
+- **done** Locations, and bins inside them. A bin is a refinement of a location, never a
+  substitute: every stock figure, valuation and cost layer stays per location and the bin only says
+  where inside. Costing per bin would mean one item at one location having two costs depending on
+  which shelf it came off, so bins answer "where is it" and never "what is it worth" -- which is
+  what makes turning them on at a live location safe. Off by default, because a shop with one
+  stockroom does not need to name a shelf. On, every movement says which bin, softened only by a
+  receiving bin for goods coming in; goods going out get no default, because guessing which shelf
+  they came off is how a bin ends up holding stock nobody can find. A shelf short of what the
+  location has is a warning naming the shelves that do have it, in pick order, rather than a refusal
+  that would stop a picker holding the goods. Put-away and pick suggestions, bin capacity, and
+  bin-to-bin movement as its own document still to come
 - **done** Item ledger entries and value entries, quantity and cost tracked separately
 - **done** Costing methods: FIFO, average, standard (specific to come)
 - **Negative inventory**, allowed or blocked per company, with cost settled on later receipt so

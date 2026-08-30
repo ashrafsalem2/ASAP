@@ -1,0 +1,175 @@
+<div class="page">
+  <h1>{{ t('inventory.bins.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('inventory.bins.intro') }}</p>
+  </section>
+
+  @if (loading()) {
+    <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+  } @else {
+    <section class="panel">
+      <div class="panel__body form-row">
+        <label>
+          {{ t('inventory.bins.location') }}
+          <select [value]="selected()?.code ?? ''" (change)="onLocationChange($event)">
+            @for (location of locations(); track location.code) {
+              <option [value]="location.code">
+                {{ location.code }} — {{ locationName(location) }}
+              </option>
+            }
+          </select>
+        </label>
+
+        @if (selected(); as location) {
+          <button type="button" class="button" [disabled]="busy()" (click)="toggleTracking()">
+            {{
+              location.usesBins
+                ? t('inventory.bins.turnOff')
+                : t('inventory.bins.turnOn')
+            }}
+          </button>
+        }
+      </div>
+
+      <p class="panel__body hint">
+        {{
+          selected()?.usesBins ? t('inventory.bins.onHint') : t('inventory.bins.offHint')
+        }}
+      </p>
+    </section>
+
+    @if (selected()?.usesBins) {
+      <section class="panel">
+        <h2 class="panel__title">{{ t('inventory.bins.shelvesTitle') }}</h2>
+
+        @if (bins().length === 0) {
+          <p class="empty">{{ t('inventory.bins.none') }}</p>
+        } @else {
+          <div class="table-scroll">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>{{ t('inventory.bins.code') }}</th>
+                  <th>{{ t('inventory.bins.name') }}</th>
+                  <th class="numeric">{{ t('inventory.bins.pickOrder') }}</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (bin of bins(); track bin.code) {
+                  <tr>
+                    <td class="code">
+                      {{ bin.code }}
+                      @if (bin.isReceiving) {
+                        <span class="tag">{{ t('inventory.bins.receiving') }}</span>
+                      }
+                      @if (bin.isBlocked) {
+                        <span class="tag">{{ t('inventory.bins.blocked') }}</span>
+                      }
+                    </td>
+                    <td>{{ binName(bin) }}</td>
+                    <td class="numeric">{{ bin.pickOrder }}</td>
+                    <td>
+                      @if (!bin.isReceiving) {
+                        <button
+                          type="button"
+                          class="button button--quiet"
+                          [disabled]="busy()"
+                          (click)="setReceiving(bin)"
+                        >
+                          {{ t('inventory.bins.makeReceiving') }}
+                        </button>
+                      }
+                      <button
+                        type="button"
+                        class="button button--quiet"
+                        [disabled]="busy()"
+                        (click)="setBlocked(bin, !bin.isBlocked)"
+                      >
+                        {{ bin.isBlocked ? t('inventory.bins.unblock') : t('inventory.bins.block') }}
+                      </button>
+                      <button
+                        type="button"
+                        class="button button--quiet"
+                        [disabled]="busy()"
+                        (click)="remove(bin)"
+                      >
+                        {{ t('inventory.bins.remove') }}
+                      </button>
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+
+        <div class="panel__body form-row">
+          <label>
+            {{ t('inventory.bins.code') }}
+            <input [(ngModel)]="newCode" name="newCode" maxlength="32" />
+          </label>
+          <label>
+            {{ t('inventory.bins.name') }}
+            <input [(ngModel)]="newName" name="newName" />
+          </label>
+          <label>
+            {{ t('inventory.bins.nameArabic') }}
+            <input [(ngModel)]="newNameArabic" name="newNameArabic" dir="rtl" />
+          </label>
+          <label>
+            {{ t('inventory.bins.pickOrder') }}
+            <input type="number" [(ngModel)]="newPickOrder" name="newPickOrder" />
+          </label>
+          <label class="check">
+            <input type="checkbox" [(ngModel)]="newIsReceiving" name="newIsReceiving" />
+            {{ t('inventory.bins.isReceiving') }}
+          </label>
+          <button type="button" class="button" [disabled]="busy()" (click)="add()">
+            {{ t('inventory.bins.add') }}
+          </button>
+        </div>
+
+        <p class="panel__body hint">{{ t('inventory.bins.shelvesHint') }}</p>
+      </section>
+
+      <section class="panel">
+        <h2 class="panel__title">{{ t('inventory.bins.contentsTitle') }}</h2>
+
+        @if (contents().length === 0) {
+          <p class="empty">{{ t('inventory.bins.nothingOnShelves') }}</p>
+        } @else {
+          <div class="table-scroll">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>{{ t('inventory.bins.bin') }}</th>
+                  <th>{{ t('inventory.bins.item') }}</th>
+                  <th class="numeric">{{ t('inventory.bins.quantity') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of contents(); track row.binCode + '|' + row.itemNo) {
+                  <tr>
+                    <td class="code">{{ row.binCode }}</td>
+                    <td>{{ row.itemNo }} — {{ itemName(row) }}</td>
+                    <td class="numeric">{{ row.quantity }}</td>
+                  </tr>
+                }
+              </tbody>
+              <tfoot>
+                <tr>
+                  <td colspan="2">{{ t('inventory.bins.onShelves') }}</td>
+                  <td class="numeric">{{ onShelves() }}</td>
+                </tr>
+              </tfoot>
+            </table>
+          </div>
+        }
+
+        <p class="panel__body hint">{{ t('inventory.bins.contentsHint') }}</p>
+      </section>
+    }
+  }
+</div>

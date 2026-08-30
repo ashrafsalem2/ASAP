@@ -37,6 +37,30 @@ public static class InventoryMessages
     /// <summary>Something else already carries that barcode.</summary>
     public static readonly MessageCode BarcodeAlreadyInUse = new("INV.BARCODE.IN_USE");
 
+    /// <summary>A movement at a bin-tracked location did not say which bin.</summary>
+    public static readonly MessageCode BinRequired = new("INV.BIN.REQUIRED");
+
+    /// <summary>A bin was named that the location has not got.</summary>
+    public static readonly MessageCode BinNotFound = new("INV.BIN.NOT_FOUND");
+
+    /// <summary>A bin was named at a location that does not track bins.</summary>
+    public static readonly MessageCode BinNotUsedHere = new("INV.BIN.NOT_USED");
+
+    /// <summary>The bin is withdrawn from use.</summary>
+    public static readonly MessageCode BinBlocked = new("INV.BIN.BLOCKED");
+
+    /// <summary>The bin has not got it, though the location has.</summary>
+    public static readonly MessageCode BinShortOfStock = new("INV.BIN.SHORT");
+
+    /// <summary>The location has it, but none of it has been put on a shelf.</summary>
+    public static readonly MessageCode BinStockNotPutAway = new("INV.BIN.NOT_PUT_AWAY");
+
+    /// <summary>A bin was saved without a code.</summary>
+    public static readonly MessageCode BinCodeRequired = new("INV.BIN.CODE_REQUIRED");
+
+    /// <summary>A bin still has goods standing in it.</summary>
+    public static readonly MessageCode BinNotEmpty = new("INV.BIN.NOT_EMPTY");
+
     /// <summary>Stock would go below zero and the company does not permit it.</summary>
     public static readonly MessageCode NegativeInventoryBlocked = new("INV.STOCK.NEGATIVE_BLOCKED");
 
@@ -274,6 +298,137 @@ public static class InventoryMessages
                 "استخدم باركودًا آخر، أو أزله من الآخر أولًا. فوجود سطرين بالباركود نفسه يجعل "
                 + "المسح يعيد أيهما وصل إليه المخزن أولًا، ولا يلاحظ ذلك أحد حتى الجرد."),
             HelpTopic = "inventory/units-of-measure",
+        },
+        new()
+        {
+            Code = BinRequired,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("This location needs a bin", "هذا الموقع يحتاج تحديد الرف"),
+            Detail = new LocalizedText(
+                "{Location} tracks stock down to the bin, and line {LineNo} did not say which one.",
+                "الموقع {Location} يتتبع المخزون حتى الرف، والسطر {LineNo} لم يحدد أي رف."),
+            Resolution = new LocalizedText(
+                "Name a bin, or give this location a receiving bin so arrivals have somewhere to "
+                + "go by default. Letting it through would leave the bins holding a picture of "
+                + "the stock that is wrong from here on, and nobody finds that out until a picker "
+                + "is sent to an empty shelf.",
+                "حدّد رفًا، أو أعطِ هذا الموقع رف استلام لتذهب إليه الواردات افتراضيًا. فالسماح "
+                + "بذلك يترك الأرفف تحمل صورة خاطئة للمخزون من الآن فصاعدًا، ولا يُكتشف ذلك حتى "
+                + "يُرسل عامل إلى رف فارغ."),
+            HelpTopic = "inventory/bins",
+        },
+        new()
+        {
+            Code = BinNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such bin here", "لا يوجد رف بهذا الرمز هنا"),
+            Detail = new LocalizedText(
+                "{Location} has no bin {BinCode}.",
+                "الموقع {Location} ليس فيه رف {BinCode}."),
+            Resolution = new LocalizedText(
+                "Check the code against the shelf label. A bin code is unique inside its location, "
+                + "so the same code in another warehouse is a different shelf.",
+                "قارن الرمز بلصاقة الرف. فرمز الرف فريد داخل موقعه، والرمز نفسه في مستودع آخر "
+                + "يعني رفًا آخر."),
+            HelpTopic = "inventory/bins",
+        },
+        new()
+        {
+            Code = BinNotUsedHere,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("This location does not use bins", "هذا الموقع لا يستخدم الأرفف"),
+            Detail = new LocalizedText(
+                "Line {LineNo} named bin {BinCode}, and {Location} holds its stock as one place.",
+                "حدّد السطر {LineNo} الرف {BinCode}، والموقع {Location} يحفظ مخزونه ككتلة واحدة."),
+            Resolution = new LocalizedText(
+                "Leave the bin out, or switch the location to bins first. Recording a bin nothing "
+                + "reads would look like it was tracked when it was not.",
+                "احذف الرف، أو حوّل الموقع إلى نظام الأرفف أولًا. فتسجيل رف لا يقرؤه شيء يوحي "
+                + "بتتبّع لم يحدث."),
+            HelpTopic = "inventory/bins",
+        },
+        new()
+        {
+            Code = BinBlocked,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("That bin is out of use", "هذا الرف خارج الخدمة"),
+            Detail = new LocalizedText(
+                "Bin {BinCode} at {Location} is blocked.",
+                "الرف {BinCode} في الموقع {Location} موقوف."),
+            Resolution = new LocalizedText(
+                "Use another bin, or unblock this one. What is already in it stays counted, "
+                + "because it is still physically there.",
+                "استخدم رفًا آخر، أو ارفع الإيقاف عن هذا. وما فيه بالفعل يبقى محسوبًا، لأنه ما "
+                + "زال موجودًا فعليًا."),
+            HelpTopic = "inventory/bins",
+        },
+        new()
+        {
+            Code = BinShortOfStock,
+            Severity = MessageSeverity.Warning,
+            Title = new LocalizedText("Not on that shelf", "ليس على ذلك الرف"),
+            Detail = new LocalizedText(
+                "{BinQuantity:0.#####} of {ItemNo} is in bin {BinCode}, and {Requested:0.#####} "
+                + "was taken from it. It is on these shelves instead: {Elsewhere}.",
+                "يوجد {BinQuantity:0.#####} من {ItemNo} في الرف {BinCode}، وقد سُحب منه "
+                + "{Requested:0.#####}. وهو موجود على هذه الأرفف بدلًا من ذلك: {Elsewhere}."),
+            Resolution = new LocalizedText(
+                "The count is not wrong, the shelf is: the location still has the goods, so this "
+                + "is a put-away or a pick that went to the wrong place. Move the stock between "
+                + "bins to say where it really is.",
+                "العدد ليس خاطئًا، بل الرف: فالموقع ما زال يحوي البضاعة، وهذا خطأ في التخزين أو "
+                + "السحب. انقل المخزون بين الأرفف ليعبّر عن مكانه الحقيقي."),
+            HelpTopic = "inventory/bins",
+        },
+        new()
+        {
+            Code = BinStockNotPutAway,
+            Severity = MessageSeverity.Warning,
+            Title = new LocalizedText("Not on any shelf yet", "لم يُوضع على أي رف بعد"),
+            Detail = new LocalizedText(
+                "{Location} holds {LocationQuantity:0.#####} of {ItemNo}, and none of it is in a "
+                + "bin. {Requested:0.#####} was taken from {BinCode}.",
+                "يحفظ الموقع {Location} كمية {LocationQuantity:0.#####} من {ItemNo}، ولا شيء منها "
+                + "في رف. وقد سُحب {Requested:0.#####} من الرف {BinCode}."),
+            Resolution = new LocalizedText(
+                "This is what stock received before the location started tracking bins looks "
+                + "like. Count it onto its shelves once and the bins agree with the location from "
+                + "then on. The valuation was never affected: bins say where, not how much.",
+                "هكذا يبدو المخزون الذي استُلم قبل أن يبدأ الموقع تتبّع الأرفف. اجرده على أرففه "
+                + "مرة واحدة فتتفق الأرفف مع الموقع بعدها. ولم يتأثر التقييم قط: فالأرفف تحدد "
+                + "المكان لا الكمية."),
+            HelpTopic = "inventory/bins",
+        },
+        new()
+        {
+            Code = BinCodeRequired,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("A bin needs a code", "الرف يحتاج رمزًا"),
+            Detail = new LocalizedText(
+                "No code was given, and a bin is named by its code on every put-away and pick.",
+                "لم يُعطَ رمز، والرف يُسمّى برمزه في كل عملية تخزين وسحب."),
+            Resolution = new LocalizedText(
+                "Give it the code that is on the shelf label, so the two agree.",
+                "أعطه الرمز المكتوب على لصاقة الرف ليتطابقا."),
+            HelpTopic = "inventory/bins",
+        },
+        new()
+        {
+            Code = BinNotEmpty,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("There is still something in it", "ما زال فيه شيء"),
+            Detail = new LocalizedText(
+                "Bin {BinCode} at {Location} holds {ItemCount} item(s): {Items}.",
+                "الرف {BinCode} في الموقع {Location} يحوي {ItemCount} صنفًا: {Items}."),
+            Resolution = new LocalizedText(
+                "Move what is in it to another bin first. Removing it would not lose the stock -- "
+                + "the location total never depended on bins -- but it would lose the only record "
+                + "of where those goods are standing, which is the one thing the bin was for. To "
+                + "stop it being used without emptying it, block it instead.",
+                "انقل ما فيه إلى رف آخر أولًا. فحذفه لا يُضيّع المخزون — إذ لم يعتمد إجمالي "
+                + "الموقع على الأرفف قط — لكنه يُضيّع السجل الوحيد لمكان تلك البضاعة، وهو ما "
+                + "وُجد الرف من أجله. ولإيقاف استخدامه دون إفراغه، أوقفه بدل حذفه."),
+            HelpTopic = "inventory/bins",
         },
         new()
         {

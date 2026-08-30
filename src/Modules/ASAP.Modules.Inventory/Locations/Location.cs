@@ -49,6 +49,23 @@ public sealed class Location : CompanyEntity
     /// </remarks>
     public bool IsInTransit { get; set; }
 
+    /// <summary>
+    /// Whether goods here are tracked down to a bin.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Off by default, and a location with it off is a complete working location. A shop with one
+    /// stockroom does not need to name a shelf, and being made to would be a cost with nothing
+    /// behind it.
+    /// </para>
+    /// <para>
+    /// On, every movement here has to say which bin -- otherwise the bins hold a picture of the
+    /// stock that is quietly wrong from the first receipt that skipped one, and nobody finds out
+    /// until a picker is sent to an empty shelf.
+    /// </para>
+    /// </remarks>
+    public bool UsesBins { get; set; }
+
     /// <summary>Whether the location may be used at all.</summary>
     public bool IsBlocked { get; set; }
 }

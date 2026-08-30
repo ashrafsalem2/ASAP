@@ -3,6 +3,8 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
+  Bin,
+  BinContent,
   CreateTransferRequest,
   Item,
   ItemUnit,
@@ -224,6 +226,51 @@ export class InventoryService {
     return firstValueFrom(
       this.http.delete<void>(
         `${this.base}/items/${encodeURIComponent(itemNo)}/units/${encodeURIComponent(unitCode)}`,
+      ),
+    );
+  }
+
+  /** The bins at a location, in the order a picker walks them. */
+  bins(locationCode: string): Promise<Bin[]> {
+    return firstValueFrom(
+      this.http.get<Bin[]>(`${this.base}/locations/${encodeURIComponent(locationCode)}/bins`),
+    );
+  }
+
+  /** What is standing on each shelf at a location. */
+  binContents(locationCode: string, itemNo?: string): Promise<BinContent[]> {
+    const params = itemNo ? new HttpParams().set('itemNo', itemNo) : new HttpParams();
+
+    return firstValueFrom(
+      this.http.get<BinContent[]>(
+        `${this.base}/locations/${encodeURIComponent(locationCode)}/bin-contents`,
+        { params },
+      ),
+    );
+  }
+
+  /** Adds a bin to a location, or changes one already there. */
+  saveBin(locationCode: string, bin: Bin): Promise<Bin> {
+    return firstValueFrom(
+      this.http.post<Bin>(`${this.base}/locations/${encodeURIComponent(locationCode)}/bins`, bin),
+    );
+  }
+
+  /** Takes an empty bin off a location. */
+  removeBin(locationCode: string, binCode: string): Promise<void> {
+    return firstValueFrom(
+      this.http.delete<void>(
+        `${this.base}/locations/${encodeURIComponent(locationCode)}/bins/${encodeURIComponent(binCode)}`,
+      ),
+    );
+  }
+
+  /** Turns bin tracking on or off at a location. */
+  setBinTracking(locationCode: string, usesBins: boolean): Promise<{ code: string; usesBins: boolean }> {
+    return firstValueFrom(
+      this.http.post<{ code: string; usesBins: boolean }>(
+        `${this.base}/locations/${encodeURIComponent(locationCode)}/bin-tracking`,
+        { usesBins },
       ),
     );
   }

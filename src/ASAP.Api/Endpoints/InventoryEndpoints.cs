@@ -124,6 +124,55 @@ public sealed record SaveItemUnitRequest(
     string? Barcode = null,
     bool IsActive = true);
 
+/// <summary>Whether a location tracks stock down to the bin.</summary>
+/// <param name="UsesBins">On, every movement here has to say which bin.</param>
+public sealed record SetBinTrackingRequest(bool UsesBins);
+
+/// <summary>One bin at a location.</summary>
+/// <param name="Code">Its code, unique inside its location.</param>
+/// <param name="Name">What it is called.</param>
+/// <param name="NameArabic">What it is called in Arabic.</param>
+/// <param name="IsReceiving">Whether arrivals land here when nobody says where.</param>
+/// <param name="PickOrder">The order a picker walks the bins in.</param>
+/// <param name="IsBlocked">Whether it is withdrawn from use.</param>
+public sealed record BinView(
+    string Code,
+    string? Name,
+    string? NameArabic,
+    bool IsReceiving,
+    int PickOrder,
+    bool IsBlocked);
+
+/// <summary>What is standing on one shelf.</summary>
+/// <param name="BinCode">The bin.</param>
+/// <param name="BinName">What it is called.</param>
+/// <param name="ItemNo">The item.</param>
+/// <param name="Description">What the item is called.</param>
+/// <param name="DescriptionArabic">The same in Arabic.</param>
+/// <param name="Quantity">How much of it is there.</param>
+public sealed record BinContentView(
+    string BinCode,
+    string? BinName,
+    string ItemNo,
+    string Description,
+    string? DescriptionArabic,
+    decimal Quantity);
+
+/// <summary>A bin as a client sends it.</summary>
+/// <param name="Code">Its code, unique inside its location.</param>
+/// <param name="Name">What it is called.</param>
+/// <param name="NameArabic">What it is called in Arabic.</param>
+/// <param name="IsReceiving">Whether arrivals land here when nobody says where.</param>
+/// <param name="PickOrder">The order a picker walks the bins in.</param>
+/// <param name="IsBlocked">Whether it is withdrawn from use.</param>
+public sealed record SaveBinRequest(
+    string Code,
+    string? Name = null,
+    string? NameArabic = null,
+    bool IsReceiving = false,
+    int PickOrder = 0,
+    bool IsBlocked = false);
+
 /// <summary>One unit an item may be handled in.</summary>
 /// <param name="UnitCode">The unit.</param>
 /// <param name="QuantityPerUnit">How many base units one of these is.</param>
@@ -235,6 +284,26 @@ public static class InventoryEndpoints
              .WithName("RemoveItemUnit")
              .WithSummary("Takes a unit off an item. What already posted keeps its factor.");
 
+        group.MapGet("/locations/{locationCode}/bins", BinsAsync)
+             .WithName("Bins")
+             .WithSummary("Lists the bins at a location, in the order a picker walks them.");
+
+        group.MapGet("/locations/{locationCode}/bin-contents", BinContentsAsync)
+             .WithName("BinContents")
+             .WithSummary("Says what is standing on each shelf at a location.");
+
+        group.MapPost("/locations/{locationCode}/bins", SaveBinAsync)
+             .WithName("SaveBin")
+             .WithSummary("Adds a bin to a location, or changes one already there.");
+
+        group.MapDelete("/locations/{locationCode}/bins/{binCode}", RemoveBinAsync)
+             .WithName("RemoveBin")
+             .WithSummary("Takes an empty bin off a location.");
+
+        group.MapPost("/locations/{locationCode}/bin-tracking", SetBinTrackingAsync)
+             .WithName("SetBinTracking")
+             .WithSummary("Turns bin tracking on or off at a location.");
+
         return app;
     }
 
@@ -268,6 +337,7 @@ public static class InventoryEndpoints
                 l.IsSellable,
                 l.IsInTransit,
                 l.IsBlocked,
+                l.UsesBins,
             })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false));
@@ -762,6 +832,134 @@ public static class InventoryEndpoints
             .ConfigureAwait(false);
 
         return result.Failed ? Refused(result, http) : Results.NoContent();
+    }
+
+    private static async Task<IResult> BinsAsync(
+        string locationCode,
+        BinSetupService bins,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, "Inventory.Bin.Read"))
+        {
+            return Forbidden("Inventory.Bin.Read", "view bins", http);
+        }
+
+        var rows = await bins.BinsAsync(locationCode, cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(rows.Select(static b => new BinView(
+            b.Code,
+            b.Name,
+            b.NameArabic,
+            b.IsReceiving,
+            b.PickOrder,
+            b.IsBlocked)));
+    }
+
+    private static async Task<IResult> BinContentsAsync(
+        string locationCode,
+        BinSetupService bins,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken,
+        string? itemNo = null)
+    {
+        if (!Can(user, "Inventory.Bin.Read"))
+        {
+            return Forbidden("Inventory.Bin.Read", "view what is on the shelves", http);
+        }
+
+        var rows = await bins.ContentsAsync(locationCode, itemNo, cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(rows.Select(static r => new BinContentView(
+            r.BinCode,
+            r.BinName,
+            r.ItemNo,
+            r.Description,
+            r.DescriptionArabic,
+            r.Quantity)));
+    }
+
+    private static async Task<IResult> SaveBinAsync(
+        string locationCode,
+        SaveBinRequest request,
+        BinSetupService bins,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, "Inventory.Bin.Update"))
+        {
+            return Forbidden("Inventory.Bin.Update", "maintain bins", http);
+        }
+
+        var result = await bins
+            .SaveAsync(
+                locationCode,
+                new BinRequest(
+                    request.Code,
+                    request.Name,
+                    request.NameArabic,
+                    request.IsReceiving,
+                    request.PickOrder,
+                    request.IsBlocked),
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed
+            ? Refused(result, http)
+            : Results.Ok(new BinView(
+                result.Value.Code,
+                result.Value.Name,
+                result.Value.NameArabic,
+                result.Value.IsReceiving,
+                result.Value.PickOrder,
+                result.Value.IsBlocked));
+    }
+
+    private static async Task<IResult> RemoveBinAsync(
+        string locationCode,
+        string binCode,
+        BinSetupService bins,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, "Inventory.Bin.Update"))
+        {
+            return Forbidden("Inventory.Bin.Update", "maintain bins", http);
+        }
+
+        var result = await bins.RemoveAsync(locationCode, binCode, cancellationToken).ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.NoContent();
+    }
+
+    private static async Task<IResult> SetBinTrackingAsync(
+        string locationCode,
+        SetBinTrackingRequest request,
+        BinSetupService bins,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, "Inventory.Bin.Update"))
+        {
+            return Forbidden("Inventory.Bin.Update", "turn bin tracking on or off", http);
+        }
+
+        var result = await bins
+            .SetUsesBinsAsync(locationCode, request.UsesBins, cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed
+            ? Refused(result, http)
+            : Results.Ok(new { code = result.Value.Code, usesBins = result.Value.UsesBins });
     }
 
     private static bool Can(IUserContext user, string permission)

@@ -74,6 +74,7 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
         services.AddScoped<StockAvailability>();
         services.AddScoped<Posting.StockPostingService>();
         services.AddScoped<CostSettlementService>();
+        services.AddScoped<RevaluationService>();
         services.AddScoped<Items.UnitConversionService>();
         services.AddScoped<Items.UnitSetupService>();
         services.AddScoped<Locations.BinSetupService>();
@@ -160,6 +161,17 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
                 + "is settled when the goods arrive.",
                 "خفض المخزون تحت الصفر في شركة أو صنف يمنع ذلك، أو الصرف من موقع لم يُفرج عن "
                 + "بضائعه. يتم تدقيق كل استخدام، وتُسوّى التكلفة عند وصول البضاعة."),
+            implies: [$"{Id}.Stock.Read"],
+            isSensitive: true),
+
+        PermissionDescriptor.Define(
+            Id, "Revaluation", PermissionAction.Post,
+            new LocalizedText("Write stock up or down", "رفع أو خفض قيمة المخزون"),
+            new LocalizedText(
+                "Change what stock is worth without changing how much there is. The loss or gain "
+                + "reaches the general ledger the moment it is posted.",
+                "تغيير قيمة المخزون دون تغيير كميته. وتصل الخسارة أو المكسب إلى دفتر الأستاذ فور "
+                + "الترحيل."),
             implies: [$"{Id}.Stock.Read"],
             isSensitive: true),
 

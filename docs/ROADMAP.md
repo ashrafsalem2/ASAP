@@ -152,7 +152,15 @@ Everything else posts here, so it goes first.
 - **done** Costing methods: FIFO, average, standard (specific to come)
 - **Negative inventory**, allowed or blocked per company, with cost settled on later receipt so
   the cost layer never corrupts — **done**
-- Adjustments, revaluation, physical count
+- **done** Revaluation: what stock is worth changed without changing how much there is. The hard
+  part is that it has to survive being sold -- a write-down posted as a lump sum against nothing in
+  particular leaves the cost layers carrying their old figures, so the next sale is costed at the
+  original purchase price and the inventory account drifts back with nothing erroring. So it writes
+  against the open receipts themselves, per remaining unit, and every open receipt lands on the new
+  figure whatever it was bought at. Only what is on hand: goods already sold have their cost of
+  sales booked against the revenue they earned. The loss lands on variance rather than cost of
+  sales, because nothing was sold. Adjustments and physical count done; adjustment reason codes,
+  revaluing a whole category at once, and lower-of-cost-or-market as a routine still to come
 - **done** Transfer orders, in-transit tracking, shipment and receipt including short receipts
   (transfer *requests* — a branch asking rather than being sent — still to come)
 - Reorder policy, reservations, item availability

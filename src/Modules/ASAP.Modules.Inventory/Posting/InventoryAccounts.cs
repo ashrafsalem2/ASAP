@@ -105,6 +105,49 @@ public static class InventoryAccounts
     }
 
     /// <summary>
+    /// Builds the lines for stock written up or down without moving.
+    /// </summary>
+    /// <param name="change">
+    /// What the stock is worth now, less what it was worth before. Negative writes it down.
+    /// </param>
+    /// <param name="accounts">The accounts the item's category posts to.</param>
+    /// <param name="description">What the entries should say.</param>
+    /// <param name="contraAccountNo">Where the loss or gain lands, or null for the category's own.</param>
+    /// <param name="branchId">The branch holding the stock, carried onto both sides.</param>
+    /// <returns>A balanced pair of lines, or none when there is nothing to post.</returns>
+    /// <remarks>
+    /// Against the variance account rather than cost of goods sold, and the difference matters.
+    /// Cost of sales answers "what did the things we sold cost us"; nothing was sold here. A
+    /// write-down is a loss on stock still sitting in the building, and putting it in cost of
+    /// sales would make the margin on a month look worse for goods that never left it.
+    /// </remarks>
+    public static IReadOnlyList<LedgerPostingLine> ForRevaluation(
+        decimal change,
+        CategoryAccounts accounts,
+        string description,
+        string? contraAccountNo = null,
+        Guid? branchId = null)
+    {
+        if (change == 0m || accounts.InventoryAccountNo is not { Length: > 0 } inventory)
+        {
+            return [];
+        }
+
+        var contra = contraAccountNo is { Length: > 0 } named ? named : accounts.VarianceAccountNo;
+
+        if (contra is not { Length: > 0 })
+        {
+            return [];
+        }
+
+        return
+        [
+            new LedgerPostingLine(inventory, change, description, branchId),
+            new LedgerPostingLine(contra, -change, description, branchId),
+        ];
+    }
+
+    /// <summary>
     /// Builds the lines for a cost settled after the fact.
     /// </summary>
     /// <param name="correction">

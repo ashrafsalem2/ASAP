@@ -386,6 +386,24 @@ public sealed partial class StockPostingService(
     /// cost while the layers each carry the cost they were received at -- which is the whole reason
     /// FIFO produces a different answer from average.
     /// </remarks>
+    /// <summary>
+    /// What each open receipt cost per unit.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Two kinds of value entry, added together. The ordinary ones carry both a cost and the
+    /// quantity it covers, and their unit cost is the one divided by the other -- what the goods
+    /// were bought for, freight included.
+    /// </para>
+    /// <para>
+    /// A revaluation carries a cost and no quantity, because nothing moved. Its own
+    /// <see cref="ValueEntry.UnitCost"/> is the amount each remaining unit was written up or down
+    /// by, and it is added rather than averaged in. That distinction is the whole reason a
+    /// revaluation survives: averaging it over the receipt's original quantity would spread a
+    /// write-down across units that were sold months ago, and the layer would drift back towards
+    /// its old cost as it drained -- a revaluation that quietly undoes itself as the stock sells.
+    /// </para>
+    /// </remarks>
     private async Task<Dictionary<Guid, decimal>> LayerUnitCostsAsync(
         List<ItemLedgerEntry> layers,
         CancellationToken cancellationToken)
@@ -403,8 +421,9 @@ public sealed partial class StockPostingService(
             .Select(static g => new
             {
                 EntryId = g.Key,
-                Cost = g.Sum(static v => v.CostAmount),
+                Cost = g.Where(static v => v.Quantity != 0m).Sum(static v => v.CostAmount),
                 Quantity = g.Sum(static v => v.Quantity),
+                Revalued = g.Where(static v => v.Quantity == 0m).Sum(static v => v.UnitCost),
             })
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
@@ -412,8 +431,8 @@ public sealed partial class StockPostingService(
         return costs.ToDictionary(
             static c => c.EntryId,
             static c => c.Quantity == 0
-                ? 0m
-                : Math.Round(c.Cost / c.Quantity, 5, MidpointRounding.AwayFromZero));
+                ? Math.Round(c.Revalued, 5, MidpointRounding.AwayFromZero)
+                : Math.Round((c.Cost / c.Quantity) + c.Revalued, 5, MidpointRounding.AwayFromZero));
     }
 
     private ValueEntry NewValueEntry(

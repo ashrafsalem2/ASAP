@@ -61,6 +61,15 @@ public static class InventoryMessages
     /// <summary>A bin still has goods standing in it.</summary>
     public static readonly MessageCode BinNotEmpty = new("INV.BIN.NOT_EMPTY");
 
+    /// <summary>A revaluation was asked for at a cost below nothing.</summary>
+    public static readonly MessageCode RevaluationCostNegative = new("INV.REVAL.COST_NEGATIVE");
+
+    /// <summary>There is no stock on hand to revalue.</summary>
+    public static readonly MessageCode NothingToRevalue = new("INV.REVAL.NOTHING_ON_HAND");
+
+    /// <summary>The stock is already worth that.</summary>
+    public static readonly MessageCode RevaluationChangesNothing = new("INV.REVAL.NO_CHANGE");
+
     /// <summary>Stock would go below zero and the company does not permit it.</summary>
     public static readonly MessageCode NegativeInventoryBlocked = new("INV.STOCK.NEGATIVE_BLOCKED");
 
@@ -429,6 +438,52 @@ public static class InventoryMessages
                 + "الموقع على الأرفف قط — لكنه يُضيّع السجل الوحيد لمكان تلك البضاعة، وهو ما "
                 + "وُجد الرف من أجله. ولإيقاف استخدامه دون إفراغه، أوقفه بدل حذفه."),
             HelpTopic = "inventory/bins",
+        },
+        new()
+        {
+            Code = RevaluationCostNegative,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("Stock cannot be worth less than nothing", "لا يمكن أن تكون قيمة المخزون دون الصفر"),
+            Detail = new LocalizedText(
+                "{ItemNo} was to be revalued at {UnitCost:N2} per unit.",
+                "كان سيُعاد تقييم {ItemNo} بسعر {UnitCost:N2} للوحدة."),
+            Resolution = new LocalizedText(
+                "Write it down to nought if it is worthless. Stock carried below nothing is not a "
+                + "valuation but a liability, and it belongs in a provision somebody can see "
+                + "rather than hidden inside an inventory balance.",
+                "اخفضه إلى صفر إن كان بلا قيمة. فالمخزون المحمول تحت الصفر ليس تقييمًا بل التزامًا، "
+                + "ومكانه مخصص يراه الناس لا رصيد مخزون يخفيه."),
+            HelpTopic = "inventory/revaluation",
+        },
+        new()
+        {
+            Code = NothingToRevalue,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("There is none of it here", "لا يوجد منه شيء هنا"),
+            Detail = new LocalizedText(
+                "{Location} holds none of {ItemNo}, so there is nothing to write up or down.",
+                "الموقع {Location} لا يحفظ شيئًا من {ItemNo}، فليس هناك ما يُرفع أو يُخفض."),
+            Resolution = new LocalizedText(
+                "Revalue somewhere that has it. A value with no quantity under it has no receipt "
+                + "to attach to, and would sit in the inventory account as a balance no stock "
+                + "report can explain.",
+                "أعد التقييم حيث توجد البضاعة. فالقيمة بلا كمية تحتها لا تجد قيد استلام تتعلق به، "
+                + "وستبقى في حساب المخزون رصيدًا لا يفسّره أي تقرير مخزون."),
+            HelpTopic = "inventory/revaluation",
+        },
+        new()
+        {
+            Code = RevaluationChangesNothing,
+            Severity = MessageSeverity.Information,
+            Title = new LocalizedText("It is already worth that", "قيمته هي ذلك بالفعل"),
+            Detail = new LocalizedText(
+                "{ItemNo} at {Location} already stands at {UnitCost:N2} per unit.",
+                "الصنف {ItemNo} في الموقع {Location} مقيّم بالفعل بسعر {UnitCost:N2} للوحدة."),
+            Resolution = new LocalizedText(
+                "Nothing was posted, which is the honest answer. An entry for a change of nothing "
+                + "would be a row that means nothing.",
+                "لم يُرحّل شيء، وهذا هو الجواب الصادق. فقيد بتغيير مقداره صفر سطر لا يعني شيئًا."),
+            HelpTopic = "inventory/revaluation",
         },
         new()
         {

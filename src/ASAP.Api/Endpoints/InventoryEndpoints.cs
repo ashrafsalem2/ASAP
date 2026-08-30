@@ -124,6 +124,38 @@ public sealed record SaveItemUnitRequest(
     string? Barcode = null,
     bool IsActive = true);
 
+/// <summary>What stock is worth right now, as the client sees it.</summary>
+/// <param name="ItemNo">The item.</param>
+/// <param name="Description">What it is called.</param>
+/// <param name="DescriptionArabic">The same in Arabic.</param>
+/// <param name="LocationCode">Where.</param>
+/// <param name="Quantity">How much is on hand.</param>
+/// <param name="UnitCost">What one costs now.</param>
+/// <param name="Value">What the lot is worth now.</param>
+public sealed record StockValuationView(
+    string ItemNo,
+    string Description,
+    string? DescriptionArabic,
+    string LocationCode,
+    decimal Quantity,
+    decimal UnitCost,
+    decimal Value);
+
+/// <summary>What a client sends to write stock up or down.</summary>
+/// <param name="ItemNo">The item.</param>
+/// <param name="LocationCode">The location.</param>
+/// <param name="NewUnitCost">What one should cost from now on.</param>
+/// <param name="PostingDate">The date to report it in. Defaults to today.</param>
+/// <param name="Reason">Why, which goes on the entries and the ledger description.</param>
+/// <param name="ContraAccountNo">Where the loss or gain lands, or null for the category's own.</param>
+public sealed record RevalueStockRequest(
+    string ItemNo,
+    string LocationCode,
+    decimal NewUnitCost,
+    DateOnly? PostingDate = null,
+    string? Reason = null,
+    string? ContraAccountNo = null);
+
 /// <summary>Whether a location tracks stock down to the bin.</summary>
 /// <param name="UsesBins">On, every movement here has to say which bin.</param>
 public sealed record SetBinTrackingRequest(bool UsesBins);
@@ -303,6 +335,14 @@ public static class InventoryEndpoints
         group.MapPost("/locations/{locationCode}/bin-tracking", SetBinTrackingAsync)
              .WithName("SetBinTracking")
              .WithSummary("Turns bin tracking on or off at a location.");
+
+        group.MapGet("/stock/valuation", ValuationAsync)
+             .WithName("StockValuation")
+             .WithSummary("What one item is worth at one location right now.");
+
+        group.MapPost("/stock/revalue", RevalueAsync)
+             .WithName("RevalueStock")
+             .WithSummary("Writes stock up or down without changing how much there is.");
 
         return app;
     }
@@ -960,6 +1000,82 @@ public static class InventoryEndpoints
         return result.Failed
             ? Refused(result, http)
             : Results.Ok(new { code = result.Value.Code, usesBins = result.Value.UsesBins });
+    }
+
+    private static async Task<IResult> ValuationAsync(
+        RevaluationService revaluation,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken,
+        string itemNo,
+        string locationCode)
+    {
+        if (!Can(user, "Inventory.Stock.Read"))
+        {
+            return Forbidden("Inventory.Stock.Read", "read a stock valuation", http);
+        }
+
+        var result = await revaluation
+            .ValuationAsync(itemNo, locationCode, cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed
+            ? Refused(result, http)
+            : Results.Ok(new StockValuationView(
+                result.Value.ItemNo,
+                result.Value.Description,
+                result.Value.DescriptionArabic,
+                result.Value.LocationCode,
+                result.Value.Quantity,
+                result.Value.UnitCost,
+                result.Value.Value));
+    }
+
+    private static async Task<IResult> RevalueAsync(
+        RevalueStockRequest request,
+        RevaluationService revaluation,
+        IUserContext user,
+        IClock clock,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, "Inventory.Revaluation.Post"))
+        {
+            return Forbidden("Inventory.Revaluation.Post", "write stock up or down", http);
+        }
+
+        var result = await revaluation
+            .RevalueAsync(
+                request.ItemNo,
+                request.LocationCode,
+                request.NewUnitCost,
+                request.PostingDate ?? clock.Today,
+                request.Reason,
+                request.ContraAccountNo,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed
+            ? Refused(result, http)
+            : Results.Ok(new
+            {
+                transactionNo = result.Value.TransactionNo,
+                quantity = result.Value.Quantity,
+                oldUnitCost = result.Value.OldUnitCost,
+                newUnitCost = result.Value.NewUnitCost,
+                valueChange = result.Value.ValueChange,
+                layerCount = result.Value.LayerCount,
+                messages = result.Messages.Select(static m => new
+                {
+                    code = m.Code.Value,
+                    severity = m.Severity.ToString(),
+                    title = m.Title,
+                    detail = m.Detail,
+                    resolution = m.Resolution,
+                }),
+            });
     }
 
     private static bool Can(IUserContext user, string permission)

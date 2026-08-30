@@ -40,6 +40,47 @@ public sealed class FinanceSchema : IModuleSchema
 
     private void ConfigureTax(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<RecurringJournalBatch>(builder =>
+        {
+            builder.ToTable("RecurringJournalBatches", SchemaName);
+
+            builder.Property(b => b.Code).HasMaxLength(20).IsRequired();
+            builder.Property(b => b.Name).HasMaxLength(200).IsRequired();
+            builder.Property(b => b.NameArabic).HasMaxLength(200);
+            builder.Property(b => b.Description).HasMaxLength(500);
+            builder.Property(b => b.RowVersion).IsRowVersion();
+
+            builder.HasIndex(b => new { b.CompanyId, b.Code })
+                   .IsUnique()
+                   .HasFilter("[IsDeleted] = 0");
+
+            builder.HasMany(b => b.Lines)
+                   .WithOne(l => l.RecurringJournalBatch!)
+                   .HasForeignKey(l => l.RecurringJournalBatchId)
+                   .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Ignore(b => b.NextDue);
+        });
+
+        modelBuilder.Entity<RecurringJournalLine>(builder =>
+        {
+            builder.ToTable("RecurringJournalLines", SchemaName);
+
+            builder.Property(l => l.AccountNo).HasMaxLength(20).IsRequired();
+            builder.Property(l => l.BalancingAccountNo).HasMaxLength(20);
+            builder.Property(l => l.Description).HasMaxLength(250).IsRequired();
+            builder.Property(l => l.RecurrenceFormula).HasMaxLength(40).IsRequired();
+            builder.Property(l => l.Dimensions).HasMaxLength(500);
+            builder.Property(l => l.Amount).HasColumnType(DecimalPrecisionConventions.Money);
+            builder.Property(l => l.RowVersion).IsRowVersion();
+
+            // "What is due" is the question this table exists to answer, asked every month end.
+            builder.HasIndex(l => new { l.CompanyId, l.NextPostingDate });
+
+            builder.Ignore(l => l.Reverses);
+            builder.Ignore(l => l.ClearsAmount);
+        });
+
         modelBuilder.Entity<AccountSchedule>(builder =>
         {
             builder.ToTable("AccountSchedules", SchemaName);

@@ -64,7 +64,17 @@ Everything else posts here, so it goes first.
   the unit of work has already added, so a document whose lines share a combination creates one
   row rather than one per line. Shortcut dimensions are copied onto the entry, which is what
   makes grouping a million entries by department a seek rather than a join
-- *in progress* General journals: batches and lines done, **reversal done**; recurring journals to come
+- **done** General journals: batches, lines, reversal, and recurring journals. A recurring
+  batch is a template that posts through the ordinary engine and then moves its own dates on, so
+  nothing it produces is special — a recurring journal posting by its own route would be a second
+  ledger with its own rules. Recurrences are date formulas rather than day counts: 1M+CM gives the
+  31st, the 28th, the 31st and the 30th each in its turn and gets 29 February right, where thirty
+  days on from 31 January is 2 March and lands an accrual on the second of the month twelve times
+  a year. Amounts stay, clear after posting, or are read from the account's balance. A reversing
+  line posts the opposite the following day, which is what an accrual is and the second half of
+  what everybody forgets to do by hand. Dates move only after the posting succeeds, so a batch
+  refused for a closed period is still due; the step is taken from the date it was due rather than
+  from today, so a batch posted late does not walk its own schedule forward
 - **done** The posting engine: balance validation, period checks, dimension checks, audit trail
 - **done** General ledger entries, transaction grouping, running account balances
 - *in progress* **Currencies and exchange rates, with realised gain and loss done** — rates are

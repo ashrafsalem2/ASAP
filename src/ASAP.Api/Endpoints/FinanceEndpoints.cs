@@ -66,6 +66,45 @@ public sealed record GlEntrySummary(
     string? DocumentNo,
     string SourceCode);
 
+/// <summary>One line of a recurring batch, as it is written and read back.</summary>
+/// <param name="AccountNo">The account it posts to.</param>
+/// <param name="Description">What the entry says.</param>
+/// <param name="RecurrenceFormula">
+/// How far each posting moves the next one: <c>1M</c> a month on, <c>1M+CM</c> the last day of
+/// next month, <c>3M</c> a quarter.
+/// </param>
+/// <param name="Amount">The amount. Ignored for a Balance line, which posts what it finds.</param>
+/// <param name="Method">Fixed, Variable, Balance, ReversingFixed or ReversingVariable.</param>
+/// <param name="BalancingAccountNo">Where the other side goes, when the line balances itself.</param>
+/// <param name="NextPostingDate">The next day it is due, or null when it has finished.</param>
+/// <param name="ExpiresOn">The day after which it stops, or null to run forever.</param>
+/// <param name="Dimensions">How it is analysed, as <c>CODE=VALUE</c> pairs.</param>
+public sealed record RecurringLineRequest(
+    string AccountNo,
+    string Description,
+    string RecurrenceFormula,
+    decimal Amount = 0m,
+    string Method = "Fixed",
+    string? BalancingAccountNo = null,
+    DateOnly? NextPostingDate = null,
+    DateOnly? ExpiresOn = null,
+    string? Dimensions = null);
+
+/// <summary>What a client sends to create or rewrite a recurring batch.</summary>
+/// <param name="Code">The short code, which identifies it.</param>
+/// <param name="Name">What it is called.</param>
+/// <param name="Lines">The lines.</param>
+/// <param name="NameArabic">What it is called in Arabic.</param>
+/// <param name="Description">What it is for.</param>
+/// <param name="IsActive">Whether it may still be posted.</param>
+public sealed record SaveRecurringRequest(
+    string Code,
+    string Name,
+    IReadOnlyList<RecurringLineRequest> Lines,
+    string? NameArabic = null,
+    string? Description = null,
+    bool IsActive = true);
+
 /// <summary>One row of a statement layout, as it is written and read back.</summary>
 /// <param name="RowNo">What formulas call it, for example <c>R100</c>.</param>
 /// <param name="Description">What it is called on the page.</param>
@@ -230,6 +269,18 @@ public static class FinanceEndpoints
         group.MapGet("/reports/tax-return", TaxReturnAsync)
              .WithName("TaxReturn")
              .WithSummary("Reports tax charged and tax paid for a period, and the net owed.");
+
+        group.MapGet("/recurring", RecurringAsync)
+             .WithName("RecurringJournals")
+             .WithSummary("Lists the recurring batches and when each next falls due.");
+
+        group.MapPut("/recurring/{code}", SaveRecurringAsync)
+             .WithName("SaveRecurringJournal")
+             .WithSummary("Creates a recurring batch or rewrites one, lines and all.");
+
+        group.MapPost("/recurring/{code}/post", PostRecurringAsync)
+             .WithName("PostRecurringJournal")
+             .WithSummary("Posts every line of a batch that is due, and moves those lines on.");
 
         group.MapGet("/schedules", SchedulesAsync)
              .WithName("AccountSchedules")
@@ -539,6 +590,161 @@ public static class FinanceEndpoints
             includeFiled ?? false);
 
         return Results.Ok(await dispatcher.SendAsync(query, cancellationToken).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> RecurringAsync(
+        AsapDbContext context,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, RecurringReadPermission))
+        {
+            return Forbidden(RecurringReadPermission, "see recurring journals", http);
+        }
+
+        var batches = await context.Set<RecurringJournalBatch>()
+            .AsNoTracking()
+            .Include(b => b.Lines)
+            .OrderBy(b => b.Code)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return Results.Ok(batches.Select(static b => new
+        {
+            code = b.Code,
+            name = b.Name,
+            nameArabic = b.NameArabic,
+            description = b.Description,
+            isActive = b.IsActive,
+            nextDue = b.NextDue,
+            lines = b.Lines
+                .OrderBy(static l => l.Order)
+                .Select(static l => new RecurringLineRequest(
+                    l.AccountNo,
+                    l.Description,
+                    l.RecurrenceFormula,
+                    l.Amount,
+                    l.Method.ToString(),
+                    l.BalancingAccountNo,
+                    l.NextPostingDate,
+                    l.ExpiresOn,
+                    l.Dimensions)),
+        }));
+    }
+
+    private static async Task<IResult> SaveRecurringAsync(
+        string code,
+        SaveRecurringRequest request,
+        AsapDbContext context,
+        IUserContext user,
+        ITenantContext tenantContext,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, RecurringUpdatePermission))
+        {
+            return Forbidden(RecurringUpdatePermission, "maintain recurring journals", http);
+        }
+
+        var normalised = code.Trim().ToUpperInvariant();
+
+        // Through the execution strategy, because the connection retries on transient faults and
+        // will not allow a hand-rolled transaction otherwise.
+        var strategy = context.Database.CreateExecutionStrategy();
+
+        await strategy
+            .ExecuteAsync(async () =>
+            {
+                await using var transaction = await context.Database
+                    .BeginTransactionAsync(cancellationToken)
+                    .ConfigureAwait(false);
+
+                var batch = await context.Set<RecurringJournalBatch>()
+                    .Include(b => b.Lines)
+                    .FirstOrDefaultAsync(b => b.Code == normalised, cancellationToken)
+                    .ConfigureAwait(false);
+
+                if (batch is null)
+                {
+                    batch = new RecurringJournalBatch
+                    {
+                        TenantId = tenantContext.TenantId ?? Guid.Empty,
+                        CompanyId = tenantContext.RequireCompanyId(),
+                        Code = normalised,
+                        Name = request.Name,
+                    };
+
+                    context.Set<RecurringJournalBatch>().Add(batch);
+                }
+
+                batch.Name = request.Name;
+                batch.NameArabic = request.NameArabic;
+                batch.Description = request.Description;
+                batch.IsActive = request.IsActive;
+
+                context.Set<RecurringJournalLine>().RemoveRange(batch.Lines);
+
+                await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+                var order = 0;
+
+                foreach (var line in request.Lines)
+                {
+                    context.Set<RecurringJournalLine>().Add(new RecurringJournalLine
+                    {
+                        TenantId = batch.TenantId,
+                        CompanyId = batch.CompanyId,
+                        RecurringJournalBatchId = batch.Id,
+                        Order = ++order,
+                        AccountNo = line.AccountNo,
+                        BalancingAccountNo = line.BalancingAccountNo,
+                        Description = line.Description,
+                        Amount = line.Amount,
+                        Method = Enum.TryParse<RecurringMethod>(line.Method, true, out var method)
+                            ? method
+                            : RecurringMethod.Fixed,
+                        RecurrenceFormula = line.RecurrenceFormula,
+                        NextPostingDate = line.NextPostingDate,
+                        ExpiresOn = line.ExpiresOn,
+                        Dimensions = line.Dimensions,
+                    });
+                }
+
+                await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+                await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+            })
+            .ConfigureAwait(false);
+
+        return Results.Ok(new { code = normalised, lines = request.Lines.Count });
+    }
+
+    private static async Task<IResult> PostRecurringAsync(
+        string code,
+        RecurringJournalService recurring,
+        IUserContext user,
+        HttpContext http,
+        [FromQuery] DateOnly? on,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, RecurringPostPermission))
+        {
+            return Forbidden(RecurringPostPermission, "post a recurring journal", http);
+        }
+
+        var result = await recurring.PostAsync(code, on, cancellationToken).ConfigureAwait(false);
+
+        return result.Failed
+            ? Results.Json(
+                AsapProblem.From(result, AsapProblem.StatusFor(result.Messages), http.Request.Path),
+                statusCode: AsapProblem.StatusFor(result.Messages))
+            : Results.Ok(new
+            {
+                run = result.Value,
+                messages = MessagePayload.FromAll(result.Messages),
+            });
     }
 
     private static async Task<IResult> SchedulesAsync(
@@ -952,6 +1158,9 @@ public static class FinanceEndpoints
     }
 
     private const string ScheduleUpdatePermission = "Finance.Schedule.Update";
+    private const string RecurringReadPermission = "Finance.Journal.Read";
+    private const string RecurringUpdatePermission = "Finance.Journal.Create";
+    private const string RecurringPostPermission = "Finance.Journal.Post";
     private const string CurrencyReadPermission = "Finance.Currency.Read";
     private const string CurrencyUpdatePermission = "Finance.Currency.Update";
 

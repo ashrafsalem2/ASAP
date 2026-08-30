@@ -73,6 +73,7 @@ public sealed class FinanceModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISync
         services.AddScoped<Banking.BankReconciliationService>();
         services.AddScoped<Currencies.ExchangeRateService>();
         services.AddScoped<Journals.DocumentPostingService>();
+        services.AddScoped<Journals.RecurringJournalService>();
         services.AddScoped<Parties.PartyLedgerWriter>();
         services.AddScoped<Parties.IExchangeDifferencePoster, Journals.ExchangeDifferencePoster>();
         services.AddScoped<Parties.PartyApplicationService>();

@@ -26,6 +26,21 @@ public static class FinanceMessages
     /// <summary>A person is posting by hand to an account only a module should touch.</summary>
     public static readonly MessageCode DirectPostingNotAllowed = new("FIN.ACCOUNT.DIRECT_POSTING_BLOCKED");
 
+    /// <summary>No recurring batch by that code.</summary>
+    public static readonly MessageCode RecurringBatchNotFound = new("FIN.RECURRING.NOT_FOUND");
+
+    /// <summary>Nothing in the batch falls due on the day asked for.</summary>
+    public static readonly MessageCode RecurringNothingDue = new("FIN.RECURRING.NOTHING_DUE");
+
+    /// <summary>A line that was due carries no amount to post.</summary>
+    public static readonly MessageCode RecurringLineHasNoAmount = new("FIN.RECURRING.NO_AMOUNT");
+
+    /// <summary>The accrual posted and its reversal did not.</summary>
+    public static readonly MessageCode RecurringReversalNotPosted = new("FIN.RECURRING.REVERSAL_FAILED");
+
+    /// <summary>A line's recurrence formula cannot be read.</summary>
+    public static readonly MessageCode RecurringFormulaUnreadable = new("FIN.RECURRING.BAD_FORMULA");
+
     /// <summary>No account schedule by that code.</summary>
     public static readonly MessageCode ScheduleNotFound = new("FIN.SCHEDULE.NOT_FOUND");
 
@@ -212,6 +227,90 @@ public static class FinanceMessages
             Resolution = new LocalizedText(
                 "Choose a different account, or unblock {AccountNo} in the chart of accounts.",
                 "اختر حسابًا آخر، أو ألغِ حظر {AccountNo} في شجرة الحسابات."),
+        },
+        new()
+        {
+            Code = RecurringBatchNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such recurring batch", "لا توجد دفعة متكررة بهذا الرمز"),
+            Detail = new LocalizedText(
+                "Nothing in this company is set up as {Batch}.",
+                "لا يوجد في هذه الشركة ما هو مُعرَّف بالرمز {Batch}."),
+            Resolution = new LocalizedText(
+                "Choose one from the list of recurring batches.",
+                "اختر واحدة من قائمة الدفعات المتكررة."),
+            HelpTopic = "finance/recurring-journals",
+        },
+        new()
+        {
+            Code = RecurringNothingDue,
+            Severity = MessageSeverity.Information,
+            Title = new LocalizedText("Nothing is due yet", "لا شيء مستحق بعد"),
+            Detail = new LocalizedText(
+                "No line of {Batch} falls due on {Date:d}. The next one is {NextDue:d}.",
+                "لا يستحق أي سطر من {Batch} في {Date:d}. والتالي في {NextDue:d}."),
+            Resolution = new LocalizedText(
+                "Nothing to do. Posting a batch before it is due would put the entries in the "
+                + "wrong period, so it waits.",
+                "لا حاجة لأي إجراء. فترحيل الدفعة قبل استحقاقها يضع القيود في الفترة الخطأ، "
+                + "ولذلك تنتظر."),
+            HelpTopic = "finance/recurring-journals",
+        },
+        new()
+        {
+            Code = RecurringLineHasNoAmount,
+            Severity = MessageSeverity.Warning,
+            Title = new LocalizedText("A line had nothing to post", "سطر بلا مبلغ للترحيل"),
+            Detail = new LocalizedText(
+                "{Batch}: the line for {AccountNo} was due and its amount is nought, so it was "
+                + "left out.",
+                "{Batch}: استحق سطر الحساب {AccountNo} ومبلغه صفر، فتُرك."),
+            Resolution = new LocalizedText(
+                "For a variable line this means nobody entered this period's figure — enter it "
+                + "and post again. For a balance line it means the account is already empty, "
+                + "which is what it was trying to achieve.",
+                "في السطر المتغير يعني هذا أن أحدًا لم يُدخل رقم هذه الفترة، فأدخله ثم رحّل من "
+                + "جديد. أما في سطر الرصيد فيعني أن الحساب فارغ أصلًا، وهو ما كان يسعى إليه."),
+            HelpTopic = "finance/recurring-journals",
+        },
+        new()
+        {
+            Code = RecurringReversalNotPosted,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText(
+                "The accrual posted and its reversal did not", "رُحِّل الاستحقاق ولم تُرحَّل تسويته"),
+            Detail = new LocalizedText(
+                "{Batch} posted, and the reversal dated {Date:d} was refused. Left like this the "
+                + "cost is counted in both periods, and nothing later will ask about it.",
+                "رُحِّلت {Batch}، ورُفضت التسوية المؤرخة {Date:d}. وإن تُرك الأمر هكذا تُحتسب "
+                + "التكلفة في الفترتين، ولن يسأل عنها شيء لاحقًا."),
+            Resolution = new LocalizedText(
+                "The reason the reversal was refused is below — usually a closed period on the "
+                + "following day. Fix that and post the reversal by hand, or reverse the "
+                + "transaction that just posted and run the batch again.",
+                "سبب رفض التسوية مذكور أدناه، وهو غالبًا فترة مغلقة في اليوم التالي. عالج ذلك "
+                + "ثم رحّل التسوية يدويًا، أو اعكس القيد الذي رُحِّل للتو وأعد تشغيل الدفعة."),
+            HelpTopic = "finance/recurring-journals",
+        },
+        new()
+        {
+            Code = RecurringFormulaUnreadable,
+            Severity = MessageSeverity.Warning,
+            Title = new LocalizedText(
+                "The recurrence could not be read", "تعذّرت قراءة صيغة التكرار"),
+            Detail = new LocalizedText(
+                "{Batch}: the line for {AccountNo} says \"{Formula}\", which is not a date "
+                + "formula. It was posted and left where it was, so it is still due.",
+                "{Batch}: يقول سطر الحساب {AccountNo} \"{Formula}\"، وليست صيغة تاريخ. وقد "
+                + "رُحِّل وتُرك في موضعه، فما زال مستحقًا."),
+            Resolution = new LocalizedText(
+                "Write it as a step through the calendar: 1M is a month on, 1M+CM the last day "
+                + "of next month, 3M a quarter. Left where it was on purpose — a line advanced "
+                + "by a guess is wrong quietly, and one that stays due is noticed.",
+                "اكتبها كخطوة في التقويم: 1M شهر، و1M+CM آخر يوم في الشهر التالي، و3M ربع سنة. "
+                + "وقد تُرك في موضعه عمدًا، فالسطر الذي يتقدم بالتخمين يخطئ بصمت، والسطر الذي "
+                + "يبقى مستحقًا يُلاحَظ."),
+            HelpTopic = "finance/recurring-journals",
         },
         new()
         {

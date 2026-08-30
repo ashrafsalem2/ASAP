@@ -22,6 +22,9 @@ public static class InventoryMessages
     /// <summary>A quantity carries more decimal places than its unit allows.</summary>
     public static readonly MessageCode QuantityTooPrecise = new("INV.UNIT.TOO_MANY_DECIMALS");
 
+    /// <summary>A return came back without saying which sale it left on.</summary>
+    public static readonly MessageCode ReturnValuedAtTodaysCost = new("INV.RETURN.COST_ASSUMED");
+
     /// <summary>A unit was saved without a code.</summary>
     public static readonly MessageCode UnitCodeRequired = new("INV.UNIT.CODE_REQUIRED");
 
@@ -827,6 +830,27 @@ public static class InventoryMessages
                 "Give it a short code somebody will recognise: BLUE-M, RED-L.",
                 "أعطه رمزًا قصيرًا يعرفه الناس: BLUE-M أو RED-L."),
             HelpTopic = "inventory/variants",
+        },
+        new()
+        {
+            Code = ReturnValuedAtTodaysCost,
+            Severity = MessageSeverity.Warning,
+            Title = new LocalizedText("Valued at what it costs today", "قُيّم بتكلفة اليوم"),
+            Detail = new LocalizedText(
+                "{Quantity:0.#####} of {ItemNo} came back without saying which sale it left on, so "
+                + "it is worth {UnitCost:N2} each -- what the item costs now, not what these ones "
+                + "cost when they went.",
+                "عادت {Quantity:0.#####} من {ItemNo} دون بيان البيعة التي خرجت عليها، فقُيّمت بـ "
+                + "{UnitCost:N2} للوحدة — وهي تكلفة الصنف اليوم لا تكلفة هذه الوحدات حين خرجت."),
+            Resolution = new LocalizedText(
+                "Name the document it is coming back against, and the goods are restored at what "
+                + "they actually cost. Where the cost has moved since, the difference is inventory "
+                + "value the company gains or loses because a customer changed their mind, which "
+                + "is not a thing that should move an account.",
+                "حدّد المستند الذي تعود عليه، فتُستعاد البضاعة بتكلفتها الحقيقية. وحيث تغيّرت "
+                + "التكلفة منذ ذلك الحين، يصير الفرق قيمة مخزون تكسبها الشركة أو تخسرها لأن "
+                + "عميلًا غيّر رأيه، وليس ذلك مما يحرك حسابًا."),
+            HelpTopic = "inventory/returns",
         },
         new()
         {

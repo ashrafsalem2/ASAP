@@ -248,6 +248,14 @@ Everything else posts here, so it goes first.
 - *in progress* **Order, shipment and invoice done**; quote, return and credit memo to come
 - **done** Availability decided at shipment, by the costing engine, which is the only thing that
   knows what is on the shelf at the moment somebody reaches for it. Reservation to come
+- **done** Goods coming back are restored at what they cost when they left, where the return names
+  the sale it came back on. A return is not a purchase -- nothing was bought and nothing was paid --
+  so valuing it as an ordinary receipt at today's cost let a customer changing their mind move the
+  inventory account: sold at 10 and returned when the item costs 30, twenty appeared out of nothing
+  while the sale's cost of sales stayed where it was. Where no document is named the old behaviour
+  stands, because a shop cannot turn a customer away over its own paperwork, but the posting says
+  what it assumed. Returning a specific serial number, and vendor returns against a named receipt,
+  still to come
 - **done** Posting into inventory, cost of sales and the customer ledger. A shipment moves stock
   at what the goods cost and an invoice bills what was agreed, and the two never meet — which is
   the only way the margin report describes anything

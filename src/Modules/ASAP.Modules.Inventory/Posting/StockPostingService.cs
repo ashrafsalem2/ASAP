@@ -44,6 +44,12 @@ namespace ASAP.Modules.Inventory.Posting;
 /// shelf says "breakage" without having to know which account that is.
 /// </param>
 /// <param name="Note">What the person adjusting wrote, where they wrote anything.</param>
+/// <param name="AppliesToDocumentNo">
+/// The document this movement returns against, on a sales or purchase return. Goods coming back
+/// must be restored at what they cost when they left, and the only way to know that is to say
+/// which sale they left on. Without it the return is valued at what the item costs today, which
+/// invents inventory value whenever the cost has moved since.
+/// </param>
 /// <param name="VariantCode">
 /// Which colour, size or flavour, on an item that has them. Required there and refused elsewhere:
 /// a variant splits the stock and the cost layers, so a movement that did not say which one would
@@ -60,7 +66,8 @@ public sealed record StockMovementRequest(
     string? BinCode = null,
     string? ReasonCode = null,
     string? Note = null,
-    string? VariantCode = null);
+    string? VariantCode = null,
+    string? AppliesToDocumentNo = null);
 
 /// <summary>What a stock posting produced.</summary>
 /// <param name="TransactionNo">The number grouping every entry written.</param>
@@ -239,7 +246,10 @@ public sealed partial class StockPostingService(
 
         return Result<StockPostingReceipt>.Success(
             new StockPostingReceipt(transactionNo, written.Count, costAmount, estimatedAmount),
-            checkResult.Messages);
+
+            // Resolution has things to say as well as the availability check does. A return
+            // valued at today's cost is not a refusal and it is not nothing either.
+            [.. resolved.Messages, .. checkResult.Messages]);
     }
 
     private async Task<(ItemLedgerEntry Entry, decimal CostAmount, decimal EstimatedCostAmount)>
@@ -287,7 +297,7 @@ public sealed partial class StockPostingService(
         };
 
         var result = request.Quantity > 0
-            ? ReceiveStock(entry, item, request)
+            ? ReceiveStock(entry, item, movement, request)
             : await IssueStockAsync(entry, item, location, movement, request, cancellationToken).ConfigureAwait(false);
 
         // What this variant last cost, kept beside the item's own figure. The item's becomes
@@ -319,11 +329,19 @@ public sealed partial class StockPostingService(
     private (decimal CostAmount, decimal EstimatedCostAmount) ReceiveStock(
         ItemLedgerEntry entry,
         Item item,
+        MovementView movement,
         StockMovementRequest request)
     {
         entry.RemainingQuantity = request.Quantity;
 
-        var unitCost = request.UnitCost > 0 ? request.UnitCost : item.UnitCost;
+        // What the goods cost when they left, where the return said which sale it came back from.
+        // A return is not a purchase: nothing was bought, so nothing new was paid, and valuing it
+        // at today's cost would let a customer changing their mind move the inventory account.
+        var unitCost = request.UnitCost > 0
+            ? request.UnitCost
+            : movement.ReturnedUnitCost > 0m
+                ? movement.ReturnedUnitCost
+                : item.UnitCost;
         var costAmount = Math.Round(request.Quantity * unitCost, 2, MidpointRounding.AwayFromZero);
 
         context.Set<ValueEntry>().Add(NewValueEntry(
@@ -337,8 +355,17 @@ public sealed partial class StockPostingService(
 
         // A receipt is what the item last actually cost, and on an average-costed item it moves
         // the running unit cost. Both are read later to value an issue that has nothing to draw on.
-        item.LastDirectCost = unitCost;
-        item.UnitCost = unitCost;
+        //
+        // A return is not a receipt. Nothing was bought and nothing was paid, so it says nothing
+        // about what the item costs -- and letting it speak would be worse than useless here,
+        // because a return restored at last year's cost would drag the item's current cost back
+        // there with it and value every later shortfall at a price nobody has paid in months.
+        if (request.EntryType is not ItemLedgerEntryType.SalesReturn
+            and not ItemLedgerEntryType.PurchaseReturn)
+        {
+            item.LastDirectCost = unitCost;
+            item.UnitCost = unitCost;
+        }
 
         return (costAmount, 0m);
     }
@@ -576,6 +603,7 @@ public sealed partial class StockPostingService(
                 .ConfigureAwait(false);
 
         var missing = new List<AsapMessage>();
+        var assumed = new List<AsapMessage>();
         var movements = new List<MovementView>();
 
         for (var index = 0; index < requests.Count; index++)
@@ -617,6 +645,24 @@ public sealed partial class StockPostingService(
             {
                 missing.Add(binRefusal);
                 continue;
+            }
+
+            var returnedCost = await ReturnedUnitCostAsync(request, item.Id, cancellationToken)
+                .ConfigureAwait(false);
+
+            // A return that cannot know what it cost is valued at what the item costs today, and
+            // says so. Silence here is how a customer changing their mind moves an account.
+            if (request.EntryType is ItemLedgerEntryType.SalesReturn or ItemLedgerEntryType.PurchaseReturn
+                && returnedCost == 0m
+                && request.UnitCost <= 0m)
+            {
+                assumed.Add(messages.Render(
+                    InventoryMessages.ReturnValuedAtTodaysCost,
+                    Args(
+                        ("ItemNo", item.No),
+                        ("Quantity", Math.Abs(request.Quantity)),
+                        ("UnitCost", item.UnitCost)),
+                    MessageTarget.OnField($"Lines[{index + 1}]")));
             }
 
             var variantResult = ResolveVariant(request, item, variants, index + 1);
@@ -678,12 +724,13 @@ public sealed partial class StockPostingService(
                 VariantId = variantResult.VariantId,
                 VariantCode = variantResult.VariantCode,
                 VariantUnitCost = variantResult.LastDirectCost,
+                ReturnedUnitCost = returnedCost,
             });
         }
 
         return missing.Count > 0
             ? Result<List<MovementView>>.Failure(missing)
-            : Result<List<MovementView>>.Success(movements);
+            : Result<List<MovementView>>.Success(movements, assumed);
     }
 
     /// <summary>What a line's variant came to, or why the line cannot stand.</summary>
@@ -754,6 +801,63 @@ public sealed partial class StockPostingService(
                 Args(("LineNo", lineNo), ("VariantCode", variant.Code), ("ItemNo", item.No)),
                 target))
             : new ResolvedVariant(variant.Id, variant.Code, variant.LastDirectCost, null);
+    }
+
+    /// <summary>
+    /// What one item cost on the way out of the document a return names.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Weighted across whatever left on that document, because a sale of ten that drew on two
+    /// receipts at different prices has no single unit cost and the return of one of them cannot
+    /// know which. The average of what actually left is the closest true answer available, and it
+    /// is exact whenever the sale came off one layer, which is nearly always.
+    /// </para>
+    /// <para>
+    /// Nought when nothing is named or nothing matches, and the caller falls back to what the item
+    /// costs today.
+    /// </para>
+    /// </remarks>
+    private async Task<decimal> ReturnedUnitCostAsync(
+        StockMovementRequest request,
+        Guid itemId,
+        CancellationToken cancellationToken)
+    {
+        var isReturn = request.EntryType
+            is ItemLedgerEntryType.SalesReturn or ItemLedgerEntryType.PurchaseReturn;
+
+        if (!isReturn || request.AppliesToDocumentNo is not { Length: > 0 } document)
+        {
+            return 0m;
+        }
+
+        var outbound = await context.Set<ItemLedgerEntry>()
+            .AsNoTracking()
+            .Where(e => e.DocumentNo == document && e.ItemId == itemId && e.Quantity < 0)
+            .Select(static e => e.Id)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (outbound.Count == 0)
+        {
+            return 0m;
+        }
+
+        var totals = await context.Set<ValueEntry>()
+            .AsNoTracking()
+            .Where(v => outbound.Contains(v.ItemLedgerEntryId))
+            .GroupBy(static v => 1)
+            .Select(static g => new
+            {
+                Cost = g.Sum(static v => v.CostAmount),
+                Quantity = g.Sum(static v => v.Quantity),
+            })
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return totals is null || totals.Quantity == 0m
+            ? 0m
+            : Math.Round(Math.Abs(totals.Cost / totals.Quantity), 5, MidpointRounding.AwayFromZero);
     }
 
     /// <summary>Where an adjustment's value posts against, when its reason names an account.</summary>

@@ -1124,6 +1124,11 @@ public sealed class PosReceiptService(
                 // sell anything an item has variants for.
                 VariantCode: l.VariantCode,
 
+                // The receipt the goods are coming back on. Without it a return restores stock at
+                // what the item costs today rather than what these ones cost when they left, and a
+                // customer changing their mind moves the inventory account.
+                AppliesToDocumentNo: receipt.ReturnsReceiptNo,
+
                 // The till's own shelf, stated once in station setup. A cashier took the goods off
                 // the shop floor and cannot say where that is on a warehouse map, so this is not
                 // the guess the bin rules refuse -- somebody wrote it down in advance.

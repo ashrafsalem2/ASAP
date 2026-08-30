@@ -99,6 +99,17 @@ public sealed record MovementView(
     public string? VariantCode { get; init; }
 
     /// <summary>
+    /// What the goods cost when they left, on a return that named the sale it came back from.
+    /// </summary>
+    /// <remarks>
+    /// Nought where nothing was named, and then the return falls back to what the item costs
+    /// today. That fallback is the one thing about returns worth understanding: goods sold at ten
+    /// and returned when the item costs fifteen come back at fifteen, and the company has invented
+    /// five of inventory value out of a customer changing their mind.
+    /// </remarks>
+    public decimal ReturnedUnitCost { get; init; }
+
+    /// <summary>
     /// What this variant last cost, where it has been received before.
     /// </summary>
     /// <remarks>

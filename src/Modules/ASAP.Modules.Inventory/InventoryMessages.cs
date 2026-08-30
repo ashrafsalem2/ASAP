@@ -7,6 +7,18 @@ namespace ASAP.Modules.Inventory;
 /// </summary>
 public static class InventoryMessages
 {
+    /// <summary>Nothing in this company carries that barcode.</summary>
+    public static readonly MessageCode BarcodeNotFound = new("INV.BARCODE.NOT_FOUND");
+
+    /// <summary>A unit was named for an item that has no such unit set up.</summary>
+    public static readonly MessageCode UnitNotSetUpForItem = new("INV.UNIT.NOT_SET_UP");
+
+    /// <summary>A unit's conversion factor cannot be used.</summary>
+    public static readonly MessageCode UnitFactorNotUsable = new("INV.UNIT.FACTOR_UNUSABLE");
+
+    /// <summary>No item by that number, asked while converting a unit.</summary>
+    public static readonly MessageCode ItemNotFoundForUnit = new("INV.UNIT.ITEM_NOT_FOUND");
+
     /// <summary>Stock would go below zero and the company does not permit it.</summary>
     public static readonly MessageCode NegativeInventoryBlocked = new("INV.STOCK.NEGATIVE_BLOCKED");
 
@@ -82,6 +94,74 @@ public static class InventoryMessages
     /// <summary>Every message the module declares.</summary>
     public static IReadOnlyCollection<MessageDefinition> All { get; } =
     [
+        new()
+        {
+            Code = BarcodeNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Nothing carries that barcode", "لا يوجد ما يحمل هذا الباركود"),
+            Detail = new LocalizedText(
+                "Nothing in this company is set up under {Barcode}, on an item or on any of its "
+                + "units.",
+                "لا يوجد في هذه الشركة ما هو مسجّل تحت الباركود {Barcode}، لا على صنف ولا على أي "
+                + "من وحداته."),
+            Resolution = new LocalizedText(
+                "Key the item number instead, and add the barcode to the item afterwards so the "
+                + "next person does not have to. A case and a single carry different barcodes, "
+                + "so check which one was scanned.",
+                "أدخل رقم الصنف بدلًا من ذلك، ثم أضف الباركود إلى الصنف لاحقًا حتى لا يضطر من "
+                + "بعدك لذلك. والكرتون والحبة الواحدة يحملان باركودين مختلفين، فتحقق من أيهما "
+                + "مُسح."),
+            HelpTopic = "inventory/units-of-measure",
+        },
+        new()
+        {
+            Code = UnitNotSetUpForItem,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText(
+                "That unit is not set up for this item", "هذه الوحدة غير معرّفة لهذا الصنف"),
+            Detail = new LocalizedText(
+                "{ItemNo} is counted in {BaseUnit}, and nothing says how many {BaseUnit} are in "
+                + "one {UnitCode}.",
+                "يُحسب الصنف {ItemNo} بوحدة {BaseUnit}، ولا شيء يحدد كم {BaseUnit} في {UnitCode} "
+                + "واحد."),
+            Resolution = new LocalizedText(
+                "Add the unit to this item and say how many it holds. A box is a fact about the "
+                + "item rather than about boxes: one item's box is twelve and another's is six, "
+                + "so each has to say.",
+                "أضف الوحدة إلى هذا الصنف وحدّد ما تحتويه. فالكرتون حقيقة تخص الصنف لا الكراتين: "
+                + "فكرتون صنف اثنا عشر وكرتون آخر ستة، فعلى كل صنف أن يحدد."),
+            HelpTopic = "inventory/units-of-measure",
+        },
+        new()
+        {
+            Code = UnitFactorNotUsable,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("That unit holds nothing", "هذه الوحدة لا تحتوي شيئًا"),
+            Detail = new LocalizedText(
+                "{UnitCode} on {ItemNo} says it holds nought base units, so every quantity keyed "
+                + "in it would come to nothing.",
+                "تقول الوحدة {UnitCode} على الصنف {ItemNo} إنها تحتوي صفرًا من الوحدات الأساسية، "
+                + "فكل كمية تُدخل بها ستؤول إلى لا شيء."),
+            Resolution = new LocalizedText(
+                "Set how many it holds. Refused rather than posted, because nought would read as "
+                + "a clean zero on every report instead of as a mistake.",
+                "حدّد ما تحتويه. وقد رُفض بدل الترحيل، لأن الصفر سيبدو في كل تقرير رقمًا نظيفًا "
+                + "لا خطأً."),
+            HelpTopic = "inventory/units-of-measure",
+        },
+        new()
+        {
+            Code = ItemNotFoundForUnit,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such item", "لا يوجد صنف بهذا الرقم"),
+            Detail = new LocalizedText(
+                "Nothing in this company is numbered {ItemNo}.",
+                "لا يوجد في هذه الشركة صنف برقم {ItemNo}."),
+            Resolution = new LocalizedText(
+                "Check the number, or scan the barcode instead.",
+                "تحقق من الرقم، أو امسح الباركود بدلًا من ذلك."),
+            HelpTopic = "inventory/units-of-measure",
+        },
         new()
         {
             Code = NegativeInventoryBlocked,

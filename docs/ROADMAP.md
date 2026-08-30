@@ -129,7 +129,11 @@ Everything else posts here, so it goes first.
 
 ## Phase 2 — Inventory
 
-- Items, variants, units of measure, item categories, barcodes
+- **done** Items, units of measure and barcodes. Everything is stored in the base unit, because a
+  stock figure with mixed units in it cannot be added up, so conversion happens once at the edge
+  where somebody is standing at a till. A unit carries its own barcode and is looked for before the
+  item's, which is what makes scanning a case of twelve add twelve rather than one. Variants, and
+  categories as something a company can manage rather than an entity the seed fills in, still to come
 - *in progress* Locations done; warehouses and bins to come
 - **done** Item ledger entries and value entries, quantity and cost tracked separately
 - **done** Costing methods: FIFO, average, standard (specific to come)

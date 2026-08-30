@@ -1,4 +1,5 @@
 using ASAP.Modules.Inventory.Items;
+using Microsoft.EntityFrameworkCore;
 
 namespace ASAP.Modules.Inventory.Seed;
 
@@ -52,5 +53,80 @@ public sealed partial class InventorySeeder
         // Permitted to go below zero where the company is not, because a shop can see loose stock
         // on the shelf long before the paperwork catches up with it.
         Add("ITEM-1005", "Bottled water, case", "مياه معبأة، صندوق", CostingMethod.Fifo, 9.00m, 18.00m, allowNegative: true);
+    }
+
+    /// <summary>
+    /// Adds the units a company counts, weighs and measures in, and a worked example of a case.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The units themselves are shipped because <c>PCS</c>, <c>KG</c> and <c>BOX</c> mean the same
+    /// thing everywhere and a company should not have to invent them. What a box holds is not
+    /// shipped for the same reason a rate is not: it is a fact about a particular item, and one
+    /// company's box of desk lamps is not another's.
+    /// </para>
+    /// <para>
+    /// One exception, and it is deliberate: the demonstration item gets a case of twelve with its
+    /// own barcode, so that scanning the case adds twelve rather than one and the behaviour can be
+    /// seen rather than described.
+    /// </para>
+    /// </remarks>
+    private async Task SeedUnitsAsync(
+        Guid tenantId,
+        Guid companyId,
+        CancellationToken cancellationToken)
+    {
+        if (!await context.Set<Items.UnitOfMeasure>().AnyAsync(cancellationToken).ConfigureAwait(false))
+        {
+            Add("PCS", "Pieces", "قطعة", 0);
+            Add("BOX", "Box", "علبة", 0);
+            Add("CASE", "Case", "كرتون", 0);
+            Add("PALLET", "Pallet", "منصة", 0);
+
+            // Three places for the things that are weighed, none for the things that are counted.
+            // A till that accepts two and a half of something sold one at a time has taken an
+            // order nobody can pick.
+            Add("KG", "Kilogram", "كيلوغرام", 3);
+            Add("L", "Litre", "لتر", 3);
+            Add("M", "Metre", "متر", 2);
+
+            await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        var lamp = await context.Set<Items.Item>()
+            .FirstOrDefaultAsync(i => i.No == "ITEM-1001", cancellationToken)
+            .ConfigureAwait(false);
+
+        if (lamp is null
+            || await context.Set<Items.ItemUnit>().AnyAsync(u => u.ItemId == lamp.Id, cancellationToken)
+                .ConfigureAwait(false))
+        {
+            return;
+        }
+
+        context.Set<Items.ItemUnit>().Add(new Items.ItemUnit
+        {
+            TenantId = tenantId,
+            CompanyId = companyId,
+            ItemId = lamp.Id,
+            UnitCode = "CASE",
+            QuantityPerUnit = 12m,
+
+            // Its own barcode, which is the whole point: scanning this adds twelve.
+            Barcode = "6281001000012",
+        });
+
+        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        void Add(string code, string name, string arabic, int places)
+            => context.Set<Items.UnitOfMeasure>().Add(new Items.UnitOfMeasure
+            {
+                TenantId = tenantId,
+                CompanyId = companyId,
+                Code = code,
+                Name = name,
+                NameArabic = arabic,
+                DecimalPlaces = places,
+            });
     }
 }

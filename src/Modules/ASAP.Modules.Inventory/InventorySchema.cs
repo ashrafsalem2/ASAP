@@ -36,6 +36,46 @@ public sealed partial class InventorySchema : IModuleSchema
                    .HasFilter("[IsDeleted] = 0");
         });
 
+        modelBuilder.Entity<UnitOfMeasure>(builder =>
+        {
+            builder.ToTable("UnitsOfMeasure", SchemaName);
+
+            builder.Property(u => u.Code).HasMaxLength(10).IsRequired();
+            builder.Property(u => u.Name).HasMaxLength(100).IsRequired();
+            builder.Property(u => u.NameArabic).HasMaxLength(100);
+            builder.Property(u => u.RowVersion).IsRowVersion();
+
+            builder.HasIndex(u => new { u.CompanyId, u.Code })
+                   .IsUnique()
+                   .HasFilter("[IsDeleted] = 0");
+        });
+
+        modelBuilder.Entity<ItemUnit>(builder =>
+        {
+            builder.ToTable("ItemUnits", SchemaName);
+
+            builder.Property(u => u.UnitCode).HasMaxLength(10).IsRequired();
+            builder.Property(u => u.Barcode).HasMaxLength(64);
+            builder.Property(u => u.QuantityPerUnit).HasColumnType(DecimalPrecisionConventions.Quantity);
+            builder.Property(u => u.RowVersion).IsRowVersion();
+
+            builder.HasIndex(u => new { u.ItemId, u.UnitCode })
+                   .IsUnique()
+                   .HasFilter("[IsDeleted] = 0");
+
+            // A till scans a case barcode and needs the item and the quantity in one seek, on
+            // every line of every sale.
+            builder.HasIndex(u => new { u.CompanyId, u.Barcode })
+                   .HasFilter("[Barcode] IS NOT NULL AND [IsDeleted] = 0");
+
+            builder.HasOne(u => u.Item)
+                   .WithMany()
+                   .HasForeignKey(u => u.ItemId)
+                   .OnDelete(DeleteBehavior.Cascade);
+
+            builder.Ignore(u => u.IsBase);
+        });
+
         modelBuilder.Entity<Item>(builder =>
         {
             builder.ToTable("Items", SchemaName);

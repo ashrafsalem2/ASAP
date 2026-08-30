@@ -35,6 +35,10 @@ public sealed partial class InventorySeeder(AsapDbContext context, ILogger<Inven
             .AnyAsync(l => l.CompanyId == companyId, cancellationToken)
             .ConfigureAwait(false);
 
+        // Ahead of the early return, and checking for itself. A company that already has
+        // locations is exactly the one that would otherwise never receive units.
+        await SeedUnitsAsync(tenantId, companyId, cancellationToken).ConfigureAwait(false);
+
         if (alreadySet)
         {
             return false;

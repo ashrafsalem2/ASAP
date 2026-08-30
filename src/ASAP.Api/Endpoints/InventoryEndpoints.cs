@@ -100,6 +100,32 @@ public sealed record RecordCountRequest(
 /// <param name="OverrideReason">Why a protection is being pushed past.</param>
 public sealed record PostCountRequest(string? OverrideReason = null);
 
+/// <summary>One unit an item may be handled in.</summary>
+/// <param name="UnitCode">The unit.</param>
+/// <param name="QuantityPerUnit">How many base units one of these is.</param>
+/// <param name="Barcode">Its own barcode, when it has one.</param>
+/// <param name="IsBase">Whether this is the unit stock is stored in.</param>
+public sealed record ItemUnitView(
+    string UnitCode,
+    decimal QuantityPerUnit,
+    string? Barcode,
+    bool IsBase);
+
+/// <summary>What a scan or a keyed quantity came to.</summary>
+/// <param name="ItemNo">The item.</param>
+/// <param name="Description">What it is called.</param>
+/// <param name="UnitCode">The unit scanned or named.</param>
+/// <param name="Quantity">How many of that unit.</param>
+/// <param name="BaseQuantity">The same amount in the unit stock is stored in.</param>
+/// <param name="BaseUnitCode">What that unit is.</param>
+public sealed record ResolvedQuantityView(
+    string ItemNo,
+    string Description,
+    string UnitCode,
+    decimal Quantity,
+    decimal BaseQuantity,
+    string BaseUnitCode);
+
 /// <summary>Items, locations, stock levels and movements.</summary>
 public static class InventoryEndpoints
 {
@@ -158,6 +184,18 @@ public static class InventoryEndpoints
         group.MapPost("/stock/settle", SettleAsync)
              .WithName("SettleCosts")
              .WithSummary("Settles estimated costs against what the goods actually cost.");
+
+        group.MapGet("/units", UnitsAsync)
+             .WithName("UnitsOfMeasure")
+             .WithSummary("Lists the units this company counts, weighs and measures in.");
+
+        group.MapGet("/items/{itemNo}/units", ItemUnitsAsync)
+             .WithName("ItemUnits")
+             .WithSummary("Lists the units one item may be handled in, base unit first.");
+
+        group.MapGet("/scan/{barcode}", ScanAsync)
+             .WithName("ScanBarcode")
+             .WithSummary("Says what a barcode is and how many it stands for.");
 
         return app;
     }
@@ -534,6 +572,60 @@ public static class InventoryEndpoints
         });
     }
 
+    private static async Task<IResult> UnitsAsync(
+        AsapDbContext context,
+        CancellationToken cancellationToken)
+    {
+        var units = await context.Set<UnitOfMeasure>()
+            .AsNoTracking()
+            .Where(u => u.IsActive)
+            .OrderBy(u => u.Code)
+            .Select(u => new
+            {
+                code = u.Code,
+                name = u.Name,
+                nameArabic = u.NameArabic,
+                decimalPlaces = u.DecimalPlaces,
+            })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        return Results.Ok(units);
+    }
+
+    private static async Task<IResult> ItemUnitsAsync(
+        string itemNo,
+        UnitConversionService conversion,
+        CancellationToken cancellationToken)
+    {
+        var units = await conversion.UnitsAsync(itemNo, cancellationToken).ConfigureAwait(false);
+
+        return units.Count == 0
+            ? Results.NotFound()
+            : Results.Ok(units.Select(static u => new ItemUnitView(
+                u.UnitCode, u.QuantityPerUnit, u.Barcode, u.IsBase)));
+    }
+
+    private static async Task<IResult> ScanAsync(
+        string barcode,
+        UnitConversionService conversion,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        var result = await conversion.ScanAsync(barcode, cancellationToken).ConfigureAwait(false);
+
+        return result.Failed
+            ? Results.Json(
+                AsapProblem.From(result, AsapProblem.StatusFor(result.Messages), http.Request.Path),
+                statusCode: AsapProblem.StatusFor(result.Messages))
+            : Results.Ok(new ResolvedQuantityView(
+                result.Value.ItemNo,
+                result.Value.Description,
+                result.Value.UnitCode,
+                result.Value.Quantity,
+                result.Value.BaseQuantity,
+                result.Value.BaseUnitCode));
+    }
     private static bool Can(IUserContext user, string permission)
         => user.IsSuperUser || user.Has(permission);
 

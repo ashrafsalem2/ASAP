@@ -44,6 +44,7 @@ export class PurchaseOrderDetail implements OnInit {
   protected orderNo = '';
   protected deliveryNo = '';
   protected invoiceNo = '';
+  protected returnReason = '';
 
   /**
    * What has been keyed per line, kept outside the order so reloading it does not discard a
@@ -51,6 +52,7 @@ export class PurchaseOrderDetail implements OnInit {
    */
   private readonly receiptEntries = new Map<number, LineEntry>();
   private readonly invoiceEntries = new Map<number, LineEntry>();
+  private readonly returnEntries = new Map<number, LineEntry>();
 
   protected readonly canReceiveAnything = computed(
     () => (this.order()?.lines ?? []).some((line) => line.outstandingToReceive > 0),
@@ -58,6 +60,16 @@ export class PurchaseOrderDetail implements OnInit {
 
   protected readonly canInvoiceAnything = computed(
     () => (this.order()?.lines ?? []).some((line) => line.receivedNotInvoiced > 0),
+  );
+
+  /**
+   * Whether anything could still go back to the vendor.
+   *
+   * Received, not invoiced: goods can go back before their invoice ever turns up, and rejecting a
+   * faulty delivery at the door is the ordinary case rather than the exception.
+   */
+  protected readonly canReturnAnything = computed(
+    () => (this.order()?.lines ?? []).some((line) => line.returnableQuantity > 0),
   );
 
   async ngOnInit(): Promise<void> {
@@ -77,6 +89,10 @@ export class PurchaseOrderDetail implements OnInit {
     return this.auth.can('Purchasing.Invoice.Post');
   }
 
+  protected canReturn(): boolean {
+    return this.auth.can('Purchasing.Return.Post');
+  }
+
   protected canRelease(): boolean {
     return this.auth.can('Purchasing.Order.Create') && this.order()?.status === 'Open';
   }
@@ -91,6 +107,14 @@ export class PurchaseOrderDetail implements OnInit {
 
   protected setReceipt(line: PurchaseOrderLine, value: number | null): void {
     this.receiptEntries.set(line.lineNo, { quantity: value, price: null });
+  }
+
+  protected returnQuantityOf(line: PurchaseOrderLine): number | null {
+    return this.returnEntries.get(line.lineNo)?.quantity ?? null;
+  }
+
+  protected setReturnQuantity(line: PurchaseOrderLine, value: number | null): void {
+    this.returnEntries.set(line.lineNo, { quantity: value, price: null });
   }
 
   protected invoiceQuantityOf(line: PurchaseOrderLine): number | null {
@@ -166,6 +190,50 @@ export class PurchaseOrderDetail implements OnInit {
       await this.load();
     } catch (error) {
       this.messages.showError(error, this.t('purchasing.receipt.action'));
+    } finally {
+      this.busy.set(null);
+    }
+  }
+
+  /**
+   * Sends goods back to the vendor.
+   *
+   * The credit memo covers only the part that had been invoiced. Goods returned before their
+   * invoice arrives unwind the accrual and stop there, because there is no debt to reverse.
+   */
+  protected async sendBack(): Promise<void> {
+    if (this.busy()) {
+      return;
+    }
+
+    this.messages.clear();
+    this.busy.set('return');
+
+    try {
+      const result = await this.purchasing.sendBack(
+        this.orderNo,
+        this.linesFrom(this.returnEntries, (line) => line.returnableQuantity),
+        this.returnReason.trim() || undefined,
+      );
+
+      this.report(result.messages);
+      this.messages.showSuccess(
+        result.creditMemoNo
+          ? this.t('purchasing.return.done', {
+              No: result.creditMemoNo,
+              Total: this.i18n.total(result.totalAmount),
+            })
+          : this.t('purchasing.return.doneUninvoiced', {
+              Cost: this.i18n.total(Math.abs(result.costAmount)),
+            }),
+      );
+
+      this.returnEntries.clear();
+      this.returnReason = '';
+
+      await this.load();
+    } catch (error) {
+      this.messages.showError(error, this.t('purchasing.return.action'));
     } finally {
       this.busy.set(null);
     }

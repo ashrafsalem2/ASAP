@@ -199,6 +199,15 @@ public sealed class PurchaseOrderLine : CompanyEntity
     /// <summary>How much has been invoiced.</summary>
     public decimal QuantityInvoiced { get; set; }
 
+    /// <summary>
+    /// How much has gone back to the vendor.
+    /// </summary>
+    /// <remarks>
+    /// Tracked so a second return cannot send back more than ever arrived, which would take stock
+    /// off a shelf that never held it and money off a debt that was never owed.
+    /// </remarks>
+    public decimal QuantityReturned { get; set; }
+
     /// <summary>What the line comes to before tax.</summary>
     public decimal LineAmount => Quantity * DirectUnitCost;
 
@@ -216,4 +225,14 @@ public sealed class PurchaseOrderLine : CompanyEntity
     /// behind.
     /// </remarks>
     public decimal ReceivedNotInvoiced => QuantityReceived - QuantityInvoiced;
+
+    /// <summary>
+    /// The most that could still go back on this line.
+    /// </summary>
+    /// <remarks>
+    /// What arrived, less what has already gone back. Received rather than invoiced, which is the
+    /// one place this differs from a sales return: goods can be sent back to a vendor before the
+    /// invoice ever turns up, and rejecting a faulty delivery at the door is the ordinary case.
+    /// </remarks>
+    public decimal ReturnableQuantity => QuantityReceived - QuantityReturned;
 }

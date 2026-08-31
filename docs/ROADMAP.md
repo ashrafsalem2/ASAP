@@ -237,8 +237,18 @@ Everything else posts here, so it goes first.
 ## Phase 3 — Purchasing
 
 - **done** Vendors (through the Finance party ledger); purchase prices, discounts and lead times to come
-- *in progress* **Purchase order, goods receipt and vendor invoice done**, with the three-way match
-  between them; requisition, request for quotation, return and credit memo to come
+- *in progress* **Purchase order, goods receipt, vendor invoice, return and credit memo done**,
+  with the three-way match between them; requisition and request for quotation to come
+- **done** Returns to a vendor and their credit memos. Bounded by what was *received* rather than
+  what was invoiced, which is the one place this differs from a sales return: goods can go back
+  before their invoice ever turns up, and rejecting a faulty delivery at the door is the ordinary
+  case. So the posting comes in two halves and only one involves the vendor -- everything going
+  back unwinds the goods-received accrual, and only the part that had been invoiced also raises a
+  credit memo. Returns come off the invoiced quantity first, because the alternative leaves the
+  accrual correct only once everything has gone back and wrong at every step in between, and most
+  returns are partial while most accruals are read at a month end that falls in the middle.
+  Verified against the ledger: receive ten, invoice six, return in three pieces, and both the
+  accrual and payables net to exactly nothing
 - **done** Approval limits. An order over the company's threshold waits for somebody whose limit
   covers it, and never for the person who raised it -- an approval you can give yourself is not a
   control but a checkbox, and that single comparison is the feature. Limits are per person rather

@@ -74,6 +74,15 @@ public sealed record PurchaseLinePayload(
     string? LocationCode = null,
     string? VariantCode = null);
 
+/// <summary>What a client sends to send goods back to a vendor.</summary>
+/// <param name="Lines">How much of each line is going back, or null for everything that still could.</param>
+/// <param name="Reason">Why they are going back.</param>
+/// <param name="OverrideReason">Why a protection is being pushed past.</param>
+public sealed record PurchaseReturnRequest(
+    IReadOnlyList<PurchaseReturnLineRequest>? Lines = null,
+    string? Reason = null,
+    string? OverrideReason = null);
+
 /// <summary>What a client sends to raise a purchase order.</summary>
 /// <param name="VendorNo">Who it is being ordered from.</param>
 /// <param name="Lines">What is being bought.</param>
@@ -120,6 +129,8 @@ public sealed record PostPurchaseInvoiceRequest(
 /// <param name="QuantityReceived">How much has arrived.</param>
 /// <param name="QuantityInvoiced">How much has been invoiced.</param>
 /// <param name="OutstandingToReceive">How much is still to arrive.</param>
+/// <param name="QuantityReturned">How much has gone back to the vendor.</param>
+/// <param name="ReturnableQuantity">How much could still go back.</param>
 /// <param name="ReceivedNotInvoiced">How much has arrived and is still awaiting an invoice.</param>
 /// <param name="VariantCode">Which variant of the item, where the item has them.</param>
 public sealed record PurchaseOrderLineView(
@@ -136,6 +147,8 @@ public sealed record PurchaseOrderLineView(
     decimal QuantityInvoiced,
     decimal OutstandingToReceive,
     decimal ReceivedNotInvoiced,
+    decimal QuantityReturned,
+    decimal ReturnableQuantity,
     string? VariantCode = null);
 
 /// <summary>A purchase order as it is reported back.</summary>
@@ -266,6 +279,11 @@ public static class PurchasingEndpoints
         group.MapGet("/reports/purchase-analysis", PurchaseAnalysisAsync)
              .WithName("PurchaseAnalysis")
              .WithSummary("What was bought over a period, by vendor or by item.");
+
+        group.MapPost("/orders/{orderNo}/return", ReturnAsync)
+             .WithName("PostPurchaseReturn")
+             .WithSummary("Sends goods back at what they cost, and credits what was invoiced.");
+
 
         group.MapPost("/orders/{orderNo}/receive", ReceiveAsync)
              .WithName("ReceiveGoods")
@@ -603,6 +621,49 @@ public static class PurchasingEndpoints
 
         return result.Failed ? Refused(result, http) : Results.Ok(View(result.Value, result.Messages));
     }
+    private static async Task<IResult> ReturnAsync(
+        string orderNo,
+        PurchaseReturnRequest request,
+        PurchaseReturnService returns,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, "Purchasing.Return.Post"))
+        {
+            return Forbidden("Purchasing.Return.Post", "send goods back to a vendor", http);
+        }
+
+        var result = await returns
+            .ReturnAsync(
+                orderNo,
+                request.Lines,
+                request.Reason,
+                Overrides(user),
+                request.OverrideReason,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed
+            ? Refused(result, http)
+            : Results.Ok(new
+            {
+                orderNo = result.Value.OrderNo,
+                creditMemoNo = result.Value.CreditMemoNo,
+                stockTransactionNo = result.Value.StockTransactionNo,
+                ledgerTransactionNo = result.Value.LedgerTransactionNo,
+                lineCount = result.Value.LineCount,
+                costAmount = result.Value.CostAmount,
+                creditedQuantity = result.Value.CreditedQuantity,
+                netAmount = result.Value.NetAmount,
+                taxAmount = result.Value.TaxAmount,
+                totalAmount = result.Value.TotalAmount,
+                messages = result.Messages,
+            });
+    }
+
 
     private static async Task<IResult> ReceiveAsync(
         string orderNo,
@@ -710,7 +771,9 @@ public static class PurchasingEndpoints
                     l.QuantityReceived,
                     l.QuantityInvoiced,
                     l.OutstandingToReceive,
-                    l.ReceivedNotInvoiced))])
+                    l.ReceivedNotInvoiced,
+                    l.QuantityReturned,
+                    l.ReturnableQuantity))])
         {
             ApprovedBy = order.ApprovedByUserName,
             ApprovedAtUtc = order.ApprovedAtUtc,

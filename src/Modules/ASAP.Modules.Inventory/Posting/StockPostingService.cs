@@ -410,6 +410,27 @@ public sealed partial class StockPostingService(
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+        // Goods going back to the vendor come off the delivery they arrived on, not off the oldest
+        // shelf. Without this a return of goods bought at twenty relieves an older layer at ten,
+        // the vendor is credited twenty, and the ten left over sits in the goods-received accrual
+        // for ever with nothing to explain it -- while the expensive goods stay on the shelf and
+        // quietly overstate the valuation. FIFO order still decides within the delivery, for the
+        // ordinary case of one order received in several drops.
+        if (request.EntryType is ItemLedgerEntryType.PurchaseReturn
+            && request.AppliesToDocumentNo is { Length: > 0 } document)
+        {
+            var fromThatDelivery = openLayers
+                .Where(l => string.Equals(l.DocumentNo, document, StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+            // Only when the delivery still has something open. Where it has all gone already the
+            // ordinary layers stand, and the movement says what it assumed.
+            if (fromThatDelivery.Count > 0)
+            {
+                openLayers = fromThatDelivery;
+            }
+        }
+
         var layerCosts = await LayerUnitCostsAsync(openLayers, cancellationToken).ConfigureAwait(false);
 
         var layers = openLayers
@@ -886,21 +907,31 @@ public sealed partial class StockPostingService(
             return 0m;
         }
 
-        var outbound = await context.Set<ItemLedgerEntry>()
+        // Which way the original movement went depends on which kind of return this is. A customer
+        // sending goods back is undoing something that left, so the entries to price it from are
+        // the negative ones; goods going back to a vendor are undoing something that arrived, and
+        // the entries are the positive ones. Reading the wrong sign finds nothing at all, and the
+        // return silently falls back to what the item costs today -- which is the exact failure
+        // this whole mechanism exists to prevent.
+        var wantsOutbound = request.EntryType is ItemLedgerEntryType.SalesReturn;
+
+        var original = await context.Set<ItemLedgerEntry>()
             .AsNoTracking()
-            .Where(e => e.DocumentNo == document && e.ItemId == itemId && e.Quantity < 0)
+            .Where(e => e.DocumentNo == document
+                && e.ItemId == itemId
+                && (wantsOutbound ? e.Quantity < 0 : e.Quantity > 0))
             .Select(static e => e.Id)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        if (outbound.Count == 0)
+        if (original.Count == 0)
         {
             return 0m;
         }
 
         var totals = await context.Set<ValueEntry>()
             .AsNoTracking()
-            .Where(v => outbound.Contains(v.ItemLedgerEntryId))
+            .Where(v => original.Contains(v.ItemLedgerEntryId))
             .GroupBy(static v => 1)
             .Select(static g => new
             {

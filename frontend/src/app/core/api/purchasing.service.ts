@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
+  PurchaseReturnResult,
   ApprovalLimit,
   OpenOrderRow,
   PurchaseAnalysisRow,
@@ -28,6 +29,26 @@ export interface PurchaseLineQuantity {
 export class PurchasingService {
   private readonly http = inject(HttpClient);
   private readonly base = `${environment.apiBaseUrl}/api/purchasing`;
+
+  /**
+   * Sends goods back to the vendor at what they cost, and credits what was invoiced.
+   *
+   * Nothing keyed means everything that could still go back. What is bounded here is what
+   * arrived, not what was billed: goods can go back before their invoice ever turns up.
+   */
+  sendBack(
+    orderNo: string,
+    lines?: PurchaseLineQuantity[],
+    reason?: string,
+    overrideReason?: string,
+  ): Promise<PurchaseReturnResult> {
+    return firstValueFrom(
+      this.http.post<PurchaseReturnResult>(
+        `${this.base}/orders/${encodeURIComponent(orderNo)}/return`,
+        { lines, reason, overrideReason },
+      ),
+    );
+  }
 
   /** Purchase orders, most recently raised first. */
   orders(filter: { status?: string; vendorNo?: string } = {}): Promise<PurchaseOrder[]> {

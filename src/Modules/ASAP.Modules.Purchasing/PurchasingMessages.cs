@@ -6,6 +6,12 @@ namespace ASAP.Modules.Purchasing;
 public static class PurchasingMessages
 {
     /// <summary>An approval limit was set below nothing.</summary>
+    /// <summary>Nothing on the order could go back.</summary>
+    public static readonly MessageCode NothingToSendBack = new("PUR.RETURN.NOTHING");
+
+    /// <summary>More is going back than ever arrived.</summary>
+    public static readonly MessageCode ReturnExceedsReceipt = new("PUR.RETURN.EXCEEDS_RECEIPT");
+
     public static readonly MessageCode ApprovalLimitNegative = new("PUR.APPROVAL.LIMIT_NEGATIVE");
 
     /// <summary>The order is not waiting to be signed for.</summary>
@@ -95,6 +101,41 @@ public static class PurchasingMessages
     /// <summary>Every message the module declares.</summary>
     public static IReadOnlyCollection<MessageDefinition> All { get; } =
     [
+        new()
+        {
+            Code = NothingToSendBack,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Nothing to send back", "لا شيء يُعاد"),
+            Detail = new LocalizedText(
+                "Nothing on {OrderNo} has arrived and not already gone back.",
+                "لا يوجد في {OrderNo} ما وصل ولم يُعد بالفعل."),
+            Resolution = new LocalizedText(
+                "Goods can only go back once they have arrived. Where they have, check whether "
+                + "the return was already posted.",
+                "لا تعود البضاعة إلا بعد وصولها. وإن كانت قد وصلت فتحقق مما إذا كان الإرجاع قد "
+                + "رُحِّل من قبل."),
+            HelpTopic = "purchasing/returns",
+        },
+        new()
+        {
+            Code = ReturnExceedsReceipt,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("More than arrived", "أكثر مما وصل"),
+            Detail = new LocalizedText(
+                "Line {LineNo} sends back {Returned:0.#####} of {ItemNo}, and only "
+                + "{OutstandingQuantity:0.#####} of the {Received:0.#####} received could still "
+                + "go back.",
+                "يعيد السطر {LineNo} كمية {Returned:0.#####} من {ItemNo}، ولا يمكن أن يعود إلا "
+                + "{OutstandingQuantity:0.#####} من {Received:0.#####} المستلمة."),
+            Resolution = new LocalizedText(
+                "Send back what arrived, or less. Returning goods that never came takes stock off "
+                + "a shelf that never held it and money off a debt that was never owed, which is "
+                + "not a decision anybody is entitled to make.",
+                "أعد ما وصل أو أقل منه. فإرجاع بضاعة لم تصل قط يخصم مخزونًا من رفٍّ لم يحمله "
+                + "ومالًا من دين لم يُستحق، وليس ذلك قرارًا من حق أحد اتخاذه."),
+            HelpTopic = "purchasing/returns",
+        },
+
         new()
         {
             Code = ApprovalLimitNegative,

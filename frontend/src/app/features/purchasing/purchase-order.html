@@ -221,5 +221,83 @@
         </div>
       </section>
     }
+
+    @if (canReturn() && canReturnAnything()) {
+      <section class="panel">
+        <div class="panel__header">
+          <h2>{{ t('purchasing.return.title') }}</h2>
+        </div>
+
+        <p class="panel__body order__hint">{{ t('purchasing.return.hint') }}</p>
+
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('purchasing.orders.item') }}</th>
+                <th class="numeric">{{ t('purchasing.return.couldGoBack') }}</th>
+                <th class="numeric">{{ t('purchasing.return.alreadyBack') }}</th>
+                <th class="numeric">{{ t('purchasing.return.invoiced') }}</th>
+                <th class="numeric">{{ t('purchasing.return.sendingBack') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (line of po.lines; track line.lineNo) {
+                @if (line.returnableQuantity > 0) {
+                  <tr>
+                    <td class="code">
+                      {{ line.no }} <span class="order__desc">{{ line.description }}</span>
+                    </td>
+                    <td class="numeric">{{ quantity(line.returnableQuantity) }}</td>
+                    <td class="numeric">{{ quantity(line.quantityReturned) }}</td>
+                    <td class="numeric">{{ quantity(line.quantityInvoiced) }}</td>
+                    <td class="numeric">
+                      <input
+                        class="input input--number input--compact"
+                        type="number"
+                        inputmode="decimal"
+                        min="0"
+                        [placeholder]="quantity(line.returnableQuantity)"
+                        [ngModel]="returnQuantityOf(line)"
+                        (ngModelChange)="setReturnQuantity(line, $event)"
+                      />
+                    </td>
+                  </tr>
+                }
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div class="panel__body">
+          <label class="field">
+            {{ t('purchasing.return.reason') }}
+            <input
+              class="input"
+              type="text"
+              [(ngModel)]="returnReason"
+              name="returnReason"
+              [placeholder]="t('purchasing.return.reasonPlaceholder')"
+            />
+          </label>
+        </div>
+
+        <div class="panel__body draft__actions">
+          <button
+            type="button"
+            class="button button--primary"
+            [disabled]="busy() !== null"
+            (click)="sendBack()"
+          >
+            @if (busy() === 'return') {
+              <span class="spinner"></span>
+              {{ t('purchasing.return.working') }}
+            } @else {
+              {{ t('purchasing.return.action') }}
+            }
+          </button>
+        </div>
+      </section>
+    }
   }
 </div>

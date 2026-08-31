@@ -143,6 +143,135 @@ public sealed class ReturnCostingTests : IDisposable
         returned.Value.CostAmount.ShouldBe(20.00m);
     }
 
+    /// <summary>
+    /// Goods going back to a vendor leave at what they cost when they arrived.
+    /// </summary>
+    /// <remarks>
+    /// The same rule as a customer return, read from the other end. A vendor return has to price
+    /// itself from the entries that came <em>in</em> on the named order, and the query that finds
+    /// them looked only for entries that went out -- which found nothing at all, and fell back to
+    /// what the item costs today without a word. That fallback is the exact failure the whole
+    /// mechanism exists to prevent: it lets a change of supplier price move the inventory account.
+    /// </remarks>
+    [Fact]
+    public async Task Goods_go_back_to_a_vendor_at_what_they_cost_when_they_arrived()
+    {
+        // Twenty arrived at ten on PO-1, then the price went up and twenty more arrived at thirty.
+        await PostAsync(
+            new StockMovementRequest("WIDGET", "SHOP", 20m, 10.00m, ItemLedgerEntryType.Purchase),
+            "PO-1");
+
+        await PostAsync(
+            new StockMovementRequest("WIDGET", "SHOP", 20m, 30.00m, ItemLedgerEntryType.Purchase),
+            "PO-2");
+
+        // Two of the first delivery go back. They cost ten each, whatever the second cost.
+        var returned = await PostAsync(
+            new StockMovementRequest(
+                "WIDGET",
+                "SHOP",
+                -2m,
+                0m,
+                ItemLedgerEntryType.PurchaseReturn,
+                AppliesToDocumentNo: "PO-1"));
+
+        returned.Succeeded.ShouldBeTrue();
+        returned.Value.CostAmount.ShouldBe(
+            -20.00m,
+            "priced from the delivery they came in on, not from the later one");
+    }
+
+    /// <summary>
+    /// A vendor return relieves the delivery it names, even when an older and cheaper one is
+    /// still open.
+    /// </summary>
+    /// <remarks>
+    /// The case that costs money. Ten arrived at ten on the first order and ten at thirty on the
+    /// second; two of the second go back. Relieving the oldest layer instead would take twenty off
+    /// inventory while the vendor is credited sixty, leaving forty stuck in the goods-received
+    /// accrual for ever -- and the expensive goods still on the shelf, quietly overstating the
+    /// valuation. Nothing else in the system would ever mention it.
+    /// </remarks>
+    [Fact]
+    public async Task A_vendor_return_relieves_the_delivery_it_names()
+    {
+        await PostAsync(
+            new StockMovementRequest("WIDGET", "SHOP", 10m, 10.00m, ItemLedgerEntryType.Purchase),
+            "PO-CHEAP");
+
+        await PostAsync(
+            new StockMovementRequest("WIDGET", "SHOP", 10m, 30.00m, ItemLedgerEntryType.Purchase),
+            "PO-DEAR");
+
+        var returned = await PostAsync(
+            new StockMovementRequest(
+                "WIDGET",
+                "SHOP",
+                -2m,
+                0m,
+                ItemLedgerEntryType.PurchaseReturn,
+                AppliesToDocumentNo: "PO-DEAR"));
+
+        returned.Succeeded.ShouldBeTrue();
+        returned.Value.CostAmount.ShouldBe(
+            -60.00m,
+            "they came in at thirty, whatever is still open on the cheaper delivery");
+    }
+
+    /// <summary>
+    /// Where the named delivery has already gone, the ordinary layers stand.
+    /// </summary>
+    [Fact]
+    public async Task A_vendor_return_falls_back_when_its_delivery_is_used_up()
+    {
+        await PostAsync(
+            new StockMovementRequest("WIDGET", "SHOP", 10m, 10.00m, ItemLedgerEntryType.Purchase),
+            "PO-CHEAP");
+
+        await PostAsync(
+            new StockMovementRequest("WIDGET", "SHOP", 2m, 30.00m, ItemLedgerEntryType.Purchase),
+            "PO-DEAR");
+
+        // The dear delivery sells out.
+        await PostAsync(
+            new StockMovementRequest("WIDGET", "SHOP", -12m, 0m, ItemLedgerEntryType.Sale),
+            "SALE-9");
+
+        await PostAsync(
+            new StockMovementRequest("WIDGET", "SHOP", 5m, 10.00m, ItemLedgerEntryType.Purchase),
+            "PO-LATER");
+
+        var returned = await PostAsync(
+            new StockMovementRequest(
+                "WIDGET",
+                "SHOP",
+                -1m,
+                0m,
+                ItemLedgerEntryType.PurchaseReturn,
+                AppliesToDocumentNo: "PO-DEAR"));
+
+        returned.Succeeded.ShouldBeTrue();
+        returned.Value.CostAmount.ShouldBe(-10.00m, "nothing of that delivery is left to relieve");
+    }
+
+    /// <summary>
+    /// A vendor return that names no order falls back to what the item costs today, and does not
+    /// pretend otherwise.
+    /// </summary>
+    [Fact]
+    public async Task A_vendor_return_that_names_no_order_is_valued_at_todays_cost()
+    {
+        await PostAsync(
+            new StockMovementRequest("WIDGET", "SHOP", 20m, 10.00m, ItemLedgerEntryType.Purchase),
+            "PO-1");
+
+        var returned = await PostAsync(
+            new StockMovementRequest("WIDGET", "SHOP", -2m, 0m, ItemLedgerEntryType.PurchaseReturn));
+
+        returned.Succeeded.ShouldBeTrue();
+        returned.Value.CostAmount.ShouldBe(-20.00m, "there is only one layer, so today's cost is ten");
+    }
+
     [Fact]
     public async Task A_return_that_names_no_sale_is_valued_at_todays_cost_and_says_so()
     {

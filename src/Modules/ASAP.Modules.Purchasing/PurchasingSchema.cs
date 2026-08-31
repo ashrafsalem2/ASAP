@@ -102,6 +102,7 @@ public sealed class PurchasingSchema : IModuleSchema
             builder.Property(l => l.Quantity).HasColumnType(DecimalPrecisionConventions.Quantity);
             builder.Property(l => l.QuantityReceived).HasColumnType(DecimalPrecisionConventions.Quantity);
             builder.Property(l => l.QuantityInvoiced).HasColumnType(DecimalPrecisionConventions.Quantity);
+            builder.Property(l => l.QuantityReturned).HasColumnType(DecimalPrecisionConventions.Quantity);
             builder.Property(l => l.DirectUnitCost).HasColumnType(DecimalPrecisionConventions.UnitAmount);
 
             builder.Property(l => l.RowVersion).IsRowVersion();
@@ -111,6 +112,7 @@ public sealed class PurchasingSchema : IModuleSchema
             builder.Ignore(l => l.LineAmount);
             builder.Ignore(l => l.OutstandingToReceive);
             builder.Ignore(l => l.ReceivedNotInvoiced);
+            builder.Ignore(l => l.ReturnableQuantity);
         });
     }
 }

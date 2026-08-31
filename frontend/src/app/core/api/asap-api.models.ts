@@ -733,6 +733,8 @@ export interface PurchaseOrderLine {
 
   /** Arrived and still awaiting an invoice. What the accrual is built from. */
   receivedNotInvoiced: number;
+  quantityReturned: number;
+  returnableQuantity: number;
 }
 
 /** An order placed with a vendor. */
@@ -1025,6 +1027,21 @@ export interface SalesInvoiceResult {
   taxAmount: number;
   totalAmount: number;
   status: SalesOrderStatus;
+  messages?: AsapMessage[];
+}
+
+/** What sending goods back to a vendor posted. */
+export interface PurchaseReturnResult {
+  orderNo: string;
+  creditMemoNo: string;
+  stockTransactionNo: number;
+  ledgerTransactionNo: number;
+  lineCount: number;
+  costAmount: number;
+  creditedQuantity: number;
+  netAmount: number;
+  taxAmount: number;
+  totalAmount: number;
   messages?: AsapMessage[];
 }
 

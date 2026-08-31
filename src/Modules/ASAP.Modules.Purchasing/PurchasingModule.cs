@@ -57,6 +57,9 @@ public sealed class PurchasingModule : IAsapModule
         services.AddScoped<Orders.PurchaseOrderService>();
 
 
+        services.AddScoped<Orders.PurchaseReturnService>();
+
+
         services.AddScoped<Approvals.PurchaseApprovalService>();
         services.AddScoped<Costing.LandedCostService>();
         services.AddScoped<Reporting.PurchaseReportService>();
@@ -67,6 +70,17 @@ public sealed class PurchasingModule : IAsapModule
     /// <inheritdoc />
     public IReadOnlyCollection<PermissionDescriptor> Permissions =>
     [
+        PermissionDescriptor.Define(
+            Id, "Return", PermissionAction.Post,
+            new LocalizedText("Send goods back to a vendor", "إعادة البضاعة إلى المورد"),
+            new LocalizedText(
+                "Sending goods back takes stock off the shelf and money off what the company "
+                + "owes. Both are worth separating from whoever received the delivery.",
+                "إعادة البضاعة تخصم مخزونًا من الرف ومالًا مما تدين به الشركة. وكلاهما جدير "
+                + "بالفصل عمن استلم التوريد."),
+            isSensitive: true),
+
+
         PermissionDescriptor.Define(
             Id, "LandedCost", PermissionAction.Post,
             new LocalizedText("Apply landed cost", "تحميل تكلفة التوريد"),
@@ -159,6 +173,22 @@ public sealed class PurchasingModule : IAsapModule
     /// <inheritdoc />
     public IReadOnlyCollection<SetupDescriptor> Setups =>
     [
+        new()
+        {
+            Key = $"{Id}.CreditMemos.NumberSeries",
+            Module = Id,
+            Group = new LocalizedText("Numbering", "الترقيم"),
+            DisplayName = new LocalizedText("Credit memo numbers", "ترقيم إشعارات الدائن"),
+            Description = new LocalizedText(
+                "The series numbers are issued from when goods go back to a vendor and the debt "
+                + "is reduced.",
+                "المسلسل الذي تصدر منه الأرقام حين تعود البضاعة إلى المورد ويُخفَّض الدين."),
+            ValueType = SetupValueType.Text,
+            Scope = SetupScope.Company,
+            DefaultValue = "PURCH-CM",
+            RequiresPermission = $"{Id}.Order.Update",
+            HelpTopic = "purchasing/setup",
+        },
         new()
         {
             Key = $"{Id}.Approval.Threshold",

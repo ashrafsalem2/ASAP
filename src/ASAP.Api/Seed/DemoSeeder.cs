@@ -328,6 +328,7 @@ public sealed class DemoSeeder(
         Add("PURCH-CM", "Purchase credit memos", allowGaps: true, "PCM-{YYYY}-00001");
         Add("TRANSFER", "Stock transfers", allowGaps: true, "TR-{YYYY}-00001");
         Add("COUNT", "Stock counts", allowGaps: true, "CNT-{YYYY}-0001");
+        Add("BINMOVE", "Bin movements", allowGaps: true, "BM-{YYYY}-0001");
         Add("POS-SESS", "Till sessions", allowGaps: true, "Z-{YYYY}-00001");
         Add("EMP", "Employees", allowGaps: true, "EMP-0001");
         Add("PAYROLL", "Payroll runs", allowGaps: true, "PAY-{YYYY}-001");

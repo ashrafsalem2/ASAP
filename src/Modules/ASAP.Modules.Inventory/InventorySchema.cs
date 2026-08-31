@@ -76,6 +76,67 @@ public sealed partial class InventorySchema : IModuleSchema
             builder.Ignore(u => u.IsBase);
         });
 
+        modelBuilder.Entity<Locations.BinMovement>(builder =>
+
+        {
+
+            builder.ToTable("BinMovements", SchemaName);
+
+
+            builder.Property(b => b.No).HasMaxLength(20).IsRequired();
+
+            builder.Property(b => b.LocationCode).HasMaxLength(20).IsRequired();
+
+            builder.Property(b => b.Note).HasMaxLength(500);
+
+            builder.Property(b => b.RecordedByUserName).HasMaxLength(120);
+
+            builder.Property(b => b.RowVersion).IsRowVersion();
+
+
+            builder.HasMany(b => b.Lines)
+
+                   .WithOne(l => l.BinMovement!)
+
+                   .HasForeignKey(l => l.BinMovementId)
+
+                   .OnDelete(DeleteBehavior.Cascade);
+
+
+            builder.HasIndex(b => new { b.CompanyId, b.No })
+
+                   .IsUnique()
+
+                   .HasFilter("[IsDeleted] = 0");
+
+        });
+
+
+        modelBuilder.Entity<Locations.BinMovementLine>(builder =>
+
+        {
+
+            builder.ToTable("BinMovementLines", SchemaName);
+
+
+            builder.Property(l => l.ItemNo).HasMaxLength(20).IsRequired();
+
+            builder.Property(l => l.VariantCode).HasMaxLength(20);
+
+            builder.Property(l => l.FromBinCode).HasMaxLength(20).IsRequired();
+
+            builder.Property(l => l.ToBinCode).HasMaxLength(20).IsRequired();
+
+            builder.Property(l => l.Quantity).HasPrecision(18, 5);
+
+            builder.Property(l => l.RowVersion).IsRowVersion();
+
+
+            builder.HasIndex(l => new { l.CompanyId, l.BinMovementId, l.LineNo });
+
+        });
+
+
         modelBuilder.Entity<ReorderPolicy>(builder =>
 
         {

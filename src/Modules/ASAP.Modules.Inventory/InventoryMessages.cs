@@ -58,6 +58,21 @@ public static class InventoryMessages
     /// <summary>A bin was named that the location has not got.</summary>
     public static readonly MessageCode BinNotFound = new("INV.BIN.NOT_FOUND");
 
+    /// <summary>A bin movement was asked for at a place that does not track bins.</summary>
+    public static readonly MessageCode BinMovementWithoutBins = new("INV.BINMOVE.NO_BINS");
+
+    /// <summary>A bin movement has nothing on it.</summary>
+    public static readonly MessageCode BinMovementHasNoLines = new("INV.BINMOVE.NO_LINES");
+
+    /// <summary>A bin movement line moves nothing.</summary>
+    public static readonly MessageCode BinMovementQuantityZero = new("INV.BINMOVE.QUANTITY_ZERO");
+
+    /// <summary>A bin movement line moves goods to the shelf they are already on.</summary>
+    public static readonly MessageCode BinMovementToItself = new("INV.BINMOVE.SAME_BIN");
+
+    /// <summary>There is not that much on the shelf.</summary>
+    public static readonly MessageCode NotEnoughInBin = new("INV.BIN.NOT_ENOUGH");
+
     /// <summary>A bin was named at a location that does not track bins.</summary>
     public static readonly MessageCode BinNotUsedHere = new("INV.BIN.NOT_USED");
 
@@ -486,6 +501,76 @@ public static class InventoryMessages
                 + "بذلك يترك الأرفف تحمل صورة خاطئة للمخزون من الآن فصاعدًا، ولا يُكتشف ذلك حتى "
                 + "يُرسل عامل إلى رف فارغ."),
             HelpTopic = "inventory/bins",
+        },
+        new()
+        {
+            Code = BinMovementWithoutBins,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("That place has no shelves", "هذا المكان بلا أرفف"),
+            Detail = new LocalizedText(
+                "{LocationCode} {LocationName} does not track bins, so there is nothing to move "
+                + "between.",
+                "لا يتتبع {LocationCode} {LocationName} المواقع الداخلية، فلا شيء يُنقل بينه."),
+            Resolution = new LocalizedText(
+                "Turn bins on for {LocationCode} and count the stock onto its shelves first.",
+                "فعّل المواقع الداخلية لـ {LocationCode} واجرد المخزون على أرففه أولًا."),
+            HelpTopic = "inventory/bin-movements",
+        },
+        new()
+        {
+            Code = BinMovementHasNoLines,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Nothing to move", "لا شيء يُنقل"),
+            Detail = new LocalizedText(
+                "A bin movement has to say what moved.",
+                "نقل المواقع الداخلية يجب أن يذكر ما الذي نُقل."),
+            Resolution = new LocalizedText(
+                "Add at least one line.",
+                "أضف سطرًا واحدًا على الأقل."),
+            HelpTopic = "inventory/bin-movements",
+        },
+        new()
+        {
+            Code = BinMovementQuantityZero,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("That line moves nothing", "هذا السطر لا ينقل شيئًا"),
+            Detail = new LocalizedText(
+                "Line {LineNo} moves {Quantity:0.#####} of {ItemNo}.",
+                "السطر {LineNo} ينقل {Quantity:0.#####} من {ItemNo}."),
+            Resolution = new LocalizedText(
+                "Enter how much moved, or take the line off.",
+                "أدخل الكمية المنقولة، أو احذف السطر."),
+            HelpTopic = "inventory/bin-movements",
+        },
+        new()
+        {
+            Code = BinMovementToItself,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("It is already there", "هو هناك بالفعل"),
+            Detail = new LocalizedText(
+                "Line {LineNo} moves {ItemNo} from {FromBinCode} to {FromBinCode}.",
+                "السطر {LineNo} ينقل {ItemNo} من {FromBinCode} إلى {FromBinCode}."),
+            Resolution = new LocalizedText(
+                "Choose the shelf it is going to.",
+                "اختر الرف الذي ستنتقل إليه."),
+            HelpTopic = "inventory/bin-movements",
+        },
+        new()
+        {
+            Code = NotEnoughInBin,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("There is not that much on that shelf", "لا يوجد هذا القدر على ذلك الرف"),
+            Detail = new LocalizedText(
+                "{BinCode} at {LocationCode} holds {AvailableQuantity:0.#####} of {ItemNo}, and line "
+                + "{LineNo} moves {Quantity:0.#####}.",
+                "يحمل {BinCode} في {LocationCode} {AvailableQuantity:0.#####} من {ItemNo}، والسطر "
+                + "{LineNo} ينقل {Quantity:0.#####}."),
+            Resolution = new LocalizedText(
+                "Check the shelf. A bin movement never invents stock — if there is genuinely more "
+                + "there than the system says, that is a count, not a move.",
+                "راجع الرف. فنقل المواقع الداخلية لا يخلق مخزونًا أبدًا — وإن كان على الرف فعلًا "
+                + "أكثر مما يقوله النظام، فتلك عملية جرد لا نقل."),
+            HelpTopic = "inventory/bin-movements",
         },
         new()
         {

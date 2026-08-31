@@ -13,6 +13,8 @@ import {
   VelocityRow,
   Bin,
   BinContent,
+  BinMovementResult,
+  BinMovementRow,
   CreateTransferRequest,
   Item,
   ItemCategory,
@@ -298,6 +300,29 @@ export class InventoryService {
   bins(locationCode: string): Promise<Bin[]> {
     return firstValueFrom(
       this.http.get<Bin[]>(`${this.base}/locations/${encodeURIComponent(locationCode)}/bins`),
+    );
+  }
+
+  /** Goods moved between shelves, most recent first. */
+  binMovements(locationCode?: string, take = 50): Promise<BinMovementRow[]> {
+    const params = new URLSearchParams({ take: String(take) });
+
+    if (locationCode) {
+      params.set('locationCode', locationCode);
+    }
+
+    return firstValueFrom(this.http.get<BinMovementRow[]>(`${this.base}/bin-movements?${params}`));
+  }
+
+  /** Moves goods between shelves inside one place, all lines or none. */
+  postBinMovement(request: {
+    locationCode: string;
+    lines: { itemNo: string; fromBinCode: string; toBinCode: string; quantity: number }[];
+    movementDate?: string | null;
+    note?: string | null;
+  }): Promise<BinMovementResult> {
+    return firstValueFrom(
+      this.http.post<BinMovementResult>(`${this.base}/bin-movements`, request),
     );
   }
 

@@ -73,6 +73,7 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
         services.AddScoped<Locations.LocationBranchLookup>();
 
 
+        services.AddScoped<Locations.BinMovementService>();
         services.AddScoped<Items.ReorderPolicyService>();
         services.AddScoped<Reservations.StockReservationService>();
         services.AddScoped<Reporting.InventoryReportService>();
@@ -289,6 +290,21 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
     [
         new()
         {
+            Key = $"{Id}.BinMovement.NumberSeries",
+            Module = Id,
+            Group = new LocalizedText("Numbering", "الترقيم"),
+            DisplayName = new LocalizedText("Bin movement numbers", "ترقيم نقل المواقع الداخلية"),
+            Description = new LocalizedText(
+                "The series bin movements are numbered from.",
+                "المسلسل الذي تصدر منه أرقام نقل المواقع الداخلية."),
+            ValueType = SetupValueType.Text,
+            Scope = SetupScope.Company,
+            DefaultValue = "BINMOVE",
+            RequiresPermission = $"{Id}.Item.Update",
+            HelpTopic = "inventory/bin-movements",
+        },
+        new()
+        {
             Key = $"{Id}.Count.NumberSeries",
             Module = Id,
             Group = new LocalizedText("Numbering", "الترقيم"),
@@ -467,6 +483,18 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
             Route = "/inventory/counts",
             RequiresPermission = $"{Id}.Count.Read",
             Order = 35,
+        },
+        new()
+        {
+            Id = "Inventory.BinMovements",
+            Module = Id,
+            ParentId = "Inventory.Root",
+            DisplayName = new LocalizedText("Bin movements", "نقل المواقع الداخلية"),
+            Kind = NavigationKind.Page,
+            Route = "/inventory/bin-movements",
+            RequiresPermission = $"{Id}.Item.Read",
+            Order = 37,
+            HelpTopic = "inventory/bin-movements",
         },
         new()
         {

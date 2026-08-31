@@ -28,6 +28,19 @@ public enum ItemLedgerEntryType
 
     /// <summary>Goods returned to a vendor.</summary>
     PurchaseReturn = 7,
+
+    /// <summary>
+    /// Off one shelf, on the way to another inside the same place.
+    /// </summary>
+    /// <remarks>
+    /// Never on its own: always paired with a <see cref="BinMovementIn"/> of the same quantity,
+    /// so the pair sums to nothing at the location. Neither carries any value, because a box
+    /// moved from one shelf to the next is worth exactly what it was worth before.
+    /// </remarks>
+    BinMovementOut = 8,
+
+    /// <summary>Onto a shelf, from another inside the same place.</summary>
+    BinMovementIn = 9,
 }
 
 /// <summary>

@@ -447,6 +447,53 @@ public sealed record ResolvedQuantityView(
     string? VariantCode = null,
     string? VariantDescription = null);
 
+/// <summary>One thing moved from one shelf to another.</summary>
+/// <param name="LineNo">Position on the sheet.</param>
+/// <param name="ItemNo">What moved.</param>
+/// <param name="ItemName">What it is called.</param>
+/// <param name="VariantCode">Which variant, on an item that has them.</param>
+/// <param name="FromBinCode">The shelf it came off.</param>
+/// <param name="ToBinCode">The shelf it went onto.</param>
+/// <param name="Quantity">How much moved.</param>
+public sealed record BinMovementLineView(
+    int LineNo,
+    string ItemNo,
+    string? ItemName,
+    string? VariantCode,
+    string FromBinCode,
+    string ToBinCode,
+    decimal Quantity);
+
+/// <summary>Goods moved between shelves inside one place.</summary>
+/// <param name="No">The movement number.</param>
+/// <param name="LocationCode">Where it happened.</param>
+/// <param name="MovementDate">When.</param>
+/// <param name="Status">Where it stands.</param>
+/// <param name="Note">Why, where anybody said.</param>
+/// <param name="RecordedByUserName">Who recorded it.</param>
+/// <param name="TransactionNo">The transaction the entries posted under.</param>
+/// <param name="Lines">What moved.</param>
+public sealed record BinMovementView(
+    string No,
+    string LocationCode,
+    DateOnly MovementDate,
+    BinMovementStatus Status,
+    string? Note,
+    string? RecordedByUserName,
+    long? TransactionNo,
+    IReadOnlyList<BinMovementLineView> Lines);
+
+/// <summary>What a client sends to move goods between shelves.</summary>
+/// <param name="LocationCode">Where it happened.</param>
+/// <param name="Lines">What moved.</param>
+/// <param name="MovementDate">When, or null for today.</param>
+/// <param name="Note">Why, where anybody said.</param>
+public sealed record PostBinMovementRequest(
+    string LocationCode,
+    IReadOnlyList<BinMovementLineRequest> Lines,
+    DateOnly? MovementDate = null,
+    string? Note = null);
+
 /// <summary>When to reorder an item at one place, and how much.</summary>
 /// <param name="ItemNo">The item.</param>
 /// <param name="ItemName">What it is called.</param>
@@ -486,6 +533,14 @@ public static class InventoryEndpoints
         ArgumentNullException.ThrowIfNull(app);
 
         var group = app.MapGroup("/api/inventory").RequireAuthorization().WithTags("Inventory");
+
+        group.MapGet("/bin-movements", BinMovementsAsync)
+             .WithName("BinMovements")
+             .WithSummary("Goods moved between shelves, most recent first.");
+
+        group.MapPost("/bin-movements", PostBinMovementAsync)
+             .WithName("PostBinMovement")
+             .WithSummary("Moves goods between shelves inside one place, all lines or none.");
 
         group.MapGet("/reorder-policies", ReorderPoliciesAsync)
              .WithName("ReorderPolicies")
@@ -1928,6 +1983,101 @@ public static class InventoryEndpoints
             r.DescriptionArabic,
             r.LocationCode,
             r.Quantity)));
+    }
+
+    private static async Task<IResult> BinMovementsAsync(
+        BinMovementService movements,
+        AsapDbContext context,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken,
+        [FromQuery] string? locationCode = null,
+        [FromQuery] int take = 50)
+    {
+        if (!Can(user, "Inventory.Item.Read"))
+        {
+            return Forbidden("Inventory.Item.Read", "view bin movements", http);
+        }
+
+        var rows = await movements.ListAsync(locationCode, take, cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(await ViewsOfAsync(rows, context, cancellationToken).ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> PostBinMovementAsync(
+        PostBinMovementRequest request,
+        BinMovementService movements,
+        AsapDbContext context,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, "Inventory.Item.Update"))
+        {
+            return Forbidden("Inventory.Item.Update", "move goods between shelves", http);
+        }
+
+        var result = await movements
+            .PostAsync(request.LocationCode, request.Lines, request.MovementDate, request.Note, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (result.Failed)
+        {
+            return Refused(result, http);
+        }
+
+        var views = await ViewsOfAsync([result.Value], context, cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(new
+        {
+            movement = views[0],
+            messages = MessagePayload.FromAll(result.Messages),
+        });
+    }
+
+    /// <summary>Adds the item names, so a sheet reads without a lookup per line.</summary>
+    private static async Task<IReadOnlyList<BinMovementView>> ViewsOfAsync(
+        IReadOnlyList<BinMovement> movements,
+        AsapDbContext context,
+        CancellationToken cancellationToken)
+    {
+        var itemNos = movements
+            .SelectMany(static m => m.Lines)
+            .Select(static l => l.ItemNo)
+            .Distinct()
+            .ToList();
+
+        var names = await context.Set<Item>()
+            .AsNoTracking()
+            .Where(i => itemNos.Contains(i.No))
+            .ToDictionaryAsync(static i => i.No, static i => i.Description, cancellationToken)
+            .ConfigureAwait(false);
+
+        return
+        [
+            .. movements.Select(m => new BinMovementView(
+                m.No,
+                m.LocationCode,
+                m.MovementDate,
+                m.Status,
+                m.Note,
+                m.RecordedByUserName,
+                m.TransactionNo,
+                [
+                    .. m.Lines
+                        .OrderBy(static l => l.LineNo)
+                        .Select(l => new BinMovementLineView(
+                            l.LineNo,
+                            l.ItemNo,
+                            names.GetValueOrDefault(l.ItemNo),
+                            l.VariantCode,
+                            l.FromBinCode,
+                            l.ToBinCode,
+                            l.Quantity)),
+                ])),
+        ];
     }
 
     private static async Task<IResult> ReorderPoliciesAsync(

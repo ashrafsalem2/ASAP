@@ -558,6 +558,38 @@ export interface Bin {
 }
 
 /** What is standing on one shelf. */
+/** Where a bin movement stands. */
+export type BinMovementStatus = 'Draft' | 'Posted' | 'Cancelled';
+
+/** One thing moved from one shelf to another. */
+export interface BinMovementLineRow {
+  lineNo: number;
+  itemNo: string;
+  itemName: string | null;
+  variantCode: string | null;
+  fromBinCode: string;
+  toBinCode: string;
+  quantity: number;
+}
+
+/** Goods moved between shelves inside one place. */
+export interface BinMovementRow {
+  no: string;
+  locationCode: string;
+  movementDate: string;
+  status: BinMovementStatus;
+  note: string | null;
+  recordedByUserName: string | null;
+  transactionNo: number | null;
+  lines: BinMovementLineRow[];
+}
+
+/** A movement posted, and anything worth saying about it. */
+export interface BinMovementResult {
+  movement: BinMovementRow;
+  messages?: AsapMessage[];
+}
+
 export interface BinContent {
   binCode: string;
   binName?: string | null;

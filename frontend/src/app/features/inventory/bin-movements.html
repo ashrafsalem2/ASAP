@@ -1,0 +1,216 @@
+<div class="page">
+  <h1>{{ t('inventory.binMovements.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('inventory.binMovements.intro') }}</p>
+
+    <div class="panel__body draft">
+      <label class="field">
+        <span class="field__label">{{ t('inventory.binMovements.location') }}</span>
+        <select class="select" [(ngModel)]="locationCode" name="location" (ngModelChange)="chooseLocation()">
+          <option value="">—</option>
+          @for (location of binned(); track location.code) {
+            <option [value]="location.code">{{ location.code }} — {{ location.name }}</option>
+          }
+        </select>
+      </label>
+    </div>
+
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else if (binned().length === 0) {
+      <p class="empty">{{ t('inventory.binMovements.noBinnedPlaces') }}</p>
+    }
+  </section>
+
+  @if (canWrite() && locationCode) {
+    <section class="panel">
+      <h2 class="panel__title">{{ t('inventory.binMovements.newSheet') }}</h2>
+
+      <div class="panel__body draft">
+        <label class="field">
+          <span class="field__label">{{ t('inventory.binMovements.item') }}</span>
+          <select class="select" [(ngModel)]="newItemNo" name="itemNo" (ngModelChange)="newFromBin = ''">
+            <option value=""></option>
+            @for (item of items(); track item.no) {
+              <option [value]="item.no">{{ item.no }} — {{ item.description }}</option>
+            }
+          </select>
+        </label>
+
+        <!-- The source is picked from shelves that actually hold it. Moving more than is there is
+             the commonest refusal by far, and the cheapest to avoid. -->
+        <label class="field">
+          <span class="field__label">{{ t('inventory.binMovements.from') }}</span>
+          <select class="select" [(ngModel)]="newFromBin" name="fromBin" [disabled]="!newItemNo">
+            <option value=""></option>
+            @for (shelf of shelvesHolding(newItemNo); track shelf.binCode) {
+              <option [value]="shelf.binCode">{{ shelf.binCode }} ({{ shelf.quantity }})</option>
+            }
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field__label">{{ t('inventory.binMovements.to') }}</span>
+          <select class="select" [(ngModel)]="newToBin" name="toBin">
+            <option value=""></option>
+            @for (shelf of allShelves(); track shelf) {
+              <option [value]="shelf">{{ shelf }}</option>
+            }
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field__label">{{ t('inventory.binMovements.quantity') }}</span>
+          <input
+            class="input input--number"
+            type="number"
+            inputmode="decimal"
+            min="0"
+            [(ngModel)]="newQuantity"
+            name="quantity"
+          />
+        </label>
+
+        <button
+          type="button"
+          class="button"
+          [disabled]="!newItemNo || !newFromBin || !newToBin || !newQuantity"
+          (click)="addLine()"
+        >
+          {{ t('inventory.binMovements.addLine') }}
+        </button>
+      </div>
+
+      @if (newItemNo && newFromBin) {
+        <p class="panel__body hint">
+          {{ t('inventory.binMovements.onThatShelf', {
+            BinCode: newFromBin,
+            Quantity: heldIn(newItemNo, newFromBin)
+          }) }}
+        </p>
+      }
+
+      @if (draft().length > 0) {
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('inventory.binMovements.item') }}</th>
+                <th>{{ t('inventory.binMovements.from') }}</th>
+                <th>{{ t('inventory.binMovements.to') }}</th>
+                <th class="numeric">{{ t('inventory.binMovements.quantity') }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (line of draft(); track $index) {
+                <tr>
+                  <td class="code">{{ line.itemNo }}</td>
+                  <td class="code">{{ line.fromBinCode }}</td>
+                  <td class="code">{{ line.toBinCode }}</td>
+                  <td class="numeric">{{ line.quantity }}</td>
+                  <td>
+                    <button type="button" class="button button--quiet" (click)="removeLine($index)">
+                      {{ t('inventory.binMovements.removeLine') }}
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div class="panel__body draft">
+          <label class="field">
+            <span class="field__label">{{ t('inventory.binMovements.note') }}</span>
+            <input class="input" [(ngModel)]="note" name="note" maxlength="500" />
+          </label>
+
+          <button
+            type="button"
+            class="button button--primary"
+            [disabled]="busy()"
+            (click)="post()"
+          >
+            {{ t('inventory.binMovements.post', { Count: draft().length }) }}
+          </button>
+        </div>
+
+        <!-- One sheet is one act: posting ten of eleven leaves the shelf and the record
+             disagreeing with nothing to say which ten went through. -->
+        <p class="panel__body hint">{{ t('inventory.binMovements.postHint') }}</p>
+      }
+    </section>
+  }
+
+  @if (locationCode && contents().length > 0) {
+    <section class="panel">
+      <h2 class="panel__title">{{ t('inventory.binMovements.whatIsWhere') }}</h2>
+
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('inventory.binMovements.shelf') }}</th>
+              <th>{{ t('inventory.binMovements.item') }}</th>
+              <th class="numeric">{{ t('inventory.binMovements.quantity') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of contents(); track row.binCode + row.itemNo) {
+              <tr>
+                <td class="code">{{ row.binCode }}</td>
+                <td><span class="code">{{ row.itemNo }}</span> {{ row.description }}</td>
+                <td class="numeric">{{ row.quantity }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
+  }
+
+  <section class="panel">
+    <h2 class="panel__title">{{ t('inventory.binMovements.recent') }}</h2>
+
+    @if (movements().length === 0) {
+      <p class="empty">{{ t('inventory.binMovements.none') }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('inventory.binMovements.no') }}</th>
+              <th>{{ t('inventory.binMovements.date') }}</th>
+              <th>{{ t('inventory.binMovements.location') }}</th>
+              <th>{{ t('inventory.binMovements.moved') }}</th>
+              <th>{{ t('inventory.binMovements.note') }}</th>
+              <th>{{ t('inventory.binMovements.by') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (movement of movements(); track movement.no) {
+              <tr>
+                <td class="code">{{ movement.no }}</td>
+                <td>{{ movement.movementDate }}</td>
+                <td class="code">{{ movement.locationCode }}</td>
+                <td>
+                  @for (line of movement.lines; track line.lineNo) {
+                    <div>
+                      {{ line.quantity }} × <span class="code">{{ line.itemNo }}</span>:
+                      <span class="code">{{ line.fromBinCode }}</span> →
+                      <span class="code">{{ line.toBinCode }}</span>
+                    </div>
+                  }
+                </td>
+                <td>{{ movement.note ?? '—' }}</td>
+                <td>{{ movement.recordedByUserName ?? '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+</div>

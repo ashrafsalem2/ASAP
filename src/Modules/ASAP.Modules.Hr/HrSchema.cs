@@ -39,6 +39,97 @@ public sealed class HrSchema : IModuleSchema
                    .HasFilter("[IsDeleted] = 0");
         });
 
+        modelBuilder.Entity<Attendance.Shift>(builder =>
+
+        {
+
+            builder.ToTable("Shifts", SchemaName);
+
+
+            builder.Property(s => s.Code).HasMaxLength(20).IsRequired();
+
+            builder.Property(s => s.Name).HasMaxLength(120).IsRequired();
+
+            builder.Property(s => s.NameArabic).HasMaxLength(120);
+
+            builder.Property(s => s.RowVersion).IsRowVersion();
+
+
+            builder.HasIndex(s => new { s.CompanyId, s.Code })
+
+                   .IsUnique()
+
+                   .HasFilter("[IsDeleted] = 0");
+
+        });
+
+
+        modelBuilder.Entity<Attendance.ShiftAssignment>(builder =>
+
+        {
+
+            builder.ToTable("ShiftAssignments", SchemaName);
+
+
+            builder.Property(a => a.EmployeeNo).HasMaxLength(20).IsRequired();
+
+            builder.Property(a => a.ShiftCode).HasMaxLength(20).IsRequired();
+
+            builder.Property(a => a.RowVersion).IsRowVersion();
+
+
+            builder.HasOne<Employee>()
+
+                   .WithMany()
+
+                   .HasForeignKey(a => a.EmployeeId)
+
+                   .OnDelete(DeleteBehavior.Restrict);
+
+
+            builder.HasIndex(a => new { a.CompanyId, a.EmployeeId, a.FromDate });
+
+        });
+
+
+        modelBuilder.Entity<Attendance.AttendanceRecord>(builder =>
+
+        {
+
+            builder.ToTable("AttendanceRecords", SchemaName);
+
+
+            builder.Property(a => a.EmployeeNo).HasMaxLength(20).IsRequired();
+
+            builder.Property(a => a.ShiftCode).HasMaxLength(20);
+
+            builder.Property(a => a.Note).HasMaxLength(500);
+
+            builder.Property(a => a.RecordedByUserName).HasMaxLength(120);
+
+            builder.Property(a => a.RowVersion).IsRowVersion();
+
+
+            builder.HasOne<Employee>()
+
+                   .WithMany()
+
+                   .HasForeignKey(a => a.EmployeeId)
+
+                   .OnDelete(DeleteBehavior.Restrict);
+
+
+            // One account of one day. Two would be added together by every figure derived from them.
+
+            builder.HasIndex(a => new { a.CompanyId, a.EmployeeId, a.OnDate })
+
+                   .IsUnique()
+
+                   .HasFilter("[IsDeleted] = 0");
+
+        });
+
+
         modelBuilder.Entity<EmploymentContract>(builder =>
 
         {

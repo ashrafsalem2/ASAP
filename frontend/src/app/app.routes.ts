@@ -338,6 +338,11 @@ export const routes: Routes = [
           import('./features/finance/branch-performance').then((m) => m.BranchPerformanceReport),
       },
       {
+        path: 'hr/attendance',
+        canActivate: [requirePermission('Hr.Employee.Read')],
+        loadComponent: () => import('./features/hr/attendance').then((m) => m.Attendance),
+      },
+      {
         path: 'hr/contracts',
         canActivate: [requirePermission('Hr.Employee.Read')],
         loadComponent: () =>

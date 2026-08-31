@@ -68,6 +68,7 @@ public sealed class HrModule : IAsapModule, ISyncContributor
 
         services.AddScoped<People.EmployeeService>();
         services.AddScoped<People.EmploymentContractService>();
+        services.AddScoped<Attendance.AttendanceService>();
         services.AddScoped<Payroll.PayrollService>();
         services.AddScoped<Leave.LeaveService>();
         services.AddScoped<Entitlements.ProvisionPostingService>();
@@ -340,6 +341,18 @@ public sealed class HrModule : IAsapModule, ISyncContributor
             Kind = NavigationKind.Group,
             Icon = "hr",
             Order = 600,
+        },
+        new()
+        {
+            Id = "Hr.Attendance",
+            Module = Id,
+            ParentId = "Hr.Root",
+            DisplayName = new LocalizedText("Attendance and shifts", "الحضور والورديات"),
+            Kind = NavigationKind.Page,
+            Route = "/hr/attendance",
+            RequiresPermission = $"{Id}.Employee.Read",
+            Order = 14,
+            HelpTopic = "hr/attendance",
         },
         new()
         {

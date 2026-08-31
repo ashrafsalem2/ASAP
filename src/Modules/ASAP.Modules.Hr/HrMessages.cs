@@ -66,6 +66,42 @@ public static class HrMessages
     /// <summary>Somebody has no contract, so the figures on their record were used.</summary>
     public static readonly MessageCode NoContractForPeriod = new("HR.CONTRACT.NONE_FOR_PERIOD");
 
+    /// <summary>A shift is not there.</summary>
+    public static readonly MessageCode ShiftNotFound = new("HR.SHIFT.NOT_FOUND");
+
+    /// <summary>A shift needs a code and a name.</summary>
+    public static readonly MessageCode ShiftIncomplete = new("HR.SHIFT.INCOMPLETE");
+
+    /// <summary>A shift's break is longer than the shift.</summary>
+    public static readonly MessageCode ShiftBreakTooLong = new("HR.SHIFT.BREAK_TOO_LONG");
+
+    /// <summary>A shift runs on no day of the week.</summary>
+    public static readonly MessageCode ShiftRunsNoDay = new("HR.SHIFT.NO_DAYS");
+
+    /// <summary>Two shift assignments would cover the same day.</summary>
+    public static readonly MessageCode ShiftAssignmentOverlaps = new("HR.SHIFT.OVERLAPS");
+
+    /// <summary>A shift is switched off and cannot be assigned to anybody new.</summary>
+    public static readonly MessageCode ShiftWithdrawn = new("HR.SHIFT.WITHDRAWN");
+
+    /// <summary>Somebody clocked out before they clocked in.</summary>
+    public static readonly MessageCode ClockedOutBeforeIn = new("HR.ATTENDANCE.OUT_BEFORE_IN");
+
+    /// <summary>A day already has an attendance record.</summary>
+    public static readonly MessageCode AttendanceAlreadyRecorded = new("HR.ATTENDANCE.ALREADY_RECORDED");
+
+    /// <summary>Somebody attended on a day they were on approved leave.</summary>
+    public static readonly MessageCode AttendedWhileOnLeave = new("HR.ATTENDANCE.WHILE_ON_LEAVE");
+
+    /// <summary>Somebody attended on a day their shift does not run.</summary>
+    public static readonly MessageCode AttendedOnRestDay = new("HR.ATTENDANCE.ON_REST_DAY");
+
+    /// <summary>Somebody is on no shift, so lateness and overtime cannot be measured.</summary>
+    public static readonly MessageCode NoShiftOnDate = new("HR.ATTENDANCE.NO_SHIFT");
+
+    /// <summary>Days in a payroll period that nothing accounts for.</summary>
+    public static readonly MessageCode UnexplainedAbsence = new("HR.ATTENDANCE.UNEXPLAINED");
+
     /// <summary>The leave request named does not exist.</summary>
     public static readonly MessageCode LeaveNotFound = new("HR.LEAVE.NOT_FOUND");
 
@@ -166,6 +202,175 @@ public static class HrMessages
                 "Choose the reason. It is an input to the award, not a note about it.",
                 "اختر السبب، فهو عنصر في احتساب المكافأة لا ملاحظة عليها."),
             HelpTopic = "hr/end-of-service",
+        },
+        new()
+        {
+            Code = ShiftNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such shift", "لا توجد وردية بهذا الرمز"),
+            Detail = new LocalizedText(
+                "Nothing in this company is coded {ShiftCode}.",
+                "لا يوجد في هذه الشركة ما رمزه {ShiftCode}."),
+            Resolution = new LocalizedText(
+                "Check the code against the shift list, or add {ShiftCode} first.",
+                "راجع الرمز مقابل قائمة الورديات، أو أضف {ShiftCode} أولًا."),
+            HelpTopic = "hr/attendance",
+        },
+        new()
+        {
+            Code = ShiftIncomplete,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("That shift has no name", "هذه الوردية بلا اسم"),
+            Detail = new LocalizedText(
+                "A shift has to have both a code and a name.",
+                "الوردية يجب أن يكون لها رمز واسم معًا."),
+            Resolution = new LocalizedText(
+                "Enter the code and what it is called.",
+                "أدخل الرمز واسم الوردية."),
+            HelpTopic = "hr/attendance",
+        },
+        new()
+        {
+            Code = ShiftBreakTooLong,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("The break is longer than the shift", "الاستراحة أطول من الوردية"),
+            Detail = new LocalizedText(
+                "{ShiftCode} runs {ShiftMinutes} minutes with a break of {BreakMinutes}, which "
+                + "leaves nothing worked.",
+                "تمتد {ShiftCode} {ShiftMinutes} دقيقة باستراحة {BreakMinutes} دقيقة، فلا يبقى عمل."),
+            Resolution = new LocalizedText(
+                "Shorten the break, or check the start and end times.",
+                "اختصر الاستراحة، أو راجع وقتي البداية والنهاية."),
+            HelpTopic = "hr/attendance",
+        },
+        new()
+        {
+            Code = ShiftRunsNoDay,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("It runs on no day", "لا تعمل في أي يوم"),
+            Detail = new LocalizedText(
+                "{ShiftCode} has no working days, so nobody on it would ever be expected in.",
+                "ليس لـ {ShiftCode} أيام عمل، فلن يُنتظر حضور أحد عليها أبدًا."),
+            Resolution = new LocalizedText(
+                "Choose the days of the week it runs.",
+                "اختر أيام الأسبوع التي تعمل فيها."),
+            HelpTopic = "hr/attendance",
+        },
+        new()
+        {
+            Code = ShiftAssignmentOverlaps,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("They cannot be on two shifts", "لا يمكن أن يكون على ورديتين"),
+            Detail = new LocalizedText(
+                "{EmployeeNo} is already on a shift that started on {ExistingFrom:d} and still "
+                + "covers {FromDate:d}. Lateness would be measured against two different clocks.",
+                "الموظف {EmployeeNo} على وردية بدأت في {ExistingFrom:d} وما زالت تغطي {FromDate:d}. "
+                + "وسيُقاس التأخير بساعتين مختلفتين."),
+            Resolution = new LocalizedText(
+                "End the earlier assignment the day before this one begins.",
+                "أنهِ الإسناد السابق في اليوم الذي يسبق بداية هذا الإسناد."),
+            HelpTopic = "hr/attendance",
+        },
+        new()
+        {
+            Code = ShiftWithdrawn,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("That shift is no longer in use", "هذه الوردية لم تعد مستخدمة"),
+            Detail = new LocalizedText(
+                "{ShiftCode} ({Name}) has been switched off.",
+                "تم إيقاف {ShiftCode} ({Name})."),
+            Resolution = new LocalizedText(
+                "Put them on a shift still in use, or switch {ShiftCode} back on.",
+                "ضعه على وردية ما زالت مستخدمة، أو أعد تفعيل {ShiftCode}."),
+            HelpTopic = "hr/attendance",
+        },
+        new()
+        {
+            Code = ClockedOutBeforeIn,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("They left before they arrived", "غادر قبل أن يحضر"),
+            Detail = new LocalizedText(
+                "{EmployeeNo} is recorded in at {ClockedInAt} and out at {ClockedOutAt} on "
+                + "{OnDate:d}.",
+                "سُجّل حضور {EmployeeNo} الساعة {ClockedInAt} وانصرافه الساعة {ClockedOutAt} في "
+                + "{OnDate:d}."),
+            Resolution = new LocalizedText(
+                "Check the two times. On a night shift the second is the next morning, and the "
+                + "shift has to be set to cross midnight for that to read correctly.",
+                "راجع الوقتين. ففي الوردية الليلية يكون الثاني في صباح اليوم التالي، ويجب ضبط "
+                + "الوردية لتعبر منتصف الليل ليُقرأ ذلك على وجهه."),
+            HelpTopic = "hr/attendance",
+        },
+        new()
+        {
+            Code = AttendanceAlreadyRecorded,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("That day is already recorded", "هذا اليوم مسجَّل بالفعل"),
+            Detail = new LocalizedText(
+                "{EmployeeNo} already has an attendance record for {OnDate:d}.",
+                "لدى {EmployeeNo} سجل حضور بالفعل ليوم {OnDate:d}."),
+            Resolution = new LocalizedText(
+                "Amend the record that is there. Two accounts of one day would be added together "
+                + "by every figure derived from them.",
+                "عدّل السجل الموجود. فحسابان ليوم واحد سيُجمعان في كل رقم يُشتق منهما."),
+            HelpTopic = "hr/attendance",
+        },
+        new()
+        {
+            Code = AttendedWhileOnLeave,
+            Severity = MessageSeverity.Warning,
+            Title = new LocalizedText("In on a day of leave", "حضور في يوم إجازة"),
+            Detail = new LocalizedText(
+                "{EmployeeNo} was on approved leave on {OnDate:d} and has been recorded as in.",
+                "كان {EmployeeNo} في إجازة معتمدة في {OnDate:d} وسُجّل حضوره."),
+            Resolution = new LocalizedText(
+                "Nothing has been changed. Shorten the leave if they came back early, or leave "
+                + "both as they are if they genuinely came in on a day off.",
+                "لم يُغيَّر شيء. اختصر الإجازة إن عاد مبكرًا، أو اترك الاثنين كما هما إن حضر فعلًا "
+                + "في يوم إجازته."),
+            HelpTopic = "hr/attendance",
+        },
+        new()
+        {
+            Code = AttendedOnRestDay,
+            Severity = MessageSeverity.Warning,
+            Title = new LocalizedText("In on a rest day", "حضور في يوم راحة"),
+            Detail = new LocalizedText(
+                "{EmployeeNo}'s shift does not run on {OnDate:d}, so the whole day counts as "
+                + "overtime.",
+                "لا تعمل وردية {EmployeeNo} في {OnDate:d}، فيُحتسب اليوم كله وقتًا إضافيًا."),
+            HelpTopic = "hr/attendance",
+        },
+        new()
+        {
+            Code = NoShiftOnDate,
+            Severity = MessageSeverity.Warning,
+            Title = new LocalizedText("On no shift", "بلا وردية"),
+            Detail = new LocalizedText(
+                "{EmployeeNo} is on no shift on {OnDate:d}, so the hours were recorded but nothing "
+                + "was measured against them.",
+                "ليس لـ {EmployeeNo} وردية في {OnDate:d}، فسُجّلت الساعات ولم يُقس عليها شيء."),
+            Resolution = new LocalizedText(
+                "Put them on a shift from a date. Without one there is nothing for lateness or "
+                + "overtime to mean.",
+                "ضعه على وردية من تاريخ. فبدونها لا معنى للتأخير ولا للوقت الإضافي."),
+            HelpTopic = "hr/attendance",
+        },
+        new()
+        {
+            Code = UnexplainedAbsence,
+            Severity = MessageSeverity.Warning,
+            Title = new LocalizedText("Days nothing accounts for", "أيام لا يفسّرها شيء"),
+            Detail = new LocalizedText(
+                "{EmployeeNo} has {AbsentDays} working day(s) in this period with no attendance "
+                + "and no approved leave.",
+                "لدى {EmployeeNo} {AbsentDays} يوم عمل في هذه الفترة بلا حضور ولا إجازة معتمدة."),
+            Resolution = new LocalizedText(
+                "Record the leave, or record the deduction. They have been paid in full for those "
+                + "days, because a clock is not authority to dock anybody's pay.",
+                "سجّل الإجازة، أو سجّل الخصم. فقد دُفع له عن تلك الأيام كاملة، لأن ساعة الحضور "
+                + "ليست سندًا لخصم أجر أحد."),
+            HelpTopic = "hr/attendance",
         },
         new()
         {

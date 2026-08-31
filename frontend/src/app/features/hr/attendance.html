@@ -1,0 +1,235 @@
+<div class="page">
+  <h1>{{ t('hr.attendance.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('hr.attendance.intro') }}</p>
+
+    <div class="panel__body draft">
+      <label class="field">
+        <span class="field__label">{{ t('hr.attendance.employee') }}</span>
+        <select class="select" [(ngModel)]="filterEmployeeNo" name="filterEmployee" (ngModelChange)="reload()">
+          <option value="">{{ t('hr.attendance.everybody') }}</option>
+          @for (employee of employees(); track employee.no) {
+            <option [value]="employee.no">
+              {{ employee.no }} — {{ employee.name }} ({{ currentShift(employee.no) }})
+            </option>
+          }
+        </select>
+      </label>
+
+      <label class="field">
+        <span class="field__label">{{ t('hr.attendance.from') }}</span>
+        <input class="input" type="date" [(ngModel)]="filterFrom" name="from" (change)="reload()" />
+      </label>
+
+      <label class="field">
+        <span class="field__label">{{ t('hr.attendance.to') }}</span>
+        <input class="input" type="date" [(ngModel)]="filterTo" name="to" (change)="reload()" />
+      </label>
+    </div>
+
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else if (rows().length === 0) {
+      <p class="empty">{{ t('hr.attendance.none') }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('hr.attendance.date') }}</th>
+              @if (!filterEmployeeNo) {
+                <th>{{ t('hr.attendance.employee') }}</th>
+              }
+              <th>{{ t('hr.attendance.shift') }}</th>
+              <th>{{ t('hr.attendance.in') }}</th>
+              <th>{{ t('hr.attendance.out') }}</th>
+
+              <!-- All four, and none netted against another. Somebody late who stayed on is both,
+                   and a combined figure answers neither question anybody has. -->
+              <th class="numeric">{{ t('hr.attendance.worked') }}</th>
+              <th class="numeric">{{ t('hr.attendance.late') }}</th>
+              <th class="numeric">{{ t('hr.attendance.early') }}</th>
+              <th class="numeric">{{ t('hr.attendance.overtime') }}</th>
+
+              <th>{{ t('hr.attendance.note') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of rows(); track row.employeeNo + row.onDate) {
+              <tr>
+                <td>{{ row.onDate }}</td>
+                @if (!filterEmployeeNo) {
+                  <td>
+                    <span class="code">{{ row.employeeNo }}</span> {{ nameOf(row.employeeNo) }}
+                  </td>
+                }
+                <td class="code">{{ row.shiftCode ?? '—' }}</td>
+                <td>{{ row.clockedInAt ?? '—' }}</td>
+                <td>{{ row.clockedOutAt ?? '—' }}</td>
+                <td class="numeric">{{ hours(row.workedMinutes) }}</td>
+                <td class="numeric">
+                  @if (row.lateMinutes > 0) {
+                    <span class="tag tag--warning">{{ hours(row.lateMinutes) }}</span>
+                  } @else {
+                    —
+                  }
+                </td>
+                <td class="numeric">{{ hours(row.earlyLeaveMinutes) }}</td>
+                <td class="numeric">{{ hours(row.overtimeMinutes) }}</td>
+                <td>{{ row.note ?? '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+
+  @if (canWrite()) {
+    <section class="panel">
+      <h2 class="panel__title">{{ t('hr.attendance.recordTitle') }}</h2>
+
+      <div class="panel__body draft">
+        <label class="field">
+          <span class="field__label">{{ t('hr.attendance.employee') }}</span>
+          <select class="select" [(ngModel)]="draftEmployeeNo" name="draftEmployee">
+            <option value=""></option>
+            @for (employee of employees(); track employee.no) {
+              <option [value]="employee.no">{{ employee.no }} — {{ employee.name }}</option>
+            }
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field__label">{{ t('hr.attendance.date') }}</span>
+          <input class="input" type="date" [(ngModel)]="draftDate" name="draftDate" />
+        </label>
+
+        <label class="field">
+          <span class="field__label">{{ t('hr.attendance.in') }}</span>
+          <input class="input" type="time" [(ngModel)]="draftIn" name="draftIn" />
+        </label>
+
+        <label class="field">
+          <span class="field__label">{{ t('hr.attendance.out') }}</span>
+          <input class="input" type="time" [(ngModel)]="draftOut" name="draftOut" />
+        </label>
+
+        <label class="field">
+          <span class="field__label">{{ t('hr.attendance.note') }}</span>
+          <input class="input" [(ngModel)]="draftNote" name="draftNote" maxlength="500" />
+        </label>
+
+        <button
+          type="button"
+          class="button button--primary"
+          [disabled]="busy() || !draftEmployeeNo || !draftDate"
+          (click)="record()"
+        >
+          {{ t('hr.attendance.record') }}
+        </button>
+
+        <!-- Recording a second account of one day is refused. Amending is how a wrong clock is
+             corrected, and it is a separate button so it is a separate decision. -->
+        <button
+          type="button"
+          class="button"
+          [disabled]="busy() || !draftEmployeeNo || !draftDate"
+          (click)="record(true)"
+        >
+          {{ t('hr.attendance.amend') }}
+        </button>
+      </div>
+
+      <p class="panel__body hint">{{ t('hr.attendance.recordHint') }}</p>
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">{{ t('hr.attendance.shifts') }}</h2>
+
+      @if (shifts().length === 0) {
+        <p class="empty">{{ t('hr.attendance.noShifts') }}</p>
+      } @else {
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('hr.attendance.shift') }}</th>
+                <th>{{ t('hr.attendance.hours') }}</th>
+                <th>{{ t('hr.attendance.days') }}</th>
+                <th class="numeric">{{ t('hr.attendance.break') }}</th>
+                <th class="numeric">{{ t('hr.attendance.grace') }}</th>
+                <th class="numeric">{{ t('hr.attendance.paid') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (shift of shifts(); track shift.code) {
+                <tr>
+                  <td>
+                    <span class="code">{{ shift.code }}</span> {{ shift.name }}
+                    @if (!shift.isActive) {
+                      <span class="tag">{{ t('hr.attendance.off') }}</span>
+                    }
+                  </td>
+                  <td>
+                    {{ shift.startsAt }} – {{ shift.endsAt }}
+                    @if (shift.crossesMidnight) {
+                      <span class="tag">{{ t('hr.attendance.overnight') }}</span>
+                    }
+                  </td>
+                  <td>{{ days(shift) }}</td>
+                  <td class="numeric">{{ shift.breakMinutes || '—' }}</td>
+                  <td class="numeric">{{ shift.graceMinutes || '—' }}</td>
+                  <td class="numeric">{{ hours(shift.paidMinutes) }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+
+      <div class="panel__body draft">
+        <label class="field">
+          <span class="field__label">{{ t('hr.attendance.employee') }}</span>
+          <select class="select" [(ngModel)]="assignEmployeeNo" name="assignEmployee">
+            <option value=""></option>
+            @for (employee of employees(); track employee.no) {
+              <option [value]="employee.no">
+                {{ employee.no }} — {{ employee.name }} ({{ currentShift(employee.no) }})
+              </option>
+            }
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field__label">{{ t('hr.attendance.shift') }}</span>
+          <select class="select" [(ngModel)]="assignShiftCode" name="assignShift">
+            <option value=""></option>
+            @for (shift of shifts(); track shift.code) {
+              @if (shift.isActive) {
+                <option [value]="shift.code">{{ shift.code }} — {{ shift.name }}</option>
+              }
+            }
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field__label">{{ t('hr.attendance.fromDate') }}</span>
+          <input class="input" type="date" [(ngModel)]="assignFrom" name="assignFrom" />
+        </label>
+
+        <button
+          type="button"
+          class="button button--primary"
+          [disabled]="busy() || !assignEmployeeNo || !assignShiftCode || !assignFrom"
+          (click)="assign()"
+        >
+          {{ t('hr.attendance.assign') }}
+        </button>
+      </div>
+
+      <p class="panel__body hint">{{ t('hr.attendance.assignHint') }}</p>
+    </section>
+  }
+</div>

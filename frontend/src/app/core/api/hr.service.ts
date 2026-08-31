@@ -6,9 +6,13 @@ import {
   Branch,
   CalculatePayrollRequest,
   Companies,
+  AttendanceResult,
+  AttendanceRow,
   ContractKind,
   Employee,
   EmploymentContractRow,
+  ShiftAssignmentRow,
+  ShiftRow,
   EmployeeSaved,
   Entitlements,
   HireRequest,
@@ -48,6 +52,62 @@ export class HrService {
   }
 
   /** Employees, most recently hired first. */
+  /** The working patterns and which days each runs. */
+  shifts(activeOnly = false): Promise<ShiftRow[]> {
+    const query = activeOnly ? '?activeOnly=true' : '';
+
+    return firstValueFrom(this.http.get<ShiftRow[]>(`${this.base}/shifts${query}`));
+  }
+
+  /** Who is on which shift, and since when. */
+  shiftAssignments(employeeNo?: string): Promise<ShiftAssignmentRow[]> {
+    const query = employeeNo ? `?employeeNo=${encodeURIComponent(employeeNo)}` : '';
+
+    return firstValueFrom(
+      this.http.get<ShiftAssignmentRow[]>(`${this.base}/shift-assignments${query}`),
+    );
+  }
+
+  /** Puts somebody on a shift, closing the one before it the day before. */
+  assignShift(employeeNo: string, shiftCode: string, fromDate: string): Promise<ShiftAssignmentRow> {
+    return firstValueFrom(
+      this.http.post<ShiftAssignmentRow>(
+        `${this.base}/employees/${encodeURIComponent(employeeNo)}/shift`,
+        { shiftCode, fromDate },
+      ),
+    );
+  }
+
+  /** What people did over a stretch of days. */
+  attendance(from: string, to: string, employeeNo?: string): Promise<AttendanceRow[]> {
+    const params = new URLSearchParams({ from, to });
+
+    if (employeeNo) {
+      params.set('employeeNo', employeeNo);
+    }
+
+    return firstValueFrom(this.http.get<AttendanceRow[]>(`${this.base}/attendance?${params}`));
+  }
+
+  /** Records one day, measured against the shift they were on. */
+  recordAttendance(
+    employeeNo: string,
+    request: {
+      onDate: string;
+      clockedInAt?: string | null;
+      clockedOutAt?: string | null;
+      note?: string | null;
+      amend?: boolean;
+    },
+  ): Promise<AttendanceResult> {
+    return firstValueFrom(
+      this.http.post<AttendanceResult>(
+        `${this.base}/employees/${encodeURIComponent(employeeNo)}/attendance`,
+        request,
+      ),
+    );
+  }
+
   /** What people have been engaged on, and when it changed. */
   contracts(employeeNo?: string): Promise<EmploymentContractRow[]> {
     const path = employeeNo

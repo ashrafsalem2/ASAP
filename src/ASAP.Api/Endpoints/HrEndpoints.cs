@@ -1,4 +1,5 @@
 using ASAP.Api.Infrastructure;
+using ASAP.Modules.Hr.Attendance;
 using ASAP.Modules.Hr.Entitlements;
 using ASAP.Modules.Hr.Leave;
 using ASAP.Platform.Kernel.Results;
@@ -6,6 +7,7 @@ using ASAP.Modules.Hr.Payroll;
 using ASAP.Modules.Hr.People;
 using ASAP.Modules.Hr.Reporting;
 using ASAP.Platform.Kernel.Security;
+using ASAP.Platform.Kernel.Time;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ASAP.Api.Endpoints;
@@ -120,6 +122,85 @@ public sealed record CalculatePayrollRequest(
     DateOnly? PostingDate = null,
     string? Description = null);
 
+/// <summary>A working pattern: when it starts, when it ends, which days it runs.</summary>
+/// <param name="Code">Its code.</param>
+/// <param name="Name">What it is called.</param>
+/// <param name="NameArabic">What it is called in Arabic.</param>
+/// <param name="StartsAt">When it starts.</param>
+/// <param name="EndsAt">When it ends.</param>
+/// <param name="BreakMinutes">Unpaid break in the middle of it.</param>
+/// <param name="DaysOfWeek">Which days it runs, as a bit per day with Sunday as 1.</param>
+/// <param name="GraceMinutes">Minutes after the start that are not counted as late.</param>
+/// <param name="PaidMinutes">How long it is, less the break.</param>
+/// <param name="CrossesMidnight">Whether it finishes the day after it starts.</param>
+/// <param name="IsActive">Whether anybody may still be put on it.</param>
+public sealed record ShiftView(
+    string Code,
+    string Name,
+    string? NameArabic,
+    TimeOnly StartsAt,
+    TimeOnly EndsAt,
+    int BreakMinutes,
+    int DaysOfWeek,
+    int GraceMinutes,
+    int PaidMinutes,
+    bool CrossesMidnight,
+    bool IsActive);
+
+/// <summary>Which shift somebody is on, from a date.</summary>
+/// <param name="EmployeeNo">Whose it is.</param>
+/// <param name="ShiftCode">The shift.</param>
+/// <param name="FromDate">The first day it applies.</param>
+/// <param name="ToDate">The last day it applies, or null where it still stands.</param>
+public sealed record ShiftAssignmentView(
+    string EmployeeNo,
+    string ShiftCode,
+    DateOnly FromDate,
+    DateOnly? ToDate);
+
+/// <summary>What one person did on one day.</summary>
+/// <param name="EmployeeNo">Whose day.</param>
+/// <param name="OnDate">The day.</param>
+/// <param name="ShiftCode">The shift they were on.</param>
+/// <param name="ClockedInAt">When they clocked in.</param>
+/// <param name="ClockedOutAt">When they clocked out.</param>
+/// <param name="Status">How the day turned out.</param>
+/// <param name="WorkedMinutes">Minutes actually worked, less the break.</param>
+/// <param name="LateMinutes">Minutes late past the grace.</param>
+/// <param name="EarlyLeaveMinutes">Minutes left before the shift ended.</param>
+/// <param name="OvertimeMinutes">Minutes worked beyond the shift.</param>
+/// <param name="Note">Why it reads as it does.</param>
+public sealed record AttendanceView(
+    string EmployeeNo,
+    DateOnly OnDate,
+    string? ShiftCode,
+    TimeOnly? ClockedInAt,
+    TimeOnly? ClockedOutAt,
+    AttendanceStatus Status,
+    int WorkedMinutes,
+    int LateMinutes,
+    int EarlyLeaveMinutes,
+    int OvertimeMinutes,
+    string? Note);
+
+/// <summary>Putting somebody on a shift from a date.</summary>
+/// <param name="ShiftCode">The shift.</param>
+/// <param name="FromDate">The first day it applies.</param>
+public sealed record AssignShiftRequest(string ShiftCode, DateOnly FromDate);
+
+/// <summary>A day of attendance as somebody sends it in.</summary>
+/// <param name="OnDate">The day.</param>
+/// <param name="ClockedInAt">When they clocked in.</param>
+/// <param name="ClockedOutAt">When they clocked out.</param>
+/// <param name="Note">Why it reads as it does.</param>
+/// <param name="Amend">Whether to replace a record already there rather than refuse.</param>
+public sealed record RecordAttendanceRequest(
+    DateOnly OnDate,
+    TimeOnly? ClockedInAt = null,
+    TimeOnly? ClockedOutAt = null,
+    string? Note = null,
+    bool Amend = false);
+
 /// <summary>What somebody was engaged on, over a stretch of time.</summary>
 /// <param name="Id">The contract's key, for amending it.</param>
 /// <param name="EmployeeNo">Whose it is.</param>
@@ -211,6 +292,30 @@ public static class HrEndpoints
         group.MapPost("/employees/{employeeNo}/transfer", TransferAsync)
              .WithName("TransferEmployee")
              .WithSummary("Moves somebody to another branch from a date, closing the previous assignment.");
+
+        group.MapGet("/shifts", ShiftsAsync)
+             .WithName("Shifts")
+             .WithSummary("The working patterns and which days each runs.");
+
+        group.MapPut("/shifts/{code}", SaveShiftAsync)
+             .WithName("SaveShift")
+             .WithSummary("Writes a shift.");
+
+        group.MapGet("/shift-assignments", ShiftAssignmentsAsync)
+             .WithName("ShiftAssignments")
+             .WithSummary("Who is on which shift, and since when.");
+
+        group.MapPost("/employees/{employeeNo}/shift", AssignShiftAsync)
+             .WithName("AssignShift")
+             .WithSummary("Puts somebody on a shift, closing the one before it the day before.");
+
+        group.MapGet("/attendance", AttendanceListAsync)
+             .WithName("Attendance")
+             .WithSummary("What people did over a stretch of days.");
+
+        group.MapPost("/employees/{employeeNo}/attendance", RecordAttendanceAsync)
+             .WithName("RecordAttendance")
+             .WithSummary("Records one day, measured against the shift they were on.");
 
         group.MapGet("/contracts", ContractsAsync)
              .WithName("EmploymentContracts")
@@ -904,6 +1009,196 @@ public static class HrEndpoints
            }
             .Where(permission => Can(user, permission))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    private static async Task<IResult> ShiftsAsync(
+        AttendanceService attendance,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken,
+        bool activeOnly = false)
+    {
+        if (!Can(user, ReadPermission))
+        {
+            return Forbidden(ReadPermission, "view shifts", http);
+        }
+
+        var shifts = await attendance.ShiftsAsync(activeOnly, cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(shifts.Select(ViewOf));
+    }
+
+    private static async Task<IResult> SaveShiftAsync(
+        string code,
+        ShiftRequest request,
+        AttendanceService attendance,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, UpdatePermission))
+        {
+            return Forbidden(UpdatePermission, "maintain shifts", http);
+        }
+
+        var result = await attendance
+            .SaveShiftAsync(request with { Code = code }, cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.Ok(ViewOf(result.Value));
+    }
+
+    private static async Task<IResult> ShiftAssignmentsAsync(
+        AttendanceService attendance,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken,
+        string? employeeNo = null)
+    {
+        if (!Can(user, ReadPermission))
+        {
+            return Forbidden(ReadPermission, "view shift assignments", http);
+        }
+
+        var rows = await attendance.AssignmentsAsync(employeeNo, cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(rows.Select(static a => new ShiftAssignmentView(
+            a.EmployeeNo,
+            a.ShiftCode,
+            a.FromDate,
+            a.ToDate)));
+    }
+
+    private static async Task<IResult> AssignShiftAsync(
+        string employeeNo,
+        AssignShiftRequest request,
+        AttendanceService attendance,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, UpdatePermission))
+        {
+            return Forbidden(UpdatePermission, "put people on shifts", http);
+        }
+
+        var result = await attendance
+            .AssignAsync(employeeNo, request.ShiftCode, request.FromDate, cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed
+            ? Refused(result, http)
+            : Results.Ok(new ShiftAssignmentView(
+                result.Value.EmployeeNo,
+                result.Value.ShiftCode,
+                result.Value.FromDate,
+                result.Value.ToDate));
+    }
+
+    private static async Task<IResult> AttendanceListAsync(
+        AttendanceService attendance,
+        IUserContext user,
+        IClock clock,
+        HttpContext http,
+        CancellationToken cancellationToken,
+        DateOnly? from = null,
+        DateOnly? to = null,
+        string? employeeNo = null)
+    {
+        if (!Can(user, ReadPermission))
+        {
+            return Forbidden(ReadPermission, "view attendance", http);
+        }
+
+        var last = to ?? clock.Today;
+        var first = from ?? last.AddDays(-13);
+
+        var rows = await attendance
+            .ListAsync(first, last, employeeNo, cancellationToken)
+            .ConfigureAwait(false);
+
+        return Results.Ok(rows.Select(static a => new AttendanceView(
+            a.EmployeeNo,
+            a.OnDate,
+            a.ShiftCode,
+            a.ClockedInAt,
+            a.ClockedOutAt,
+            a.Status,
+            a.WorkedMinutes,
+            a.LateMinutes,
+            a.EarlyLeaveMinutes,
+            a.OvertimeMinutes,
+            a.Note)));
+    }
+
+    private static async Task<IResult> RecordAttendanceAsync(
+        string employeeNo,
+        RecordAttendanceRequest request,
+        AttendanceService attendance,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, UpdatePermission))
+        {
+            return Forbidden(UpdatePermission, "record attendance", http);
+        }
+
+        var result = await attendance
+            .RecordAsync(
+                new AttendanceRequest(
+                    employeeNo,
+                    request.OnDate,
+                    request.ClockedInAt,
+                    request.ClockedOutAt,
+                    request.Note),
+                request.Amend,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        if (result.Failed)
+        {
+            return Refused(result, http);
+        }
+
+        var value = result.Value;
+
+        return Results.Ok(new
+        {
+            attendance = new AttendanceView(
+                value.EmployeeNo,
+                value.OnDate,
+                value.ShiftCode,
+                value.ClockedInAt,
+                value.ClockedOutAt,
+                value.Status,
+                value.WorkedMinutes,
+                value.LateMinutes,
+                value.EarlyLeaveMinutes,
+                value.OvertimeMinutes,
+                value.Note),
+            messages = MessagePayload.FromAll(result.Messages),
+        });
+    }
+
+    private static ShiftView ViewOf(Shift shift)
+        => new(
+            shift.Code,
+            shift.Name,
+            shift.NameArabic,
+            shift.StartsAt,
+            shift.EndsAt,
+            shift.BreakMinutes,
+            shift.DaysOfWeek,
+            shift.GraceMinutes,
+            shift.PaidMinutes,
+            shift.CrossesMidnight,
+            shift.IsActive);
 
     private static async Task<IResult> ContractsAsync(
         EmploymentContractService contracts,

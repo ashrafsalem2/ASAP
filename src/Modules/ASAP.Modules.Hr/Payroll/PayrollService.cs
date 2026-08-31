@@ -34,6 +34,7 @@ namespace ASAP.Modules.Hr.Payroll;
 /// <param name="messages">Renders refusals.</param>
 /// <param name="documents">Posts the journal.</param>
 /// <param name="leave">Says who was away and on what terms.</param>
+/// <param name="attendance">Says which days nothing accounts for.</param>
 /// <param name="numbers">Issues the run number.</param>
 /// <param name="setup">Supplies the accounts and the number series.</param>
 /// <param name="overrides">Records every protection somebody pushed past.</param>
@@ -45,6 +46,7 @@ public sealed class PayrollService(
     IMessageCatalog messages,
     DocumentPostingService documents,
     Leave.LeaveService leave,
+    Attendance.AttendanceService attendance,
     INumberSeriesService numbers,
     ISetupService setup,
     OverrideAuditor overrides,
@@ -120,6 +122,23 @@ public sealed class PayrollService(
                 .ConfigureAwait(false))
             .GroupBy(static c => c.EmployeeId)
             .ToDictionary(static g => g.Key, static g => g.OrderBy(static c => c.StartsOn).ToList());
+
+        // Days the shift ran on which nothing says what happened. Reported, never deducted: a
+        // clock is not authority to dock anybody's pay, and the first anybody would know of a
+        // rule that said otherwise would be a short payslip.
+        var absences = await attendance
+            .UnexplainedAbsenceAsync(from, to, cancellationToken)
+            .ConfigureAwait(false);
+
+        foreach (var employee in employees)
+        {
+            if (absences.TryGetValue(employee.Id, out var days) && days > 0)
+            {
+                found.Add(messages.Render(
+                    HrMessages.UnexplainedAbsence,
+                    Args(("EmployeeNo", employee.No), ("AbsentDays", days))));
+            }
+        }
 
         foreach (var employee in employees)
         {

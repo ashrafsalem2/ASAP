@@ -1630,6 +1630,53 @@ export interface BranchAssignment {
 }
 
 /** Somebody who works here, or used to. */
+/** How a day turned out. */
+export type AttendanceStatus = 'Present' | 'Late' | 'Absent' | 'OnLeave' | 'RestDay';
+
+/** A working pattern: when it starts, when it ends, which days it runs. */
+export interface ShiftRow {
+  code: string;
+  name: string;
+  nameArabic: string | null;
+  startsAt: string;
+  endsAt: string;
+  breakMinutes: number;
+  daysOfWeek: number;
+  graceMinutes: number;
+  paidMinutes: number;
+  crossesMidnight: boolean;
+  isActive: boolean;
+}
+
+/** Which shift somebody is on, from a date. */
+export interface ShiftAssignmentRow {
+  employeeNo: string;
+  shiftCode: string;
+  fromDate: string;
+  toDate: string | null;
+}
+
+/** What one person did on one day. */
+export interface AttendanceRow {
+  employeeNo: string;
+  onDate: string;
+  shiftCode: string | null;
+  clockedInAt: string | null;
+  clockedOutAt: string | null;
+  status: AttendanceStatus;
+  workedMinutes: number;
+  lateMinutes: number;
+  earlyLeaveMinutes: number;
+  overtimeMinutes: number;
+  note: string | null;
+}
+
+/** A day recorded, and anything worth saying about it. */
+export interface AttendanceResult {
+  attendance: AttendanceRow;
+  messages?: AsapMessage[];
+}
+
 /** What kind of engagement a contract is. */
 export type ContractKind = 'Permanent' | 'FixedTerm' | 'Probation';
 

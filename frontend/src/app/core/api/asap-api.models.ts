@@ -174,6 +174,55 @@ export interface StockLocation {
   usesBins: boolean;
 }
 
+/** What stock was worth at one place on one day. */
+export interface ValuationRow {
+  itemNo: string;
+  description: string;
+  descriptionArabic?: string | null;
+  locationCode: string;
+  variantCode?: string | null;
+  quantity: number;
+  value: number;
+  estimatedValue: number;
+  unitCost?: number | null;
+}
+
+/** One age band. */
+export interface AgeingBucket {
+  label: string;
+  fromDays: number;
+  toDays?: number | null;
+  quantity: number;
+  value: number;
+}
+
+/** How long stock has been sitting, in bands. */
+export interface AgeingRow {
+  itemNo: string;
+  description: string;
+  descriptionArabic?: string | null;
+  locationCode: string;
+  variantCode?: string | null;
+  quantity: number;
+  value: number;
+  buckets: AgeingBucket[];
+  oldestDays: number;
+}
+
+/** How fast an item moves. */
+export interface VelocityRow {
+  itemNo: string;
+  description: string;
+  descriptionArabic?: string | null;
+  quantitySold: number;
+  costOfSales: number;
+  quantityOnHand: number;
+  valueOnHand: number;
+  turns?: number | null;
+  daysOfCover?: number | null;
+  lastMovedOn?: string | null;
+}
+
 /** What is on the shelf and how much of it is still free. */
 export interface StockAvailabilityRow {
   itemNo: string;

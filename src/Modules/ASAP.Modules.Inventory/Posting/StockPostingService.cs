@@ -538,9 +538,7 @@ public sealed partial class StockPostingService(
 
         return costs.ToDictionary(
             static c => c.EntryId,
-            static c => c.Quantity == 0
-                ? Math.Round(c.Revalued, 5, MidpointRounding.AwayFromZero)
-                : Math.Round((c.Cost / c.Quantity) + c.Revalued, 5, MidpointRounding.AwayFromZero));
+            static c => Costing.LayerCosting.UnitCost(c.Cost, c.Quantity, c.Revalued));
     }
 
     private ValueEntry NewValueEntry(

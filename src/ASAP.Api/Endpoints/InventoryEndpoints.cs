@@ -7,6 +7,7 @@ using ASAP.Modules.Inventory.Items;
 using ASAP.Modules.Inventory.Ledger;
 using ASAP.Modules.Inventory.Locations;
 using ASAP.Modules.Inventory.Posting;
+using ASAP.Modules.Inventory.Reporting;
 using ASAP.Modules.Inventory.Reservations;
 using ASAP.Platform.Kernel.Security;
 using ASAP.Platform.Kernel.Setup;
@@ -465,6 +466,18 @@ public static class InventoryEndpoints
              .WithName("Locations")
              .WithSummary("Lists the locations stock can be held at.");
 
+        group.MapGet("/reports/valuation", ValuationReportAsync)
+             .WithName("InventoryValuationReport")
+             .WithSummary("What the stock was worth on a day, built from the same rows as the account.");
+
+        group.MapGet("/reports/ageing", AgeingReportAsync)
+             .WithName("InventoryAgeingReport")
+             .WithSummary("How long the stock on hand has been sitting, in bands.");
+
+        group.MapGet("/reports/velocity", VelocityReportAsync)
+             .WithName("InventoryVelocityReport")
+             .WithSummary("How fast each item moves, slowest first.");
+
         group.MapGet("/stock/available", AvailableAsync)
              .WithName("StockAvailable")
              .WithSummary("What is on hand, what is promised, and what is left to promise.");
@@ -663,6 +676,67 @@ public static class InventoryEndpoints
     /// location and the question people actually ask is about one shelf. Balances that have gone
     /// below zero are flagged rather than hidden: they are the ones waiting for goods to arrive.
     /// </remarks>
+    private static async Task<IResult> ValuationReportAsync(
+        InventoryReportService reports,
+        IUserContext user,
+        IClock clock,
+        HttpContext http,
+        CancellationToken cancellationToken,
+        [FromQuery] DateOnly? asOf = null,
+        [FromQuery] string? itemNo = null,
+        [FromQuery] string? locationCode = null)
+    {
+        if (!Can(user, "Inventory.Report.Read"))
+        {
+            return Forbidden("Inventory.Report.Read", "read a stock valuation", http);
+        }
+
+        return Results.Ok(await reports
+            .ValuationAsync(asOf ?? clock.Today, itemNo, locationCode, cancellationToken)
+            .ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> AgeingReportAsync(
+        InventoryReportService reports,
+        IUserContext user,
+        IClock clock,
+        HttpContext http,
+        CancellationToken cancellationToken,
+        [FromQuery] DateOnly? asOf = null,
+        [FromQuery] string? itemNo = null,
+        [FromQuery] string? locationCode = null)
+    {
+        if (!Can(user, "Inventory.Report.Read"))
+        {
+            return Forbidden("Inventory.Report.Read", "read stock ageing", http);
+        }
+
+        return Results.Ok(await reports
+            .AgeingAsync(asOf ?? clock.Today, itemNo, locationCode, null, cancellationToken)
+            .ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> VelocityReportAsync(
+        InventoryReportService reports,
+        IUserContext user,
+        IClock clock,
+        HttpContext http,
+        CancellationToken cancellationToken,
+        [FromQuery] DateOnly? from = null,
+        [FromQuery] DateOnly? to = null)
+    {
+        if (!Can(user, "Inventory.Report.Read"))
+        {
+            return Forbidden("Inventory.Report.Read", "read stock velocity", http);
+        }
+
+        var last = to ?? clock.Today;
+
+        return Results.Ok(await reports
+            .VelocityAsync(from ?? last.AddMonths(-3), last, cancellationToken)
+            .ConfigureAwait(false));
+    }
+
     private static async Task<IResult> AvailableAsync(
         StockReservationService reservations,
         IUserContext user,

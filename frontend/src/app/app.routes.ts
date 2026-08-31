@@ -59,6 +59,12 @@ export const routes: Routes = [
           import('./features/inventory/adjustment-reasons').then((m) => m.AdjustmentReasons),
       },
       {
+        path: 'inventory/reports/analysis',
+        canActivate: [requirePermission('Inventory.Report.Read')],
+        loadComponent: () =>
+          import('./features/inventory/stock-analysis').then((m) => m.StockAnalysis),
+      },
+      {
         path: 'inventory/reservations',
         canActivate: [requirePermission('Inventory.Reservation.Read')],
         loadComponent: () =>

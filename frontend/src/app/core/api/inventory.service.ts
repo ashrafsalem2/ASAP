@@ -5,9 +5,12 @@ import { environment } from '../../../environments/environment';
 import {
   AdjustmentReason,
   CategoryPostingGap,
+  AgeingRow,
   ReserveStockRequest,
   StockAvailabilityRow,
   StockReservationRow,
+  ValuationRow,
+  VelocityRow,
   Bin,
   BinContent,
   CreateTransferRequest,
@@ -440,5 +443,49 @@ export class InventoryService {
         { reason },
       ),
     );
+  }
+
+  /**
+   * What the stock was worth on a day.
+   *
+   * The same arithmetic that posts to the inventory account, so the two tie by construction
+   * rather than by agreement.
+   */
+  stockValuation(asOf: string, itemNo?: string, locationCode?: string): Promise<ValuationRow[]> {
+    let params = new HttpParams().set('asOf', asOf);
+
+    if (itemNo) {
+      params = params.set('itemNo', itemNo);
+    }
+
+    if (locationCode) {
+      params = params.set('locationCode', locationCode);
+    }
+
+    return firstValueFrom(
+      this.http.get<ValuationRow[]>(`${this.base}/reports/valuation`, { params }),
+    );
+  }
+
+  /** How long the stock on hand has been sitting, in bands. */
+  stockAgeing(asOf: string, itemNo?: string, locationCode?: string): Promise<AgeingRow[]> {
+    let params = new HttpParams().set('asOf', asOf);
+
+    if (itemNo) {
+      params = params.set('itemNo', itemNo);
+    }
+
+    if (locationCode) {
+      params = params.set('locationCode', locationCode);
+    }
+
+    return firstValueFrom(this.http.get<AgeingRow[]>(`${this.base}/reports/ageing`, { params }));
+  }
+
+  /** How fast each item moves, slowest first. */
+  stockVelocity(from: string, to: string): Promise<VelocityRow[]> {
+    const params = new HttpParams().set('from', from).set('to', to);
+
+    return firstValueFrom(this.http.get<VelocityRow[]>(`${this.base}/reports/velocity`, { params }));
   }
 }

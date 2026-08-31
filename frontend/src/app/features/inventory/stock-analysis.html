@@ -1,0 +1,152 @@
+<div class="page">
+  <h1>{{ t('inventory.analysis.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('inventory.analysis.intro') }}</p>
+
+    <div class="panel__body form-row">
+      <label>
+        {{ t('inventory.analysis.asOf') }}
+        <input type="date" [(ngModel)]="asOf" name="asOf" (change)="refresh()" />
+      </label>
+      <label>
+        {{ t('inventory.analysis.from') }}
+        <input type="date" [(ngModel)]="from" name="from" (change)="refresh()" />
+      </label>
+      <label>
+        {{ t('inventory.analysis.item') }}
+        <input type="text" [(ngModel)]="itemFilter" name="itemFilter" (change)="refresh()" />
+      </label>
+    </div>
+  </section>
+
+  @if (loading()) {
+    <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+  } @else {
+    <section class="panel">
+      <h2 class="panel__title">{{ t('inventory.analysis.valuationTitle') }}</h2>
+      <p class="panel__body hint">{{ t('inventory.analysis.tieHint') }}</p>
+      <p class="panel__body hint">{{ t('inventory.analysis.estimatedHint') }}</p>
+
+      @if (valuation().length === 0) {
+        <p class="empty">{{ t('inventory.analysis.nothing') }}</p>
+      } @else {
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('inventory.analysis.item') }}</th>
+                <th>{{ t('inventory.analysis.location') }}</th>
+                <th>{{ t('inventory.analysis.variant') }}</th>
+                <th class="numeric">{{ t('inventory.analysis.quantity') }}</th>
+                <th class="numeric">{{ t('inventory.analysis.unitCost') }}</th>
+                <th class="numeric">{{ t('inventory.analysis.value') }}</th>
+                <th class="numeric">{{ t('inventory.analysis.estimated') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of valuation(); track row.itemNo + row.locationCode + row.variantCode) {
+                <tr>
+                  <td class="code">{{ row.itemNo }} <span class="order__desc">{{ describe(row) }}</span></td>
+                  <td>{{ row.locationCode }}</td>
+                  <td>{{ row.variantCode || '—' }}</td>
+                  <td class="numeric">{{ row.quantity }}</td>
+                  <td class="numeric">{{ row.unitCost === null ? '—' : i18n.total(row.unitCost) }}</td>
+                  <td class="numeric">{{ i18n.total(row.value) }}</td>
+                  <td class="numeric">{{ row.estimatedValue ? i18n.total(row.estimatedValue) : '' }}</td>
+                </tr>
+              }
+            </tbody>
+            <tfoot>
+              <tr>
+                <th colspan="5">{{ t('inventory.analysis.total') }}</th>
+                <th class="numeric">{{ i18n.total(totalValue()) }}</th>
+                <th class="numeric">{{ totalEstimated() ? i18n.total(totalEstimated()) : '' }}</th>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      }
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">{{ t('inventory.analysis.ageingTitle') }}</h2>
+      <p class="panel__body hint">{{ t('inventory.analysis.ageingHint') }}</p>
+
+      @if (ageing().length === 0) {
+        <p class="empty">{{ t('inventory.analysis.nothing') }}</p>
+      } @else {
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('inventory.analysis.item') }}</th>
+                <th>{{ t('inventory.analysis.location') }}</th>
+                <th class="numeric">{{ t('inventory.analysis.oldest') }}</th>
+                @for (band of bands(); track band) {
+                  <th class="numeric">{{ band }}</th>
+                }
+                <th class="numeric">{{ t('inventory.analysis.quantity') }}</th>
+                <th class="numeric">{{ t('inventory.analysis.value') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of ageing(); track row.itemNo + row.locationCode + row.variantCode) {
+                <tr>
+                  <td class="code">{{ row.itemNo }} <span class="order__desc">{{ describe(row) }}</span></td>
+                  <td>{{ row.locationCode }}</td>
+                  <td class="numeric">{{ row.oldestDays }} {{ t('inventory.analysis.days') }}</td>
+                  @for (band of bands(); track band) {
+                    <td class="numeric">{{ bandQuantity(row, band) || '' }}</td>
+                  }
+                  <td class="numeric">{{ row.quantity }}</td>
+                  <td class="numeric">{{ i18n.total(row.value) }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">{{ t('inventory.analysis.velocityTitle') }}</h2>
+      <p class="panel__body hint">{{ t('inventory.analysis.velocityHint') }}</p>
+
+      @if (velocity().length === 0) {
+        <p class="empty">{{ t('inventory.analysis.nothing') }}</p>
+      } @else {
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('inventory.analysis.item') }}</th>
+                <th class="numeric">{{ t('inventory.analysis.sold') }}</th>
+                <th class="numeric">{{ t('inventory.analysis.costOfSales') }}</th>
+                <th class="numeric">{{ t('inventory.analysis.onHand') }}</th>
+                <th class="numeric">{{ t('inventory.analysis.value') }}</th>
+                <th class="numeric">{{ t('inventory.analysis.turns') }}</th>
+                <th class="numeric">{{ t('inventory.analysis.cover') }}</th>
+                <th>{{ t('inventory.analysis.lastMoved') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of velocity(); track row.itemNo) {
+                <tr>
+                  <td class="code">{{ row.itemNo }} <span class="order__desc">{{ describe(row) }}</span></td>
+                  <td class="numeric">{{ row.quantitySold }}</td>
+                  <td class="numeric">{{ i18n.total(row.costOfSales) }}</td>
+                  <td class="numeric">{{ row.quantityOnHand }}</td>
+                  <td class="numeric">{{ i18n.total(row.valueOnHand) }}</td>
+                  <td class="numeric">{{ row.turns === null ? '—' : row.turns }}</td>
+                  <td class="numeric">{{ row.daysOfCover === null ? '—' : row.daysOfCover }}</td>
+                  <td>{{ row.lastMovedOn || t('inventory.analysis.never') }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+  }
+</div>

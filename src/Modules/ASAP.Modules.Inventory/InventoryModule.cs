@@ -74,6 +74,7 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
 
 
         services.AddScoped<Reservations.StockReservationService>();
+        services.AddScoped<Reporting.InventoryReportService>();
         services.AddScoped<StockAvailability>();
         services.AddScoped<Posting.StockPostingService>();
         services.AddScoped<CostSettlementService>();
@@ -477,6 +478,18 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
             RequiresPermission = $"{Id}.Reservation.Read",
             Order = 35,
             HelpTopic = "inventory/reservations",
+        },
+        new()
+        {
+            Id = "Inventory.StockAnalysis",
+            Module = Id,
+            ParentId = "Inventory.Root",
+            DisplayName = new LocalizedText("Valuation, ageing and velocity", "التقييم والتقادم وسرعة الدوران"),
+            Kind = NavigationKind.Report,
+            Route = "/inventory/reports/analysis",
+            RequiresPermission = $"{Id}.Report.Read",
+            Order = 41,
+            HelpTopic = "inventory/stock-analysis",
         },
         new()
         {

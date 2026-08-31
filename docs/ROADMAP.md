@@ -210,8 +210,24 @@ Everything else posts here, so it goes first.
   per-item always-reserve policy, and reserving against goods not yet received, still to come
 - Reorder policy
 - **done** Inventory-to-finance posting through a kernel event, with expected cost held back
-- *in progress* Reports: **stock on hand by location done**, with below-zero balances flagged and
-  their estimated costs settleable from the screen; valuation, velocity, ageing to come
+- **done** Reports: stock on hand by location, with below-zero balances flagged and their
+  estimated costs settleable from the screen; and valuation, ageing and velocity, all three read
+  from the cost ledger rather than the running figures on the item -- only the ledger can be asked
+  what something was worth on a date that has passed. The valuation is deliberately the same
+  arithmetic that posts to the inventory account, so it ties to the balance sheet by construction
+  rather than by agreement; a valuation worked out any other way is a second opinion, and a second
+  opinion about the inventory account is what nobody wants at a period end. It says how much of
+  itself rests on costs nobody has confirmed, which measures exposure rather than being a slice of
+  the total and can exceed the value beside it where a location has gone negative. Ageing is read
+  straight off the cost layers, because a receipt with quantity remaining is stock that arrived on
+  its posting date and has not left -- so the age of the stock is the age of the layer it is still
+  sitting in, and nothing extra had to be recorded for it. Velocity lists what did not move, since
+  that is the reason anybody runs it, and leaves turns and days of cover empty where they have no
+  answer: no turns is an empty shelf and nought turns is stock that did not sell, and printing the
+  same figure for both is how a spreadsheet ends up averaging a fiction. The layer-cost formula now
+  lives in one place, because the posting engine and the ageing report both need it and a second
+  copy would drift. Slow-moving and dead-stock thresholds, and a valuation cut by dimension, still
+  to come
 - **done** Physical stock count. The sheet freezes what the system said when it was made, so a
   sale rung up while somebody walks the aisles does not become a discrepancy nobody can explain.
   Nought and not-counted are different states and posting treats them differently: nought writes

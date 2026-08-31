@@ -53,6 +53,7 @@ public readonly record struct SalesOrderLineRequest(
 /// <param name="setup">Supplies the number series to use.</param>
 /// <param name="tenantContext">Supplies the company.</param>
 /// <param name="userContext">Records who took it.</param>
+/// <param name="reservations">Holds stock against the order, and lets it go again.</param>
 /// <param name="pricing">Says what this customer pays, where an arrangement exists.</param>
 /// <param name="clock">Supplies today.</param>
 /// <param name="logger">Records orders taken.</param>
@@ -66,6 +67,7 @@ public sealed class SalesOrderService(
     IUserContext userContext,
     IClock clock,
     Pricing.PricingService pricing,
+    Inventory.Reservations.StockReservationService reservations,
     ILogger<SalesOrderService> logger)
 {
     /// <summary>
@@ -256,6 +258,84 @@ public sealed class SalesOrderService(
 
         return Result<SalesOrder>.Success(order, found);
     }
+
+    /// <summary>
+    /// Holds the stock this order still has to ship.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Deliberately something somebody does rather than something releasing an order does by
+    /// itself. Reserving automatically would put every released order in the company into
+    /// competition for the same stock whether or not anybody wanted that, and a warehouse that
+    /// picks off the shelf would suddenly find orders refusing each other for reasons nobody
+    /// asked for.
+    /// </para>
+    /// <para>
+    /// Lines are held one at a time and a line that cannot be held in full is not held at all --
+    /// the underlying rule never bends. What comes back says which lines could not be held and
+    /// why, so holding four of five lines is a useful outcome rather than a silent one.
+    /// </para>
+    /// </remarks>
+    /// <param name="orderNo">The order to hold stock for.</param>
+    /// <param name="cancellationToken">Cancels the work.</param>
+    /// <returns>The order, with a message for every line that could not be held.</returns>
+    public async Task<Result<SalesOrder>> ReserveAsync(
+        string orderNo,
+        CancellationToken cancellationToken = default)
+    {
+        var order = await LoadAsync(orderNo, cancellationToken).ConfigureAwait(false);
+
+        if (order is null)
+        {
+            return NotFound(orderNo);
+        }
+
+        var found = new List<AsapMessage>();
+
+        foreach (var line in order.Lines
+            .Where(static l => l.Type is SalesLineType.Item && l.OutstandingToShip > 0m)
+            .OrderBy(static l => l.LineNo))
+        {
+            var from = line.LocationCode ?? order.LocationCode;
+
+            if (string.IsNullOrWhiteSpace(from))
+            {
+                continue;
+            }
+
+            var held = await reservations
+                .ReserveAsync(
+                    line.ItemNo!,
+                    from,
+                    line.OutstandingToShip,
+                    order.No,
+                    line.LineNo,
+                    line.VariantCode,
+                    "SALES",
+                    cancellationToken: cancellationToken)
+                .ConfigureAwait(false);
+
+            if (held.Failed)
+            {
+                found.AddRange(held.Messages);
+            }
+        }
+
+        return Result<SalesOrder>.Success(order, found);
+    }
+
+    /// <summary>
+    /// Lets go of everything this order was holding.
+    /// </summary>
+    /// <param name="orderNo">The order.</param>
+    /// <param name="reason">Why.</param>
+    /// <param name="cancellationToken">Cancels the work.</param>
+    /// <returns>How much was let go.</returns>
+    public Task<decimal> ReleaseReservationsAsync(
+        string orderNo,
+        string? reason = null,
+        CancellationToken cancellationToken = default)
+        => reservations.ReleaseAsync(orderNo, null, reason, cancellationToken);
 
     /// <summary>Marks an order as confirmed with the customer.</summary>
     /// <param name="orderNo">The order to release.</param>

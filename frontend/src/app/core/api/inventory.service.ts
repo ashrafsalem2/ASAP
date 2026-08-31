@@ -5,6 +5,9 @@ import { environment } from '../../../environments/environment';
 import {
   AdjustmentReason,
   CategoryPostingGap,
+  ReserveStockRequest,
+  StockAvailabilityRow,
+  StockReservationRow,
   Bin,
   BinContent,
   CreateTransferRequest,
@@ -383,6 +386,58 @@ export class InventoryService {
     return firstValueFrom(
       this.http.get<VariantStockRow[]>(
         `${this.base}/items/${encodeURIComponent(itemNo)}/variant-stock`,
+      ),
+    );
+  }
+
+  /**
+   * What is on hand, what is promised, and what is left to promise.
+   *
+   * The third column is the only one anybody can act on. On hand is a fact about the shelf;
+   * available is that fact less what has already been promised to somebody else.
+   */
+  stockAvailable(itemNo?: string, locationCode?: string): Promise<StockAvailabilityRow[]> {
+    let params = new HttpParams();
+
+    if (itemNo) {
+      params = params.set('itemNo', itemNo);
+    }
+
+    if (locationCode) {
+      params = params.set('locationCode', locationCode);
+    }
+
+    return firstValueFrom(
+      this.http.get<StockAvailabilityRow[]>(`${this.base}/stock/available`, { params }),
+    );
+  }
+
+  /** What stock is being held, and for what. */
+  reservations(documentNo?: string, outstandingOnly = true): Promise<StockReservationRow[]> {
+    let params = new HttpParams().set('outstandingOnly', outstandingOnly);
+
+    if (documentNo) {
+      params = params.set('documentNo', documentNo);
+    }
+
+    return firstValueFrom(
+      this.http.get<StockReservationRow[]>(`${this.base}/reservations`, { params }),
+    );
+  }
+
+  /** Holds stock for a document. Moves nothing. */
+  reserveStock(request: ReserveStockRequest): Promise<StockReservationRow> {
+    return firstValueFrom(
+      this.http.post<StockReservationRow>(`${this.base}/reservations`, request),
+    );
+  }
+
+  /** Lets held stock go, and keeps the record of what was held. */
+  releaseStock(documentNo: string, reason?: string): Promise<{ released: number }> {
+    return firstValueFrom(
+      this.http.post<{ released: number }>(
+        `${this.base}/reservations/${encodeURIComponent(documentNo)}/release`,
+        { reason },
       ),
     );
   }

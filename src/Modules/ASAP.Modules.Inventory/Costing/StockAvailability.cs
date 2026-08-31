@@ -55,6 +55,16 @@ public sealed record MovementView(
     public Locations.Bin? Bin { get; init; }
 
     /// <summary>
+    /// How much of this item at this location is held for some other document.
+    /// </summary>
+    /// <remarks>
+    /// Reservations made by the document this movement belongs to are not counted: an order that
+    /// held five and then shipped them would otherwise be refused for taking its own stock, which
+    /// would make reserving an elaborate way of preventing sales.
+    /// </remarks>
+    public decimal QuantityReservedElsewhere { get; init; }
+
+    /// <summary>
     /// What that bin holds of this item now.
     /// </summary>
     /// <remarks>
@@ -168,12 +178,69 @@ public sealed class StockAvailability(IMessageCatalog messages)
         foreach (var movement in movements)
         {
             CheckMovement(movement, companyAllowsNegative, heldOverridePermissions, found);
+            CheckReserved(movement, heldOverridePermissions, found);
         }
 
         return found.Exists(static m => m.IsFailure)
             ? Result.Failure(found)
             : Result.Success(found);
     }
+    /// <summary>
+    /// Says so when stock going out has been promised to a different document.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Blocked rather than refused outright, and overridable with the stock override. The goods
+    /// are on the shelf and a shop must be able to sell what it can see; what must not happen is
+    /// that the order they were promised to finds out at the loading bay.
+    /// </para>
+    /// <para>
+    /// Only outbound movements ask. Receiving goods cannot take anybody's reservation, and a
+    /// transfer out of a location can -- which is why this reads the quantity rather than the
+    /// entry type.
+    /// </para>
+    /// </remarks>
+    private void CheckReserved(
+        MovementView movement,
+        IReadOnlySet<string>? heldOverridePermissions,
+        List<AsapMessage> found)
+    {
+        if (movement.Quantity >= 0m || movement.QuantityReservedElsewhere <= 0m)
+        {
+            return;
+        }
+
+        var free = movement.QuantityOnHand - movement.QuantityReservedElsewhere;
+        var going = -movement.Quantity;
+
+        if (going <= free)
+        {
+            return;
+        }
+
+        var arguments = new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["LineNo"] = movement.LineNo,
+            ["ItemNo"] = movement.Item.ItemNo,
+            ["Location"] = movement.Location.Code,
+            ["Quantity"] = going,
+            ["QuantityOnHand"] = movement.QuantityOnHand,
+            ["QuantityReserved"] = movement.QuantityReservedElsewhere,
+            ["QuantityAvailable"] = free,
+        };
+
+        var rendered = messages.Render(
+            InventoryMessages.TakingReservedStock,
+            arguments,
+            MessageTarget.OnField($"Lines[{movement.LineNo}]"));
+
+        found.Add(
+            rendered.OverridePermission is { } permission
+                && heldOverridePermissions?.Contains(permission) == true
+                    ? messages.AsOverridden(rendered)
+                    : rendered);
+    }
+
 
     private void CheckMovement(
         MovementView movement,

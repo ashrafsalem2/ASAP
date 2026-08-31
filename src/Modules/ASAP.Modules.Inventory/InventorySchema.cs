@@ -149,6 +149,201 @@ public sealed partial class InventorySchema : IModuleSchema
             builder.HasIndex(v => new { v.CompanyId, v.Barcode });
         });
 
+        modelBuilder.Entity<Reservations.StockReservation>(builder =>
+
+        {
+
+            builder.ToTable("StockReservations", SchemaName);
+
+
+            builder.Property(r => r.ItemNo).HasMaxLength(32).IsRequired();
+
+            builder.Property(r => r.VariantCode).HasMaxLength(32);
+
+            builder.Property(r => r.LocationCode).HasMaxLength(20).IsRequired();
+
+            builder.Property(r => r.DocumentNo).HasMaxLength(20).IsRequired();
+
+            builder.Property(r => r.SourceCode).HasMaxLength(20);
+
+            builder.Property(r => r.ReleaseReason).HasMaxLength(500);
+
+            builder.Property(r => r.Note).HasMaxLength(500);
+
+            builder.Property(r => r.Quantity).HasColumnType(DecimalPrecisionConventions.Quantity);
+
+            builder.Property(r => r.QuantityOutstanding).HasColumnType(DecimalPrecisionConventions.Quantity);
+
+            builder.Property(r => r.RowVersion).IsRowVersion();
+
+
+            // Every availability check sums along this one, on every line of every stock movement.
+
+            builder.HasIndex(r => new { r.ItemId, r.VariantId, r.LocationId, r.QuantityOutstanding });
+
+
+            // And releasing and consuming both start from the document.
+
+            builder.HasIndex(r => new { r.CompanyId, r.DocumentNo });
+
+
+            builder.Ignore(r => r.QuantityFulfilled);
+
+            builder.Ignore(r => r.IsOutstanding);
+
+        });
+
+
+        modelBuilder.Entity<Reservations.StockReservation>(builder =>
+
+
+        {
+
+
+            builder.ToTable("StockReservations", SchemaName);
+
+
+
+            builder.Property(r => r.ItemNo).HasMaxLength(32).IsRequired();
+
+
+            builder.Property(r => r.VariantCode).HasMaxLength(32);
+
+
+            builder.Property(r => r.LocationCode).HasMaxLength(20).IsRequired();
+
+
+            builder.Property(r => r.DocumentNo).HasMaxLength(20).IsRequired();
+
+
+            builder.Property(r => r.SourceCode).HasMaxLength(20);
+
+
+            builder.Property(r => r.ReleaseReason).HasMaxLength(500);
+
+
+            builder.Property(r => r.Note).HasMaxLength(500);
+
+
+            builder.Property(r => r.Quantity).HasColumnType(DecimalPrecisionConventions.Quantity);
+
+
+            builder.Property(r => r.QuantityOutstanding).HasColumnType(DecimalPrecisionConventions.Quantity);
+
+
+            builder.Property(r => r.RowVersion).IsRowVersion();
+
+
+
+            // Every availability check sums along this one, on every line of every stock movement.
+
+
+            builder.HasIndex(r => new { r.ItemId, r.VariantId, r.LocationId, r.QuantityOutstanding });
+
+
+
+            // And releasing and consuming both start from the document.
+
+
+            builder.HasIndex(r => new { r.CompanyId, r.DocumentNo });
+
+
+
+            builder.Ignore(r => r.QuantityFulfilled);
+
+
+            builder.Ignore(r => r.IsOutstanding);
+
+
+        });
+
+
+
+        modelBuilder.Entity<Reservations.StockReservation>(builder =>
+
+
+
+        {
+
+
+
+            builder.ToTable("StockReservations", SchemaName);
+
+
+
+
+            builder.Property(r => r.ItemNo).HasMaxLength(32).IsRequired();
+
+
+
+            builder.Property(r => r.VariantCode).HasMaxLength(32);
+
+
+
+            builder.Property(r => r.LocationCode).HasMaxLength(20).IsRequired();
+
+
+
+            builder.Property(r => r.DocumentNo).HasMaxLength(20).IsRequired();
+
+
+
+            builder.Property(r => r.SourceCode).HasMaxLength(20);
+
+
+
+            builder.Property(r => r.ReleaseReason).HasMaxLength(500);
+
+
+
+            builder.Property(r => r.Note).HasMaxLength(500);
+
+
+
+            builder.Property(r => r.Quantity).HasColumnType(DecimalPrecisionConventions.Quantity);
+
+
+
+            builder.Property(r => r.QuantityOutstanding).HasColumnType(DecimalPrecisionConventions.Quantity);
+
+
+
+            builder.Property(r => r.RowVersion).IsRowVersion();
+
+
+
+
+            // Every availability check sums along this one, on every line of every stock movement.
+
+
+
+            builder.HasIndex(r => new { r.ItemId, r.VariantId, r.LocationId, r.QuantityOutstanding });
+
+
+
+
+            // And releasing and consuming both start from the document.
+
+
+
+            builder.HasIndex(r => new { r.CompanyId, r.DocumentNo });
+
+
+
+
+            builder.Ignore(r => r.QuantityFulfilled);
+
+
+
+            builder.Ignore(r => r.IsOutstanding);
+
+
+
+        });
+
+
+
+
         modelBuilder.Entity<Adjustments.AdjustmentReason>(builder =>
         {
             builder.ToTable("AdjustmentReasons", SchemaName);

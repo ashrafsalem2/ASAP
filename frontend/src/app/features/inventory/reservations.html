@@ -1,0 +1,163 @@
+<div class="page">
+  <h1>{{ t('inventory.reservations.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('inventory.reservations.intro') }}</p>
+    <p class="panel__body hint">{{ t('inventory.reservations.refusalHint') }}</p>
+    <p class="panel__body hint">{{ t('inventory.reservations.strandedHint') }}</p>
+  </section>
+
+  @if (loading()) {
+    <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+  } @else {
+    <section class="panel">
+      <h2 class="panel__title">{{ t('inventory.reservations.availabilityTitle') }}</h2>
+
+      <div class="panel__body form-row">
+        <label>
+          {{ t('inventory.reservations.item') }}
+          <input type="text" [(ngModel)]="itemFilter" name="itemFilter" (change)="refresh()" />
+        </label>
+      </div>
+
+      @if (availability().length === 0) {
+        <p class="empty">{{ t('inventory.reservations.nothingOnHand') }}</p>
+      } @else {
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('inventory.reservations.item') }}</th>
+                <th>{{ t('inventory.reservations.location') }}</th>
+                <th>{{ t('inventory.reservations.variant') }}</th>
+                <th class="numeric">{{ t('inventory.reservations.onHand') }}</th>
+                <th class="numeric">{{ t('inventory.reservations.reserved') }}</th>
+                <th class="numeric">{{ t('inventory.reservations.available') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of availability(); track row.itemNo + row.locationCode + row.variantCode) {
+                <tr>
+                  <td class="code">{{ row.itemNo }}</td>
+                  <td>{{ row.locationCode }}</td>
+                  <td>{{ row.variantCode || '—' }}</td>
+                  <td class="numeric">{{ row.quantityOnHand }}</td>
+                  <td class="numeric">{{ row.quantityReserved }}</td>
+                  <td class="numeric">
+                    {{ row.quantityAvailable }}
+                    @if (isOverPromised(row)) {
+                      <span class="badge">{{ t('inventory.reservations.overPromised') }}</span>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">{{ t('inventory.reservations.heldTitle') }}</h2>
+
+      <div class="panel__body form-row">
+        <label class="check">
+          <input type="checkbox" [(ngModel)]="showSpent" name="showSpent" (change)="refresh()" />
+          {{ t('inventory.reservations.showSpent') }}
+        </label>
+        @if (canWrite()) {
+          <label>
+            {{ t('inventory.reservations.releaseReason') }}
+            <input
+              type="text"
+              [(ngModel)]="releaseReason"
+              name="releaseReason"
+              [placeholder]="t('inventory.reservations.releaseReasonPlaceholder')"
+            />
+          </label>
+        }
+      </div>
+
+      @if (held().length === 0) {
+        <p class="empty">{{ t('inventory.reservations.nothingHeld') }}</p>
+      } @else {
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('inventory.reservations.item') }}</th>
+                <th>{{ t('inventory.reservations.location') }}</th>
+                <th>{{ t('inventory.reservations.document') }}</th>
+                <th class="numeric">{{ t('inventory.reservations.line') }}</th>
+                <th class="numeric">{{ t('inventory.reservations.quantity') }}</th>
+                <th class="numeric">{{ t('inventory.reservations.outstanding') }}</th>
+                <th class="numeric">{{ t('inventory.reservations.fulfilled') }}</th>
+                <th>{{ t('inventory.reservations.note') }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of held(); track row.documentNo + row.itemNo + row.documentLineNo) {
+                <tr>
+                  <td class="code">{{ row.itemNo }}</td>
+                  <td>{{ row.locationCode }}</td>
+                  <td class="code">{{ row.documentNo }}</td>
+                  <td class="numeric">{{ row.documentLineNo || '—' }}</td>
+                  <td class="numeric">{{ row.quantity }}</td>
+                  <td class="numeric">{{ row.quantityOutstanding }}</td>
+                  <td class="numeric">{{ row.quantityFulfilled }}</td>
+                  <td>{{ row.releaseReason || row.note || '' }}</td>
+                  <td>
+                    @if (canWrite() && row.quantityOutstanding > 0) {
+                      <button
+                        type="button"
+                        class="button button--quiet"
+                        [disabled]="busy() !== null"
+                        (click)="release(row)"
+                      >
+                        {{ t('inventory.reservations.release') }}
+                      </button>
+                    }
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+
+    @if (canWrite()) {
+      <section class="panel">
+        <h2 class="panel__title">{{ t('inventory.reservations.reserve') }}</h2>
+
+        <div class="panel__body form-row">
+          <label>
+            {{ t('inventory.reservations.item') }}
+            <input type="text" [(ngModel)]="reserveItemNo" name="reserveItemNo" />
+          </label>
+          <label>
+            {{ t('inventory.reservations.location') }}
+            <input type="text" [(ngModel)]="reserveLocationCode" name="reserveLocationCode" />
+          </label>
+          <label>
+            {{ t('inventory.reservations.quantity') }}
+            <input type="number" [(ngModel)]="reserveQuantity" name="reserveQuantity" />
+          </label>
+          <label>
+            {{ t('inventory.reservations.document') }}
+            <input type="text" [(ngModel)]="reserveDocumentNo" name="reserveDocumentNo" />
+          </label>
+          <button
+            type="button"
+            class="button button--primary"
+            [disabled]="busy() !== null"
+            (click)="reserve()"
+          >
+            {{ t('inventory.reservations.reserve') }}
+          </button>
+        </div>
+      </section>
+    }
+  }
+</div>

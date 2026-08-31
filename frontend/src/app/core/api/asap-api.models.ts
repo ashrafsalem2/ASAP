@@ -174,6 +174,43 @@ export interface StockLocation {
   usesBins: boolean;
 }
 
+/** What is on the shelf and how much of it is still free. */
+export interface StockAvailabilityRow {
+  itemNo: string;
+  locationCode: string;
+  variantCode?: string | null;
+  quantityOnHand: number;
+  quantityReserved: number;
+  quantityAvailable: number;
+}
+
+/** Stock held for one document. */
+export interface StockReservationRow {
+  itemNo: string;
+  variantCode?: string | null;
+  locationCode: string;
+  documentNo: string;
+  documentLineNo?: number | null;
+  sourceCode?: string | null;
+  quantity: number;
+  quantityOutstanding: number;
+  quantityFulfilled: number;
+  releaseReason?: string | null;
+  note?: string | null;
+}
+
+/** What a client sends to hold stock for a document. */
+export interface ReserveStockRequest {
+  itemNo: string;
+  locationCode: string;
+  quantity: number;
+  documentNo: string;
+  documentLineNo?: number | null;
+  variantCode?: string | null;
+  sourceCode?: string | null;
+  note?: string | null;
+}
+
 /** Where a quote stands. */
 export type SalesQuoteStatus = 'Draft' | 'Sent' | 'Accepted' | 'Declined' | 'Expired';
 

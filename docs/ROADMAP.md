@@ -193,7 +193,22 @@ Everything else posts here, so it goes first.
   gap would otherwise be exactly the entries nobody explained. A limit per reason still to come
 - **done** Transfer orders, in-transit tracking, shipment and receipt including short receipts
   (transfer *requests* — a branch asking rather than being sent — still to come)
-- Reorder policy, reservations, item availability
+- **done** Reservations and item availability. A reservation posts nothing, values nothing and
+  does not change what is on hand by a unit -- what it changes is what is *available*, and the gap
+  between those two is the point: on hand is a fact about the shelf, available is that fact less
+  what has already been promised. Reserving more than is free is refused rather than warned about,
+  which is a deliberate difference from selling into negative stock and turns on who is standing
+  there: a sale below zero is a decision made with a customer in front of you and the goods
+  visible, a reservation is planning made at a desk with nobody waiting. Shipping stock promised
+  to another document is blocked and overridable with the stock override -- the goods are on the
+  shelf and a shop must be able to sell what it can see, but the order that was promised them must
+  not find out at the loading bay. Consumption happens inside the posting engine rather than in
+  whoever ships, so it works whichever door the goods leave by. Releasing keeps the row and its
+  reason, because a reservation that vanished could not say why an order went unfilled. An order
+  holds stock when somebody asks it to, not when it is released: reserving automatically would put
+  every released order into competition for the same stock whether or not anybody wanted that. A
+  per-item always-reserve policy, and reserving against goods not yet received, still to come
+- Reorder policy
 - **done** Inventory-to-finance posting through a kernel event, with expected cost held back
 - *in progress* Reports: **stock on hand by location done**, with below-zero balances flagged and
   their estimated costs settleable from the screen; valuation, velocity, ageing to come

@@ -1,6 +1,7 @@
 using ASAP.Modules.Finance.Parties;
 using ASAP.Modules.Inventory;
 using ASAP.Modules.Inventory.Items;
+using ASAP.Modules.Inventory.Reservations;
 using ASAP.Modules.Inventory.Locations;
 using ASAP.Modules.Sales.Orders;
 using ASAP.Modules.Sales.Pricing;
@@ -378,6 +379,7 @@ public sealed class SalesQuoteTests : IDisposable
             new StubUser(),
             _clock,
             new PricingService(context, catalog, _tenancy),
+            new StockReservationService(context, catalog, _tenancy, NullLogger<StockReservationService>.Instance),
             NullLogger<SalesOrderService>.Instance);
 
         return new SalesQuoteService(

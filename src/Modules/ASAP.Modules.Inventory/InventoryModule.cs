@@ -71,6 +71,9 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddScoped<Locations.LocationBranchLookup>();
+
+
+        services.AddScoped<Reservations.StockReservationService>();
         services.AddScoped<StockAvailability>();
         services.AddScoped<Posting.StockPostingService>();
         services.AddScoped<CostSettlementService>();
@@ -89,6 +92,22 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
     /// <inheritdoc />
     public IReadOnlyCollection<PermissionDescriptor> Permissions =>
     [
+        PermissionDescriptor.Define(
+            Id, "Reservation", PermissionAction.Read,
+            new LocalizedText("View what stock is held", "عرض المخزون المحجوز")),
+
+        PermissionDescriptor.Define(
+            Id, "Reservation", PermissionAction.Update,
+            new LocalizedText("Hold and release stock", "حجز المخزون وتحريره"),
+            new LocalizedText(
+                "Holding stock promises it to one document and takes it away from every other. "
+                + "It moves nothing, which is exactly why it is worth a permission: nothing "
+                + "posts and nothing looks wrong until the goods are wanted.",
+                "حجز المخزون يعده لمستند واحد ويمنعه عن كل ما سواه. وهو لا يحرك شيئًا، ولهذا "
+                + "تحديدًا يستحق صلاحية: فلا يُرحَّل شيء ولا يبدو شيء خطأً حتى تُطلب البضاعة."),
+            implies: [$"{Id}.Reservation.Read"]),
+
+
         PermissionDescriptor.Define(
             Id, "Item", PermissionAction.Read,
             new LocalizedText("View items", "عرض الأصناف")),
@@ -446,6 +465,18 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
             Route = "/inventory/counts",
             RequiresPermission = $"{Id}.Count.Read",
             Order = 35,
+        },
+        new()
+        {
+            Id = "Inventory.Reservations",
+            Module = Id,
+            ParentId = "Inventory.Root",
+            DisplayName = new LocalizedText("Reserved stock", "المخزون المحجوز"),
+            Kind = NavigationKind.Page,
+            Route = "/inventory/reservations",
+            RequiresPermission = $"{Id}.Reservation.Read",
+            Order = 35,
+            HelpTopic = "inventory/reservations",
         },
         new()
         {

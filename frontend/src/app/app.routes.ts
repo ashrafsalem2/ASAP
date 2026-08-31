@@ -59,6 +59,12 @@ export const routes: Routes = [
           import('./features/inventory/adjustment-reasons').then((m) => m.AdjustmentReasons),
       },
       {
+        path: 'inventory/reservations',
+        canActivate: [requirePermission('Inventory.Reservation.Read')],
+        loadComponent: () =>
+          import('./features/inventory/reservations').then((m) => m.Reservations),
+      },
+      {
         path: 'inventory/bins',
         canActivate: [requirePermission('Inventory.Bin.Read')],
         loadComponent: () => import('./features/inventory/bins').then((m) => m.Bins),

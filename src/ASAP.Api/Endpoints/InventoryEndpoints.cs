@@ -7,6 +7,7 @@ using ASAP.Modules.Inventory.Items;
 using ASAP.Modules.Inventory.Ledger;
 using ASAP.Modules.Inventory.Locations;
 using ASAP.Modules.Inventory.Posting;
+using ASAP.Modules.Inventory.Reservations;
 using ASAP.Platform.Kernel.Security;
 using ASAP.Platform.Kernel.Setup;
 using ASAP.Platform.Kernel.Time;
@@ -54,6 +55,54 @@ public sealed record StockOnHandRow(
     string LocationCode,
     decimal Quantity,
     bool IsNegative);
+
+/// <summary>What a client sends to hold stock for a document.</summary>
+/// <param name="ItemNo">What to hold.</param>
+/// <param name="LocationCode">Where it is being held.</param>
+/// <param name="Quantity">How much. Always positive.</param>
+/// <param name="DocumentNo">What it is being held for.</param>
+/// <param name="DocumentLineNo">Which line of that document.</param>
+/// <param name="VariantCode">Which variant, on an item that has them.</param>
+/// <param name="SourceCode">Which module the document belongs to.</param>
+/// <param name="Note">Why, where it is worth saying.</param>
+public sealed record ReserveStockRequest(
+    string ItemNo,
+    string LocationCode,
+    decimal Quantity,
+    string DocumentNo,
+    int? DocumentLineNo = null,
+    string? VariantCode = null,
+    string? SourceCode = null,
+    string? Note = null);
+
+/// <summary>What a client sends to let held stock go.</summary>
+/// <param name="Reason">Why.</param>
+public sealed record ReleaseStockRequest(string? Reason = null);
+
+/// <summary>One reservation as it is reported back.</summary>
+/// <param name="ItemNo">The item held.</param>
+/// <param name="VariantCode">Which variant, where the item has them.</param>
+/// <param name="LocationCode">Where.</param>
+/// <param name="DocumentNo">What it is held for.</param>
+/// <param name="DocumentLineNo">Which line of that document.</param>
+/// <param name="SourceCode">Which module the document belongs to.</param>
+/// <param name="Quantity">How much was held to begin with.</param>
+/// <param name="QuantityOutstanding">How much is still held.</param>
+/// <param name="QuantityFulfilled">How much has gone against it.</param>
+/// <param name="ReleaseReason">Why it was let go, where somebody said.</param>
+/// <param name="Note">The note on it.</param>
+public sealed record StockReservationRow(
+    string ItemNo,
+    string? VariantCode,
+    string LocationCode,
+    string DocumentNo,
+    int? DocumentLineNo,
+    string? SourceCode,
+    decimal Quantity,
+    decimal QuantityOutstanding,
+    decimal QuantityFulfilled,
+    string? ReleaseReason,
+    string? Note);
 
 /// <summary>What a client sends to move stock.</summary>
 /// <param name="Movements">The movements.</param>
@@ -416,6 +465,22 @@ public static class InventoryEndpoints
              .WithName("Locations")
              .WithSummary("Lists the locations stock can be held at.");
 
+        group.MapGet("/stock/available", AvailableAsync)
+             .WithName("StockAvailable")
+             .WithSummary("What is on hand, what is promised, and what is left to promise.");
+
+        group.MapGet("/reservations", ReservationsAsync)
+             .WithName("StockReservations")
+             .WithSummary("What stock is being held, and for what.");
+
+        group.MapPost("/reservations", ReserveAsync)
+             .WithName("ReserveStock")
+             .WithSummary("Holds stock for a document. Moves nothing.");
+
+        group.MapPost("/reservations/{documentNo}/release", ReleaseReservationAsync)
+             .WithName("ReleaseStock")
+             .WithSummary("Lets held stock go, and keeps the record of what was held.");
+
         group.MapGet("/stock/on-hand", OnHandAsync)
              .WithName("StockOnHand")
              .WithSummary("Reports what is on hand, by item and location.");
@@ -598,6 +663,132 @@ public static class InventoryEndpoints
     /// location and the question people actually ask is about one shelf. Balances that have gone
     /// below zero are flagged rather than hidden: they are the ones waiting for goods to arrive.
     /// </remarks>
+    private static async Task<IResult> AvailableAsync(
+        StockReservationService reservations,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken,
+        [FromQuery] string? itemNo = null,
+        [FromQuery] string? locationCode = null)
+    {
+        if (!user.IsSuperUser && !user.Has("Inventory.Reservation.Read"))
+        {
+            return Results.Json(
+                AsapProblem.Forbidden("Inventory.Reservation.Read", "view what stock is free", http.Request.Path),
+                statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        return Results.Ok(await reservations
+            .AvailabilityAsync(itemNo, locationCode, cancellationToken)
+            .ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> ReservationsAsync(
+        StockReservationService reservations,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken,
+        [FromQuery] string? documentNo = null,
+        [FromQuery] string? itemNo = null,
+        [FromQuery] bool outstandingOnly = true)
+    {
+        if (!user.IsSuperUser && !user.Has("Inventory.Reservation.Read"))
+        {
+            return Results.Json(
+                AsapProblem.Forbidden("Inventory.Reservation.Read", "view reservations", http.Request.Path),
+                statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        var held = await reservations
+            .ListAsync(documentNo, itemNo, outstandingOnly, cancellationToken)
+            .ConfigureAwait(false);
+
+        return Results.Ok(held.Select(static r => new StockReservationRow(
+            r.ItemNo,
+            r.VariantCode,
+            r.LocationCode,
+            r.DocumentNo,
+            r.DocumentLineNo,
+            r.SourceCode,
+            r.Quantity,
+            r.QuantityOutstanding,
+            r.QuantityFulfilled,
+            r.ReleaseReason,
+            r.Note)));
+    }
+
+    private static async Task<IResult> ReserveAsync(
+        ReserveStockRequest request,
+        StockReservationService reservations,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!user.IsSuperUser && !user.Has("Inventory.Reservation.Update"))
+        {
+            return Results.Json(
+                AsapProblem.Forbidden("Inventory.Reservation.Update", "hold stock", http.Request.Path),
+                statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        var result = await reservations
+            .ReserveAsync(
+                request.ItemNo,
+                request.LocationCode,
+                request.Quantity,
+                request.DocumentNo,
+                request.DocumentLineNo,
+                request.VariantCode,
+                request.SourceCode,
+                request.Note,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed
+            ? Results.Json(
+                AsapProblem.From(result, AsapProblem.StatusFor(result.Messages), http.Request.Path),
+                statusCode: AsapProblem.StatusFor(result.Messages))
+            : Results.Ok(new StockReservationRow(
+                result.Value.ItemNo,
+                result.Value.VariantCode,
+                result.Value.LocationCode,
+                result.Value.DocumentNo,
+                result.Value.DocumentLineNo,
+                result.Value.SourceCode,
+                result.Value.Quantity,
+                result.Value.QuantityOutstanding,
+                result.Value.QuantityFulfilled,
+                result.Value.ReleaseReason,
+                result.Value.Note));
+    }
+
+    private static async Task<IResult> ReleaseReservationAsync(
+        string documentNo,
+        ReleaseStockRequest request,
+        StockReservationService reservations,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken,
+        [FromQuery] int? lineNo = null)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!user.IsSuperUser && !user.Has("Inventory.Reservation.Update"))
+        {
+            return Results.Json(
+                AsapProblem.Forbidden("Inventory.Reservation.Update", "release stock", http.Request.Path),
+                statusCode: StatusCodes.Status403Forbidden);
+        }
+
+        var released = await reservations
+            .ReleaseAsync(documentNo, lineNo, request.Reason, cancellationToken)
+            .ConfigureAwait(false);
+
+        return Results.Ok(new { released });
+    }
+
     private static async Task<IResult> OnHandAsync(
         AsapDbContext context,
         [FromQuery] string? itemNo,

@@ -8,6 +8,18 @@ namespace ASAP.Modules.Inventory;
 public static class InventoryMessages
 {
     /// <summary>Nothing in this company carries that barcode.</summary>
+    /// <summary>More was asked for than is free to promise.</summary>
+    public static readonly MessageCode NotEnoughToReserve = new("INV.RESERVE.NOT_ENOUGH");
+
+    /// <summary>A reservation asked for nothing.</summary>
+    public static readonly MessageCode ReservationQuantityZero = new("INV.RESERVE.QUANTITY_ZERO");
+
+    /// <summary>A reservation named no document to hold the stock for.</summary>
+    public static readonly MessageCode ReservationNeedsADocument = new("INV.RESERVE.NO_DOCUMENT");
+
+    /// <summary>Stock is going out that somebody else has been promised.</summary>
+    public static readonly MessageCode TakingReservedStock = new("INV.RESERVE.TAKING_RESERVED");
+
     public static readonly MessageCode BarcodeNotFound = new("INV.BARCODE.NOT_FOUND");
 
     /// <summary>A unit was named for an item that has no such unit set up.</summary>
@@ -205,6 +217,83 @@ public static class InventoryMessages
     /// <summary>Every message the module declares.</summary>
     public static IReadOnlyCollection<MessageDefinition> All { get; } =
     [
+        new()
+        {
+            Code = NotEnoughToReserve,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Not enough free to hold", "لا يكفي المتاح للحجز"),
+            Detail = new LocalizedText(
+                "{DocumentNo} asks to hold {Wanted:0.#####} of {ItemNo} at {Location}, and only "
+                + "{QuantityAvailable:0.#####} is free -- {QuantityOnHand:0.#####} on hand with "
+                + "{QuantityReserved:0.#####} already promised.",
+                "يطلب {DocumentNo} حجز {Wanted:0.#####} من {ItemNo} في {Location}، والمتاح فقط "
+                + "{QuantityAvailable:0.#####} — {QuantityOnHand:0.#####} موجود منها "
+                + "{QuantityReserved:0.#####} موعود بها."),
+            Resolution = new LocalizedText(
+                "Hold what is free, or release something. Reserving is refused rather than "
+                + "warned about, unlike selling into negative stock: a sale below zero is a "
+                + "decision somebody makes with a customer in front of them, and a reservation "
+                + "is planning made at a desk with nobody waiting. A promise against stock that "
+                + "is not there is not a promise.",
+                "احجز المتاح، أو حرّر شيئًا. والحجز يُرفض ولا يُنبَّه عليه، خلافًا للبيع بمخزون "
+                + "سالب: فالبيع تحت الصفر قرار يتخذه أحدهم والعميل أمامه، والحجز تخطيط يجري على "
+                + "مكتب ولا أحد ينتظر. والوعد بمخزون غير موجود ليس وعدًا."),
+            HelpTopic = "inventory/reservations",
+        },
+        new()
+        {
+            Code = ReservationQuantityZero,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Say how much", "حدّد الكمية"),
+            Detail = new LocalizedText(
+                "A reservation for {ItemNo} asked to hold nothing.",
+                "طلب حجز للصنف {ItemNo} دون كمية."),
+            Resolution = new LocalizedText(
+                "Give it a quantity above nought. To let stock go, release it rather than "
+                + "reserving nought of it.",
+                "امنحه كمية أكبر من صفر. ولتحرير المخزون حرّره بدل حجز صفر منه."),
+            HelpTopic = "inventory/reservations",
+        },
+        new()
+        {
+            Code = ReservationNeedsADocument,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Say what it is for", "حدّد لأي مستند"),
+            Detail = new LocalizedText(
+                "A reservation for {ItemNo} named no document.",
+                "لم يحدد حجز الصنف {ItemNo} أي مستند."),
+            Resolution = new LocalizedText(
+                "Name the order the stock is being held for. Stock held for nothing in "
+                + "particular can never be released by the thing that finished with it, and it "
+                + "stays held until somebody notices.",
+                "حدّد الأمر الذي يُحجز المخزون له. فالمخزون المحجوز بلا سبب معيّن لا يستطيع "
+                + "تحريره ما فرغ منه، ويبقى محجوزًا حتى ينتبه أحد."),
+            HelpTopic = "inventory/reservations",
+        },
+        new()
+        {
+            Code = TakingReservedStock,
+            Severity = MessageSeverity.Blocked,
+            OverridePermission = "Inventory.Stock.Override",
+            Title = new LocalizedText("Promised to somebody else", "موعود به لغيره"),
+            Detail = new LocalizedText(
+                "Line {LineNo} takes {Quantity:0.#####} of {ItemNo} from {Location}, where "
+                + "{QuantityReserved:0.#####} of the {QuantityOnHand:0.#####} on hand is held for "
+                + "another document and only {QuantityAvailable:0.#####} is free.",
+                "يأخذ السطر {LineNo} كمية {Quantity:0.#####} من {ItemNo} من {Location}، وفيه "
+                + "{QuantityReserved:0.#####} من {QuantityOnHand:0.#####} الموجودة محجوزة "
+                + "لمستند آخر ولا يتوفر إلا {QuantityAvailable:0.#####}."),
+            Resolution = new LocalizedText(
+                "Take what is free, or release the reservation first. Somebody who holds the "
+                + "stock override may take it anyway and it will be recorded -- the goods are on "
+                + "the shelf and a shop must be able to sell them, but the order that was "
+                + "promised them will find out at the loading bay rather than here.",
+                "خذ المتاح، أو حرّر الحجز أولًا. ومن يملك تجاوز المخزون يستطيع أخذه على أي حال "
+                + "ويُسجَّل ذلك — فالبضاعة على الرف ولا بد أن يستطيع المحل بيعها، لكن الأمر الذي "
+                + "وُعد بها سيكتشف ذلك عند رصيف التحميل لا هنا."),
+            HelpTopic = "inventory/reservations",
+        },
+
         new()
         {
             Code = BarcodeNotFound,

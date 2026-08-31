@@ -139,7 +139,8 @@ public sealed partial class StockPostingService(
     {
         ArgumentNullException.ThrowIfNull(requests);
 
-        var resolved = await ResolveAsync(requests, reasonRequired, cancellationToken).ConfigureAwait(false);
+        var resolved = await ResolveAsync(requests, reasonRequired, documentNo, cancellationToken)
+            .ConfigureAwait(false);
 
         if (resolved.Failed)
         {
@@ -212,6 +213,9 @@ public sealed partial class StockPostingService(
                 outcome.CostAmount - outcome.EstimatedCostAmount,
                 request.ContraAccountNo ?? movement.ContraAccountNo));
         }
+
+        await ConsumeReservationsAsync(requests, movements, documentNo, cancellationToken)
+            .ConfigureAwait(false);
 
         await RequestLedgerPostingAsync(
                 settledByEntry,
@@ -579,6 +583,7 @@ public sealed partial class StockPostingService(
     private async Task<Result<List<MovementView>>> ResolveAsync(
         IReadOnlyList<StockMovementRequest> requests,
         bool reasonRequired,
+        string? documentNo,
         CancellationToken cancellationToken)
     {
         var itemNos = requests.Select(static r => r.ItemNo).Distinct().ToList();
@@ -592,6 +597,29 @@ public sealed partial class StockPostingService(
         var locations = await context.Set<Location>()
             .Where(l => locationCodes.Contains(l.Code))
             .ToDictionaryAsync(static l => l.Code, StringComparer.OrdinalIgnoreCase, cancellationToken)
+            .ConfigureAwait(false);
+
+        // What everybody else is holding of these items, loaded once for the whole batch. A query
+        // per line would make a hundred-line put-away sheet pay a hundred times for a question
+        // that is nearly always answered "nothing".
+        var reservedElsewhere = await context.Set<Reservations.StockReservation>()
+            .AsNoTracking()
+            .Where(r => r.QuantityOutstanding > 0m
+                && itemNos.Contains(r.ItemNo)
+                && locationCodes.Contains(r.LocationCode)
+                && (documentNo == null || r.DocumentNo != documentNo))
+            .GroupBy(static r => new { r.ItemId, r.VariantId, r.LocationId })
+            .Select(static g => new
+            {
+                g.Key.ItemId,
+                g.Key.VariantId,
+                g.Key.LocationId,
+                Quantity = g.Sum(static r => r.QuantityOutstanding),
+            })
+            .ToDictionaryAsync(
+                static g => (g.ItemId, g.VariantId, g.LocationId),
+                static g => g.Quantity,
+                cancellationToken)
             .ConfigureAwait(false);
 
         // Every bin at every location on this posting, loaded once. A warehouse posting is the
@@ -748,6 +776,8 @@ public sealed partial class StockPostingService(
                 BinQuantityOnHand = inBin,
                 BinsHoldingIt = elsewhere,
                 ContraAccountNo = ContraFor(request, reasons),
+                QuantityReservedElsewhere = reservedElsewhere.GetValueOrDefault(
+                    (item.Id, variantResult.VariantId, location.Id)),
                 VariantId = variantResult.VariantId,
                 VariantCode = variantResult.VariantCode,
                 VariantUnitCost = variantResult.LastDirectCost,
@@ -1150,6 +1180,73 @@ public sealed partial class StockPostingService(
     /// Summed from the ledger rather than read off the item, because the item carries a total
     /// across every location and the question here is about one shelf.
     /// </remarks>
+
+    /// <summary>
+    /// Takes goods off the reservations the document itself made.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Done here rather than by whoever ships, so it happens whichever door the goods leave by --
+    /// a sales shipment, a transfer, a till. A shipment that consumed nothing would leave the
+    /// order still holding stock it had already taken, and the same units would read as reserved
+    /// and gone at once.
+    /// </para>
+    /// <para>
+    /// Taking more than was held is not an error. An order may reserve five and ship ten: the
+    /// five it never reserved were simply never held, the reservation falls to nought, and the
+    /// rest comes off free stock like anything else.
+    /// </para>
+    /// </remarks>
+    private async Task ConsumeReservationsAsync(
+        IReadOnlyList<StockMovementRequest> requests,
+        IReadOnlyList<MovementView> movements,
+        string? documentNo,
+        CancellationToken cancellationToken)
+    {
+        if (string.IsNullOrWhiteSpace(documentNo) || !requests.Any(static r => r.Quantity < 0m))
+        {
+            return;
+        }
+
+        var held = await context.Set<Reservations.StockReservation>()
+            .Where(r => r.DocumentNo == documentNo && r.QuantityOutstanding > 0m)
+            .OrderBy(r => r.DocumentLineNo)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (held.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var (request, movement) in requests.Zip(movements))
+        {
+            if (request.Quantity >= 0m)
+            {
+                continue;
+            }
+
+            var remaining = -request.Quantity;
+
+            foreach (var reservation in held.Where(r =>
+                r.QuantityOutstanding > 0m
+                && string.Equals(r.ItemNo, movement.Item.ItemNo, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(r.LocationCode, movement.Location.Code, StringComparison.OrdinalIgnoreCase)
+                && r.VariantId == movement.VariantId))
+            {
+                if (remaining <= 0m)
+                {
+                    break;
+                }
+
+                var taken = Math.Min(remaining, reservation.QuantityOutstanding);
+
+                reservation.QuantityOutstanding -= taken;
+                remaining -= taken;
+            }
+        }
+    }
+
     private async Task<decimal> OnHandAsync(
         Guid itemId,
         Guid? variantId,

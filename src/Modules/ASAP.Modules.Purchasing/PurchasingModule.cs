@@ -59,6 +59,7 @@ public sealed class PurchasingModule : IAsapModule
 
         services.AddScoped<Orders.PurchaseReturnService>();
         services.AddScoped<Requisitions.PurchaseRequisitionService>();
+        services.AddScoped<Replenishment.ReplenishmentService>();
         services.AddScoped<Quotations.PurchaseQuotationService>();
 
 
@@ -370,6 +371,18 @@ public sealed class PurchasingModule : IAsapModule
             RequiresPermission = $"{Id}.Quotation.Read",
             Order = 6,
             HelpTopic = "purchasing/quotations",
+        },
+        new()
+        {
+            Id = "Purchasing.Replenishment",
+            Module = Id,
+            ParentId = "Purchasing.Root",
+            DisplayName = new LocalizedText("Replenishment worksheet", "ورقة عمل التموين"),
+            Kind = NavigationKind.Page,
+            Route = "/purchasing/replenishment",
+            RequiresPermission = $"{Id}.Requisition.Read",
+            Order = 4,
+            HelpTopic = "purchasing/replenishment",
         },
         new()
         {

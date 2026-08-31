@@ -65,6 +65,12 @@ export const routes: Routes = [
           import('./features/inventory/stock-analysis').then((m) => m.StockAnalysis),
       },
       {
+        path: 'inventory/reorder-policies',
+        canActivate: [requirePermission('Inventory.Item.Read')],
+        loadComponent: () =>
+          import('./features/inventory/reorder-policies').then((m) => m.ReorderPolicies),
+      },
+      {
         path: 'inventory/reservations',
         canActivate: [requirePermission('Inventory.Reservation.Read')],
         loadComponent: () =>
@@ -219,6 +225,12 @@ export const routes: Routes = [
         canActivate: [requirePermission('Purchasing.Quotation.Read')],
         loadComponent: () =>
           import('./features/purchasing/quotations').then((m) => m.Quotations),
+      },
+      {
+        path: 'purchasing/replenishment',
+        canActivate: [requirePermission('Purchasing.Requisition.Read')],
+        loadComponent: () =>
+          import('./features/purchasing/replenishment').then((m) => m.Replenishment),
       },
       {
         path: 'purchasing/requisitions',

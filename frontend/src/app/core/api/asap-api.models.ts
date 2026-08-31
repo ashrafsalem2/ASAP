@@ -164,6 +164,43 @@ export interface Item {
 }
 
 /** A place stock is held. */
+/** How much to order when stock runs down. */
+export type ReorderKind = 'FixedQuantity' | 'UpToMaximum';
+
+/** When to reorder an item at one place, and how much. */
+export interface ReorderPolicyRow {
+  itemNo: string;
+  itemName: string;
+  locationCode: string;
+  variantCode?: string | null;
+  kind: ReorderKind;
+  reorderPoint: number;
+  reorderQuantity: number;
+  maximumInventory: number;
+  minimumOrderQuantity: number;
+  orderMultiple: number;
+  leadTimeDays: number;
+  vendorNo?: string | null;
+  isActive: boolean;
+}
+
+/** What the worksheet says to order, and every figure behind it. */
+export interface ReplenishmentRow {
+  itemNo: string;
+  itemName: string;
+  locationCode: string;
+  variantCode?: string | null;
+  quantityOnHand: number;
+  quantityReserved: number;
+  quantityOnOrder: number;
+  projected: number;
+  reorderPoint: number;
+  suggestedQuantity: number;
+  orderByDate: string;
+  vendorNo?: string | null;
+  lastDirectCost: number;
+}
+
 export interface StockLocation {
   code: string;
   name: string;

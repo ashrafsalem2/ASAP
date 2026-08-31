@@ -76,6 +76,49 @@ public sealed partial class InventorySchema : IModuleSchema
             builder.Ignore(u => u.IsBase);
         });
 
+        modelBuilder.Entity<ReorderPolicy>(builder =>
+
+        {
+
+            builder.ToTable("ReorderPolicies", SchemaName);
+
+
+            builder.Property(p => p.ItemNo).HasMaxLength(20).IsRequired();
+
+            builder.Property(p => p.LocationCode).HasMaxLength(20).IsRequired();
+
+            builder.Property(p => p.VariantCode).HasMaxLength(20);
+
+            builder.Property(p => p.VendorNo).HasMaxLength(20);
+
+            builder.Property(p => p.ReorderPoint).HasPrecision(18, 5);
+
+            builder.Property(p => p.ReorderQuantity).HasPrecision(18, 5);
+
+            builder.Property(p => p.MaximumInventory).HasPrecision(18, 5);
+
+            builder.Property(p => p.MinimumOrderQuantity).HasPrecision(18, 5);
+
+            builder.Property(p => p.OrderMultiple).HasPrecision(18, 5);
+
+            builder.Property(p => p.RowVersion).IsRowVersion();
+
+
+            // One policy per item per place. Two would make what a shop orders depend on which row
+
+            // the worksheet read first, and the difference would show up as a stockroom nobody
+
+            // ordered.
+
+            builder.HasIndex(p => new { p.CompanyId, p.ItemNo, p.LocationCode })
+
+                   .IsUnique()
+
+                   .HasFilter("[IsDeleted] = 0");
+
+        });
+
+
         modelBuilder.Entity<Item>(builder =>
         {
             builder.ToTable("Items", SchemaName);

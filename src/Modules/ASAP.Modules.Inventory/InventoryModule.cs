@@ -73,6 +73,7 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
         services.AddScoped<Locations.LocationBranchLookup>();
 
 
+        services.AddScoped<Items.ReorderPolicyService>();
         services.AddScoped<Reservations.StockReservationService>();
         services.AddScoped<Reporting.InventoryReportService>();
         services.AddScoped<StockAvailability>();
@@ -466,6 +467,18 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
             Route = "/inventory/counts",
             RequiresPermission = $"{Id}.Count.Read",
             Order = 35,
+        },
+        new()
+        {
+            Id = "Inventory.ReorderPolicies",
+            Module = Id,
+            ParentId = "Inventory.Root",
+            DisplayName = new LocalizedText("Reorder policies", "سياسات إعادة الطلب"),
+            Kind = NavigationKind.Setup,
+            Route = "/inventory/reorder-policies",
+            RequiresPermission = $"{Id}.Item.Read",
+            Order = 36,
+            HelpTopic = "inventory/reordering",
         },
         new()
         {

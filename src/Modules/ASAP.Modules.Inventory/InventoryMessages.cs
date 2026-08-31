@@ -154,6 +154,18 @@ public static class InventoryMessages
     /// <summary>Stock has fallen to or below its reorder point.</summary>
     public static readonly MessageCode BelowReorderPoint = new("INV.ITEM.BELOW_REORDER_POINT");
 
+    /// <summary>A reorder policy names neither an item nor a place.</summary>
+    public static readonly MessageCode ReorderPolicyIncomplete = new("INV.REORDER.INCOMPLETE");
+
+    /// <summary>The maximum is below the point that triggers the order.</summary>
+    public static readonly MessageCode ReorderMaximumBelowPoint = new("INV.REORDER.MAXIMUM_BELOW_POINT");
+
+    /// <summary>An up-to-maximum policy has no maximum to order up to.</summary>
+    public static readonly MessageCode ReorderMaximumMissing = new("INV.REORDER.MAXIMUM_MISSING");
+
+    /// <summary>A fixed-quantity policy has no quantity to order.</summary>
+    public static readonly MessageCode ReorderQuantityMissing = new("INV.REORDER.QUANTITY_MISSING");
+
     /// <summary>The item is withdrawn from use.</summary>
     public static readonly MessageCode ItemBlocked = new("INV.ITEM.BLOCKED");
 
@@ -1002,6 +1014,60 @@ public static class InventoryMessages
                 + "of {ReorderPoint:0.#####}.",
                 "انخفض {ItemNo} {ItemName} إلى {BalanceQuantity:0.#####} في {Location}، مقابل حد إعادة طلب "
                 + "قدره {ReorderPoint:0.#####}."),
+        },
+        new()
+        {
+            Code = ReorderPolicyIncomplete,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("That policy has nothing to act on", "هذه السياسة بلا ما تعمل عليه"),
+            Detail = new LocalizedText(
+                "A reorder policy has to name both an item and a place.",
+                "سياسة إعادة الطلب يجب أن تسمّي الصنف والمكان معًا."),
+            Resolution = new LocalizedText(
+                "Choose the item and the location the policy is for.",
+                "اختر الصنف والموقع الذي تخصّه السياسة."),
+            HelpTopic = "inventory/reordering",
+        },
+        new()
+        {
+            Code = ReorderMaximumBelowPoint,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("The maximum is below the reorder point", "الحد الأقصى دون حد إعادة الطلب"),
+            Detail = new LocalizedText(
+                "{ItemNo} at {LocationCode} would reorder at {ReorderPoint:0.#####} and stop at "
+                + "{MaximumInventory:0.#####}, which is lower. Every run would ask for nothing.",
+                "{ItemNo} في {LocationCode} يُعاد طلبه عند {ReorderPoint:0.#####} ويتوقف عند "
+                + "{MaximumInventory:0.#####}، وهو أقل. فكل تشغيل لن يطلب شيئًا."),
+            Resolution = new LocalizedText(
+                "Set the maximum above the reorder point. The gap between them is the order.",
+                "اجعل الحد الأقصى أعلى من حد إعادة الطلب. فالفارق بينهما هو الطلبية."),
+            HelpTopic = "inventory/reordering",
+        },
+        new()
+        {
+            Code = ReorderMaximumMissing,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No maximum to order up to", "لا حد أقصى يُطلب حتى بلوغه"),
+            Detail = new LocalizedText(
+                "{ItemNo} at {LocationCode} orders up to a maximum, and no maximum is set.",
+                "{ItemNo} في {LocationCode} يُطلب حتى حد أقصى، ولم يُحدَّد حد أقصى."),
+            Resolution = new LocalizedText(
+                "Set the maximum, or change the policy to order a fixed quantity instead.",
+                "حدّد الحد الأقصى، أو غيّر السياسة إلى طلب كمية ثابتة."),
+            HelpTopic = "inventory/reordering",
+        },
+        new()
+        {
+            Code = ReorderQuantityMissing,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No quantity to order", "لا كمية تُطلب"),
+            Detail = new LocalizedText(
+                "{ItemNo} at {LocationCode} orders a fixed quantity, and no quantity is set.",
+                "{ItemNo} في {LocationCode} يُطلب بكمية ثابتة، ولم تُحدَّد كمية."),
+            Resolution = new LocalizedText(
+                "Set how much to order, or change the policy to order up to a maximum instead.",
+                "حدّد الكمية المطلوبة، أو غيّر السياسة إلى الطلب حتى حد أقصى."),
+            HelpTopic = "inventory/reordering",
         },
         new()
         {

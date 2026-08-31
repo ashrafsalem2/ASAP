@@ -4,6 +4,8 @@ using ASAP.Modules.Purchasing.Approvals;
 using ASAP.Modules.Purchasing.Costing;
 using ASAP.Modules.Purchasing.Orders;
 using ASAP.Modules.Purchasing.Quotations;
+using ASAP.Modules.Inventory.Items;
+using ASAP.Modules.Purchasing.Replenishment;
 using ASAP.Modules.Purchasing.Requisitions;
 using ASAP.Modules.Purchasing.Reporting;
 using ASAP.Platform.Kernel.Results;
@@ -169,6 +171,42 @@ public sealed record RequisitionLinePayload(
     string? LocationCode = null,
     string? VariantCode = null,
     string? SuggestedVendorNo = null);
+
+/// <summary>What the worksheet says to order, and every figure behind it.</summary>
+/// <param name="ItemNo">The item.</param>
+/// <param name="ItemName">What it is called.</param>
+/// <param name="LocationCode">Where it is wanted.</param>
+/// <param name="VariantCode">Which variant, where the policy names one.</param>
+/// <param name="QuantityOnHand">What is on the shelf.</param>
+/// <param name="QuantityReserved">What is promised to somebody else.</param>
+/// <param name="QuantityOnOrder">What is bought and not yet received.</param>
+/// <param name="Projected">On hand, less reserved, plus on order.</param>
+/// <param name="ReorderPoint">The level that triggered it.</param>
+/// <param name="SuggestedQuantity">How much to order.</param>
+/// <param name="OrderByDate">The date the order would carry.</param>
+/// <param name="VendorNo">The vendor the policy names.</param>
+/// <param name="LastDirectCost">What it cost last time, as an estimate.</param>
+public sealed record ReplenishmentLineView(
+    string ItemNo,
+    string ItemName,
+    string LocationCode,
+    string? VariantCode,
+    decimal QuantityOnHand,
+    decimal QuantityReserved,
+    decimal QuantityOnOrder,
+    decimal Projected,
+    decimal ReorderPoint,
+    decimal SuggestedQuantity,
+    DateOnly OrderByDate,
+    string? VendorNo,
+    decimal LastDirectCost);
+
+/// <summary>Which of the worksheet's suggestions are being taken.</summary>
+/// <param name="Lines">The items and quantities, which may be a subset of the run.</param>
+/// <param name="LocationCode">Where the goods are wanted.</param>
+public sealed record TakeReplenishmentRequest(
+    IReadOnlyList<ReplenishmentLineView> Lines,
+    string? LocationCode = null);
 
 /// <summary>What a client sends to ask for something to be bought.</summary>
 /// <param name="Lines">What is being asked for.</param>
@@ -523,6 +561,14 @@ public static class PurchasingEndpoints
              .WithSummary("Abandons a request that has produced no orders.");
 
 
+
+        group.MapGet("/replenishment", ReplenishmentAsync)
+             .WithName("Replenishment")
+             .WithSummary("What needs buying, and every figure that says so.");
+
+        group.MapPost("/replenishment/requisition", TakeReplenishmentAsync)
+             .WithName("TakeReplenishment")
+             .WithSummary("Turns the worksheet into a requisition, which goes through approval.");
 
         group.MapGet("/requisitions", ListRequisitionsAsync)
              .WithName("ListPurchaseRequisitions")
@@ -1188,6 +1234,80 @@ public static class PurchasingEndpoints
                     i.HasAnswered,
                     i.DeclinedReason))],
             comparison);
+
+    private static async Task<IResult> ReplenishmentAsync(
+        ReplenishmentService replenishment,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken,
+        [FromQuery] string? locationCode = null,
+        [FromQuery] bool includeSatisfied = false)
+    {
+        if (!Can(user, "Purchasing.Requisition.Read"))
+        {
+            return Forbidden("Purchasing.Requisition.Read", "view the replenishment worksheet", http);
+        }
+
+        var lines = await replenishment
+            .SuggestAsync(locationCode, includeSatisfied, cancellationToken)
+            .ConfigureAwait(false);
+
+        return Results.Ok(lines.Select(static l => new ReplenishmentLineView(
+            l.ItemNo,
+            l.ItemName,
+            l.LocationCode,
+            l.VariantCode,
+            l.QuantityOnHand,
+            l.QuantityReserved,
+            l.QuantityOnOrder,
+            l.Projected,
+            l.ReorderPoint,
+            l.SuggestedQuantity,
+            l.OrderByDate,
+            l.VendorNo,
+            l.LastDirectCost)));
+    }
+
+    private static async Task<IResult> TakeReplenishmentAsync(
+        TakeReplenishmentRequest request,
+        ReplenishmentService replenishment,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        // Creating the requisition, not merely reading the worksheet. A run that anybody could
+        // turn into a request would be an approval queue nobody could keep up with.
+        if (!Can(user, "Purchasing.Requisition.Create"))
+        {
+            return Forbidden("Purchasing.Requisition.Create", "raise a requisition", http);
+        }
+
+        var lines = request.Lines
+            .Select(static l => new ReplenishmentLine(
+                l.ItemNo,
+                l.ItemName,
+                l.LocationCode,
+                l.VariantCode,
+                l.QuantityOnHand,
+                l.QuantityReserved,
+                l.QuantityOnOrder,
+                l.Projected,
+                l.ReorderPoint,
+                ReorderKind.FixedQuantity,
+                l.SuggestedQuantity,
+                l.OrderByDate,
+                l.VendorNo,
+                l.LastDirectCost))
+            .ToList();
+
+        var result = await replenishment
+            .RequisitionAsync(lines, request.LocationCode, cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.Ok(ViewOf(result.Value));
+    }
 
     private static async Task<IResult> ListRequisitionsAsync(
         PurchaseRequisitionService requisitions,

@@ -10,6 +10,7 @@ import {
   QuotationRequest,
   QuotationRequestSummary,
   PurchaseReturnResult,
+  ReplenishmentRow,
   Requisition,
   RequisitionOrderLine,
   ApprovalLimit,
@@ -150,6 +151,35 @@ export class PurchasingService {
   }
 
   /** What has been asked for, newest first. */
+  /** What needs buying, and every figure that says so. */
+  replenishment(locationCode?: string, includeSatisfied = false): Promise<ReplenishmentRow[]> {
+    const params = new URLSearchParams();
+
+    if (locationCode) {
+      params.set('locationCode', locationCode);
+    }
+
+    if (includeSatisfied) {
+      params.set('includeSatisfied', 'true');
+    }
+
+    const query = params.size > 0 ? `?${params}` : '';
+
+    return firstValueFrom(
+      this.http.get<ReplenishmentRow[]>(`${this.base}/replenishment${query}`),
+    );
+  }
+
+  /** Turns the worksheet into a requisition, which goes through approval. */
+  takeReplenishment(lines: ReplenishmentRow[], locationCode?: string): Promise<Requisition> {
+    return firstValueFrom(
+      this.http.post<Requisition>(`${this.base}/replenishment/requisition`, {
+        lines,
+        locationCode: locationCode ?? null,
+      }),
+    );
+  }
+
   requisitions(status?: string): Promise<Requisition[]> {
     let params = new HttpParams();
 

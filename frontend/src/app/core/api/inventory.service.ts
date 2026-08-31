@@ -23,6 +23,8 @@ import {
   StockCount,
   StockCountPosted,
   StockCountSummary,
+  ReorderKind,
+  ReorderPolicyRow,
   StockLocation,
   StockMovement,
   StockMovementRequest,
@@ -112,6 +114,56 @@ export class InventoryService {
   }
 
   /** The locations stock can be held at. */
+  /** When each place reorders each item, and how much. */
+  reorderPolicies(locationCode?: string, activeOnly = false): Promise<ReorderPolicyRow[]> {
+    const params = new URLSearchParams();
+
+    if (locationCode) {
+      params.set('locationCode', locationCode);
+    }
+
+    if (activeOnly) {
+      params.set('activeOnly', 'true');
+    }
+
+    const query = params.size > 0 ? `?${params}` : '';
+
+    return firstValueFrom(
+      this.http.get<ReorderPolicyRow[]>(`${this.base}/reorder-policies${query}`),
+    );
+  }
+
+  /** Writes a reorder policy for one item at one place. */
+  saveReorderPolicy(request: {
+    itemNo: string;
+    locationCode: string;
+    kind: ReorderKind;
+    reorderPoint: number;
+    reorderQuantity: number;
+    maximumInventory: number;
+    minimumOrderQuantity: number;
+    orderMultiple: number;
+    leadTimeDays: number;
+    vendorNo?: string | null;
+    isActive: boolean;
+  }): Promise<ReorderPolicyRow> {
+    return firstValueFrom(
+      this.http.put<ReorderPolicyRow>(
+        `${this.base}/reorder-policies/${encodeURIComponent(request.itemNo)}/${encodeURIComponent(request.locationCode)}`,
+        request,
+      ),
+    );
+  }
+
+  /** Leaves a place with no rule for that item. */
+  removeReorderPolicy(itemNo: string, locationCode: string): Promise<void> {
+    return firstValueFrom(
+      this.http.delete<void>(
+        `${this.base}/reorder-policies/${encodeURIComponent(itemNo)}/${encodeURIComponent(locationCode)}`,
+      ),
+    );
+  }
+
   locations(): Promise<StockLocation[]> {
     return firstValueFrom(this.http.get<StockLocation[]>(`${this.base}/locations`));
   }

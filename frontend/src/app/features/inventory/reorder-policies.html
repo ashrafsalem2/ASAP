@@ -1,0 +1,233 @@
+<div class="page">
+  <h1>{{ t('inventory.reorder.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('inventory.reorder.intro') }}</p>
+
+    <div class="panel__body draft">
+      <label class="field">
+        <span class="field__label">{{ t('inventory.reorder.location') }}</span>
+        <select class="select" [(ngModel)]="filterLocation" name="filter" (ngModelChange)="filter()">
+          <option value="">{{ t('inventory.reorder.everywhere') }}</option>
+          @for (location of locations(); track location.code) {
+            <option [value]="location.code">{{ location.code }} — {{ location.name }}</option>
+          }
+        </select>
+      </label>
+
+      @if (canWrite()) {
+        <button type="button" class="button" (click)="startNew()">
+          {{ t('inventory.reorder.new') }}
+        </button>
+      }
+    </div>
+
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else if (policies().length === 0) {
+      <p class="empty">{{ t('inventory.reorder.none') }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('inventory.reorder.item') }}</th>
+              <th>{{ t('inventory.reorder.location') }}</th>
+              <th>{{ t('inventory.reorder.rule') }}</th>
+              <th class="numeric">{{ t('inventory.reorder.minimum') }}</th>
+              <th class="numeric">{{ t('inventory.reorder.multiple') }}</th>
+              <th>{{ t('inventory.reorder.vendor') }}</th>
+              @if (canWrite()) {
+                <th></th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (policy of policies(); track policy.itemNo + policy.locationCode) {
+              <tr
+                class="admin__row"
+                [class.admin__row--selected]="
+                  editing()?.itemNo === policy.itemNo && editing()?.locationCode === policy.locationCode
+                "
+                (click)="select(policy)"
+              >
+                <td>
+                  <span class="code">{{ policy.itemNo }}</span> {{ policy.itemName }}
+                  @if (!policy.isActive) {
+                    <span class="tag">{{ t('inventory.reorder.off') }}</span>
+                  }
+                </td>
+                <td class="code">{{ policy.locationCode }}</td>
+
+                <!-- The rule in words, so the list reads without opening every row. -->
+                <td>{{ rule(policy) }}</td>
+
+                <td class="numeric">{{ policy.minimumOrderQuantity || '—' }}</td>
+                <td class="numeric">{{ policy.orderMultiple || '—' }}</td>
+                <td class="code">{{ policy.vendorNo || '—' }}</td>
+                @if (canWrite()) {
+                  <td>
+                    <button
+                      type="button"
+                      class="button button--quiet"
+                      [disabled]="busy()"
+                      (click)="remove(policy); $event.stopPropagation()"
+                    >
+                      {{ t('inventory.reorder.remove') }}
+                    </button>
+                  </td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+
+  @if (canWrite()) {
+    <section class="panel">
+      <h2 class="panel__title">
+        {{
+          editing()
+            ? t('inventory.reorder.editing', {
+                ItemNo: editing()!.itemNo,
+                LocationCode: editing()!.locationCode
+              })
+            : t('inventory.reorder.new')
+        }}
+      </h2>
+
+      <div class="panel__body draft">
+        <label class="field">
+          <span class="field__label">{{ t('inventory.reorder.item') }}</span>
+          <select class="select" [(ngModel)]="draftItemNo" name="itemNo" [disabled]="editing() !== null">
+            <option value=""></option>
+            @for (item of items(); track item.no) {
+              <option [value]="item.no">{{ item.no }} — {{ item.description }}</option>
+            }
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field__label">{{ t('inventory.reorder.location') }}</span>
+          <select
+            class="select"
+            [(ngModel)]="draftLocationCode"
+            name="locationCode"
+            [disabled]="editing() !== null"
+          >
+            <option value=""></option>
+            @for (location of locations(); track location.code) {
+              <option [value]="location.code">{{ location.code }} — {{ location.name }}</option>
+            }
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field__label">{{ t('inventory.reorder.kind') }}</span>
+          <select class="select" [(ngModel)]="draftKind" name="kind">
+            <option value="FixedQuantity">{{ t('inventory.reorder.kindFixed') }}</option>
+            <option value="UpToMaximum">{{ t('inventory.reorder.kindUpTo') }}</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field__label">{{ t('inventory.reorder.point') }}</span>
+          <input
+            class="input input--number"
+            type="number"
+            inputmode="decimal"
+            [(ngModel)]="draftReorderPoint"
+            name="point"
+          />
+        </label>
+
+        <!-- One pair or the other. Four boxes of which two are always ignored invites somebody to
+             fill in a maximum on a fixed-quantity policy and wonder why nothing uses it. -->
+        @if (draftKind === 'FixedQuantity') {
+          <label class="field">
+            <span class="field__label">{{ t('inventory.reorder.quantity') }}</span>
+            <input
+              class="input input--number"
+              type="number"
+              inputmode="decimal"
+              [(ngModel)]="draftReorderQuantity"
+              name="quantity"
+            />
+          </label>
+        } @else {
+          <label class="field">
+            <span class="field__label">{{ t('inventory.reorder.maximum') }}</span>
+            <input
+              class="input input--number"
+              type="number"
+              inputmode="decimal"
+              [(ngModel)]="draftMaximumInventory"
+              name="maximum"
+            />
+          </label>
+        }
+
+        <label class="field">
+          <span class="field__label">{{ t('inventory.reorder.minimum') }}</span>
+          <input
+            class="input input--number"
+            type="number"
+            inputmode="decimal"
+            [(ngModel)]="draftMinimumOrderQuantity"
+            name="minimum"
+          />
+        </label>
+
+        <label class="field">
+          <span class="field__label">{{ t('inventory.reorder.multiple') }}</span>
+          <input
+            class="input input--number"
+            type="number"
+            inputmode="decimal"
+            [(ngModel)]="draftOrderMultiple"
+            name="multiple"
+          />
+        </label>
+
+        <label class="field">
+          <span class="field__label">{{ t('inventory.reorder.leadTime') }}</span>
+          <input
+            class="input input--number"
+            type="number"
+            inputmode="numeric"
+            [(ngModel)]="draftLeadTimeDays"
+            name="leadTime"
+          />
+        </label>
+
+        <label class="field">
+          <span class="field__label">{{ t('inventory.reorder.vendor') }}</span>
+          <select class="select" [(ngModel)]="draftVendorNo" name="vendorNo">
+            <option value="">—</option>
+            @for (vendor of vendors(); track vendor.no) {
+              <option [value]="vendor.no">{{ vendor.no }} — {{ vendor.name }}</option>
+            }
+          </select>
+        </label>
+
+        <label class="checkbox">
+          <input type="checkbox" [(ngModel)]="draftActive" name="active" />
+          {{ t('inventory.reorder.active') }}
+        </label>
+
+        <button
+          type="button"
+          class="button button--primary"
+          [disabled]="busy() || !draftItemNo || !draftLocationCode"
+          (click)="save()"
+        >
+          {{ t('inventory.reorder.save') }}
+        </button>
+      </div>
+
+      <p class="panel__body hint">{{ t('inventory.reorder.hint') }}</p>
+    </section>
+  }
+</div>

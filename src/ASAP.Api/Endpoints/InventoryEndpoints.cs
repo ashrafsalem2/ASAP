@@ -447,6 +447,35 @@ public sealed record ResolvedQuantityView(
     string? VariantCode = null,
     string? VariantDescription = null);
 
+/// <summary>When to reorder an item at one place, and how much.</summary>
+/// <param name="ItemNo">The item.</param>
+/// <param name="ItemName">What it is called.</param>
+/// <param name="LocationCode">Where it is stocked.</param>
+/// <param name="VariantCode">Which variant, where the policy names one.</param>
+/// <param name="Kind">Whether the quantity is fixed or measured against a maximum.</param>
+/// <param name="ReorderPoint">The level at or below which it should be reordered.</param>
+/// <param name="ReorderQuantity">How much to order, on a fixed-quantity policy.</param>
+/// <param name="MaximumInventory">The level to order back up to.</param>
+/// <param name="MinimumOrderQuantity">The least the vendor will ship.</param>
+/// <param name="OrderMultiple">The pack it is sold in.</param>
+/// <param name="LeadTimeDays">Days between ordering and arrival.</param>
+/// <param name="VendorNo">A vendor it is normally bought from.</param>
+/// <param name="IsActive">Whether the worksheet still looks at it.</param>
+public sealed record ReorderPolicyView(
+    string ItemNo,
+    string ItemName,
+    string LocationCode,
+    string? VariantCode,
+    ReorderKind Kind,
+    decimal ReorderPoint,
+    decimal ReorderQuantity,
+    decimal MaximumInventory,
+    decimal MinimumOrderQuantity,
+    decimal OrderMultiple,
+    int LeadTimeDays,
+    string? VendorNo,
+    bool IsActive);
+
 /// <summary>Items, locations, stock levels and movements.</summary>
 public static class InventoryEndpoints
 {
@@ -457,6 +486,18 @@ public static class InventoryEndpoints
         ArgumentNullException.ThrowIfNull(app);
 
         var group = app.MapGroup("/api/inventory").RequireAuthorization().WithTags("Inventory");
+
+        group.MapGet("/reorder-policies", ReorderPoliciesAsync)
+             .WithName("ReorderPolicies")
+             .WithSummary("When each place reorders each item, and how much.");
+
+        group.MapPut("/reorder-policies/{itemNo}/{locationCode}", SaveReorderPolicyAsync)
+             .WithName("SaveReorderPolicy")
+             .WithSummary("Writes a reorder policy for one item at one place.");
+
+        group.MapDelete("/reorder-policies/{itemNo}/{locationCode}", RemoveReorderPolicyAsync)
+             .WithName("RemoveReorderPolicy")
+             .WithSummary("Leaves a place with no rule for that item.");
 
         group.MapGet("/items", ItemsAsync)
              .WithName("Items")
@@ -1888,6 +1929,94 @@ public static class InventoryEndpoints
             r.LocationCode,
             r.Quantity)));
     }
+
+    private static async Task<IResult> ReorderPoliciesAsync(
+        ReorderPolicyService policies,
+        AsapDbContext context,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken,
+        [FromQuery] string? locationCode = null,
+        [FromQuery] bool activeOnly = false)
+    {
+        if (!Can(user, "Inventory.Item.Read"))
+        {
+            return Forbidden("Inventory.Item.Read", "view reorder policies", http);
+        }
+
+        var rows = await policies.ListAsync(locationCode, activeOnly, cancellationToken)
+            .ConfigureAwait(false);
+
+        var itemNos = rows.Select(static r => r.ItemNo).Distinct().ToList();
+
+        var names = await context.Set<Item>()
+            .AsNoTracking()
+            .Where(i => itemNos.Contains(i.No))
+            .ToDictionaryAsync(static i => i.No, static i => i.Description, cancellationToken)
+            .ConfigureAwait(false);
+
+        return Results.Ok(rows.Select(r => ViewOf(r, names.GetValueOrDefault(r.ItemNo))));
+    }
+
+    private static async Task<IResult> SaveReorderPolicyAsync(
+        string itemNo,
+        string locationCode,
+        ReorderPolicyRequest request,
+        ReorderPolicyService policies,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, "Inventory.Item.Update"))
+        {
+            return Forbidden("Inventory.Item.Update", "maintain reorder policies", http);
+        }
+
+        var result = await policies
+            .SaveAsync(
+                request with { ItemNo = itemNo, LocationCode = locationCode },
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.Ok(ViewOf(result.Value, null));
+    }
+
+    private static async Task<IResult> RemoveReorderPolicyAsync(
+        string itemNo,
+        string locationCode,
+        ReorderPolicyService policies,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, "Inventory.Item.Update"))
+        {
+            return Forbidden("Inventory.Item.Update", "maintain reorder policies", http);
+        }
+
+        var result = await policies.RemoveAsync(itemNo, locationCode, cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.NoContent();
+    }
+
+    private static ReorderPolicyView ViewOf(ReorderPolicy policy, string? itemName)
+        => new(
+            policy.ItemNo,
+            itemName ?? policy.ItemNo,
+            policy.LocationCode,
+            policy.VariantCode,
+            policy.Kind,
+            policy.ReorderPoint,
+            policy.ReorderQuantity,
+            policy.MaximumInventory,
+            policy.MinimumOrderQuantity,
+            policy.OrderMultiple,
+            policy.LeadTimeDays,
+            policy.VendorNo,
+            policy.IsActive);
 
     private static bool Can(IUserContext user, string permission)
         => user.IsSuperUser || user.Has(permission);

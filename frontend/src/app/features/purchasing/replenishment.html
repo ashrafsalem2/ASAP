@@ -1,0 +1,138 @@
+<div class="page">
+  <h1>{{ t('purchasing.replenishment.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('purchasing.replenishment.intro') }}</p>
+
+    <div class="panel__body draft">
+      <label class="field">
+        <span class="field__label">{{ t('purchasing.replenishment.location') }}</span>
+        <select class="select" [(ngModel)]="filterLocation" name="location" (ngModelChange)="run()">
+          <option value="">{{ t('purchasing.replenishment.everywhere') }}</option>
+          @for (location of locations(); track location.code) {
+            <option [value]="location.code">{{ location.code }} — {{ location.name }}</option>
+          }
+        </select>
+      </label>
+
+      <label class="checkbox">
+        <input type="checkbox" [(ngModel)]="includeSatisfied" name="satisfied" (ngModelChange)="run()" />
+        {{ t('purchasing.replenishment.showSatisfied') }}
+      </label>
+
+      <button type="button" class="button" [disabled]="loading()" (click)="run()">
+        {{ t('purchasing.replenishment.rerun') }}
+      </button>
+    </div>
+
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else if (rows().length === 0) {
+      <p class="empty">{{ t('purchasing.replenishment.none') }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              @if (canRaise()) {
+                <th></th>
+              }
+              <th>{{ t('purchasing.replenishment.item') }}</th>
+              <th>{{ t('purchasing.replenishment.location') }}</th>
+
+              <!-- Every figure behind the suggestion. A buyer who cannot see why the worksheet
+                   asked for forty will either order forty without thinking or ignore the screen. -->
+              <th class="numeric">{{ t('purchasing.replenishment.onHand') }}</th>
+              <th class="numeric">{{ t('purchasing.replenishment.reserved') }}</th>
+              <th class="numeric">{{ t('purchasing.replenishment.onOrder') }}</th>
+              <th class="numeric">{{ t('purchasing.replenishment.projected') }}</th>
+              <th class="numeric">{{ t('purchasing.replenishment.point') }}</th>
+
+              <th class="numeric">{{ t('purchasing.replenishment.suggested') }}</th>
+              @if (canRaise()) {
+                <th class="numeric">{{ t('purchasing.replenishment.ordering') }}</th>
+              }
+              <th>{{ t('purchasing.replenishment.vendor') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (row of rows(); track key(row)) {
+              <tr [class.admin__row--selected]="isTaken(row)">
+                @if (canRaise()) {
+                  <td>
+                    @if (row.suggestedQuantity > 0) {
+                      <input type="checkbox" [checked]="isTaken(row)" (change)="toggle(row)" />
+                    }
+                  </td>
+                }
+                <td>
+                  <span class="code">{{ row.itemNo }}</span> {{ row.itemName }}
+                </td>
+                <td class="code">{{ row.locationCode }}</td>
+                <td class="numeric">{{ row.quantityOnHand }}</td>
+                <td class="numeric">{{ row.quantityReserved || '—' }}</td>
+                <td class="numeric">{{ row.quantityOnOrder || '—' }}</td>
+                <td class="numeric"><strong>{{ row.projected }}</strong></td>
+                <td class="numeric">{{ row.reorderPoint }}</td>
+
+                <td class="numeric">
+                  @if (row.suggestedQuantity > 0) {
+                    <strong>{{ row.suggestedQuantity }}</strong>
+                  } @else if (isCovered(row)) {
+                    <span class="tag">{{ t('purchasing.replenishment.onTheWay') }}</span>
+                  } @else {
+                    <span class="muted">—</span>
+                  }
+                </td>
+
+                @if (canRaise()) {
+                  <td class="numeric">
+                    @if (row.suggestedQuantity > 0) {
+                      <input
+                        class="input input--number"
+                        type="number"
+                        inputmode="decimal"
+                        min="0"
+                        [value]="quantityFor(row)"
+                        (input)="setQuantity(row, $any($event.target).value)"
+                      />
+                    }
+                  </td>
+                }
+
+                <td class="code">{{ row.vendorNo || '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+
+  @if (canRaise() && rows().length > 0) {
+    <section class="panel">
+      <div class="panel__body draft">
+        <button type="button" class="button" (click)="takeAll()">
+          {{ t('purchasing.replenishment.takeAll') }}
+        </button>
+
+        <button type="button" class="button" (click)="takeNone()">
+          {{ t('purchasing.replenishment.takeNone') }}
+        </button>
+
+        <button
+          type="button"
+          class="button button--primary"
+          [disabled]="busy() || takenCount() === 0"
+          (click)="raise()"
+        >
+          {{ t('purchasing.replenishment.raise', { Count: takenCount() }) }}
+        </button>
+      </div>
+
+      <!-- Not an order. A run that placed its own orders would be a rule nobody wrote spending
+           money nobody approved. -->
+      <p class="panel__body hint">{{ t('purchasing.replenishment.raiseHint') }}</p>
+    </section>
+  }
+</div>

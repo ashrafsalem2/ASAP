@@ -1630,6 +1630,25 @@ export interface BranchAssignment {
 }
 
 /** Somebody who works here, or used to. */
+/** What kind of engagement a contract is. */
+export type ContractKind = 'Permanent' | 'FixedTerm' | 'Probation';
+
+/** What somebody was engaged on, over a stretch of time. */
+export interface EmploymentContractRow {
+  id: string;
+  employeeNo: string;
+  startsOn: string;
+  endsOn: string | null;
+  kind: ContractKind;
+  basicWage: number;
+  allowances: number;
+  payFrequency: string;
+  reference: string | null;
+  signedOn: string | null;
+  recordedByUserName: string | null;
+  reason: string | null;
+}
+
 export interface Employee {
   no: string;
   name: string;

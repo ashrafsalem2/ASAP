@@ -6,7 +6,9 @@ import {
   Branch,
   CalculatePayrollRequest,
   Companies,
+  ContractKind,
   Employee,
+  EmploymentContractRow,
   EmployeeSaved,
   Entitlements,
   HireRequest,
@@ -46,6 +48,38 @@ export class HrService {
   }
 
   /** Employees, most recently hired first. */
+  /** What people have been engaged on, and when it changed. */
+  contracts(employeeNo?: string): Promise<EmploymentContractRow[]> {
+    const path = employeeNo
+      ? `${this.base}/employees/${encodeURIComponent(employeeNo)}/contracts`
+      : `${this.base}/contracts`;
+
+    return firstValueFrom(this.http.get<EmploymentContractRow[]>(path));
+  }
+
+  /** Records a contract, closing the one before it when asked to. */
+  recordContract(
+    employeeNo: string,
+    request: {
+      startsOn: string;
+      basicWage: number;
+      allowances?: number;
+      kind?: ContractKind;
+      endsOn?: string | null;
+      reference?: string | null;
+      signedOn?: string | null;
+      reason?: string | null;
+      supersede?: boolean;
+    },
+  ): Promise<EmploymentContractRow> {
+    return firstValueFrom(
+      this.http.post<EmploymentContractRow>(
+        `${this.base}/employees/${encodeURIComponent(employeeNo)}/contracts`,
+        request,
+      ),
+    );
+  }
+
   employees(includeLeavers = false): Promise<Employee[]> {
     const params = includeLeavers
       ? new HttpParams().set('includeLeavers', 'true')

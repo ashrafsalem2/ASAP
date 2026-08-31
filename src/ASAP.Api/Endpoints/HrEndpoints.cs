@@ -120,6 +120,59 @@ public sealed record CalculatePayrollRequest(
     DateOnly? PostingDate = null,
     string? Description = null);
 
+/// <summary>What somebody was engaged on, over a stretch of time.</summary>
+/// <param name="Id">The contract's key, for amending it.</param>
+/// <param name="EmployeeNo">Whose it is.</param>
+/// <param name="StartsOn">The first day it covers.</param>
+/// <param name="EndsOn">The last day it covers, or null where it is open-ended.</param>
+/// <param name="Kind">What kind of engagement it is.</param>
+/// <param name="BasicWage">The basic wage for one pay period.</param>
+/// <param name="Allowances">Housing, transport and the rest.</param>
+/// <param name="PayFrequency">How often it pays.</param>
+/// <param name="Reference">The paper contract's own reference.</param>
+/// <param name="SignedOn">When it was signed.</param>
+/// <param name="RecordedByUserName">Who recorded it.</param>
+/// <param name="Reason">Why it was raised.</param>
+public sealed record EmploymentContractView(
+    Guid Id,
+    string EmployeeNo,
+    DateOnly StartsOn,
+    DateOnly? EndsOn,
+    ContractKind Kind,
+    decimal BasicWage,
+    decimal Allowances,
+    PayFrequency PayFrequency,
+    string? Reference,
+    DateOnly? SignedOn,
+    string? RecordedByUserName,
+    string? Reason);
+
+/// <summary>A contract as somebody sends it in.</summary>
+/// <param name="StartsOn">The first day it covers.</param>
+/// <param name="BasicWage">The basic wage for one pay period.</param>
+/// <param name="Allowances">Housing, transport and the rest.</param>
+/// <param name="Kind">What kind of engagement it is.</param>
+/// <param name="EndsOn">The last day it covers, on a fixed term.</param>
+/// <param name="PayFrequency">How often it pays.</param>
+/// <param name="Reference">The paper contract's own reference.</param>
+/// <param name="SignedOn">When it was signed.</param>
+/// <param name="Reason">Why it was raised.</param>
+/// <param name="Supersede">
+/// Whether to close the contract before it the day before this one starts. What a raise, a
+/// promotion or a renewal actually is.
+/// </param>
+public sealed record RecordContractRequest(
+    DateOnly StartsOn,
+    decimal BasicWage,
+    decimal Allowances = 0m,
+    ContractKind Kind = ContractKind.Permanent,
+    DateOnly? EndsOn = null,
+    PayFrequency PayFrequency = PayFrequency.Monthly,
+    string? Reference = null,
+    DateOnly? SignedOn = null,
+    string? Reason = null,
+    bool Supersede = false);
+
 /// <summary>Employees, where they work, and what they are owed.</summary>
 public static class HrEndpoints
 {
@@ -158,6 +211,22 @@ public static class HrEndpoints
         group.MapPost("/employees/{employeeNo}/transfer", TransferAsync)
              .WithName("TransferEmployee")
              .WithSummary("Moves somebody to another branch from a date, closing the previous assignment.");
+
+        group.MapGet("/contracts", ContractsAsync)
+             .WithName("EmploymentContracts")
+             .WithSummary("What people have been engaged on, and when it changed.");
+
+        group.MapGet("/employees/{employeeNo}/contracts", ContractsAsync)
+             .WithName("EmployeeContracts")
+             .WithSummary("One person's contracts, earliest first.");
+
+        group.MapPost("/employees/{employeeNo}/contracts", RecordContractAsync)
+             .WithName("RecordContract")
+             .WithSummary("Records a contract, closing the one before it when asked to.");
+
+        group.MapPut("/contracts/{id:guid}", AmendContractAsync)
+             .WithName("AmendContract")
+             .WithSummary("Changes a contract already recorded.");
 
         group.MapPost("/employees/{employeeNo}/leaving", LeavingAsync)
              .WithName("RecordLeaving")
@@ -835,6 +904,118 @@ public static class HrEndpoints
            }
             .Where(permission => Can(user, permission))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+    private static async Task<IResult> ContractsAsync(
+        EmploymentContractService contracts,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken,
+        string? employeeNo = null)
+    {
+        if (!Can(user, ReadPermission))
+        {
+            return Forbidden(ReadPermission, "view employment contracts", http);
+        }
+
+        var rows = await contracts.ListAsync(employeeNo, cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(rows.Select(ViewOf));
+    }
+
+    private static async Task<IResult> RecordContractAsync(
+        string employeeNo,
+        RecordContractRequest request,
+        EmploymentContractService contracts,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, UpdatePermission))
+        {
+            return Forbidden(UpdatePermission, "record employment contracts", http);
+        }
+
+        var contract = new EmploymentContractRequest(
+            employeeNo,
+            request.StartsOn,
+            request.BasicWage,
+            request.Allowances,
+            request.Kind,
+            request.EndsOn,
+            request.PayFrequency,
+            PositionId: null,
+            request.Reference,
+            request.SignedOn,
+            request.Reason);
+
+        var result = request.Supersede
+            ? await contracts.SupersedeAsync(contract, cancellationToken).ConfigureAwait(false)
+            : await contracts.RecordAsync(contract, cancellationToken).ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.Ok(ViewOf(result.Value));
+    }
+
+    private static async Task<IResult> AmendContractAsync(
+        Guid id,
+        RecordContractRequest request,
+        EmploymentContractService contracts,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, UpdatePermission))
+        {
+            return Forbidden(UpdatePermission, "amend employment contracts", http);
+        }
+
+        var existing = (await contracts.ListAsync(cancellationToken: cancellationToken)
+                .ConfigureAwait(false))
+            .FirstOrDefault(c => c.Id == id);
+
+        if (existing is null)
+        {
+            return Results.NotFound();
+        }
+
+        var result = await contracts
+            .AmendAsync(
+                id,
+                new EmploymentContractRequest(
+                    existing.EmployeeNo,
+                    request.StartsOn,
+                    request.BasicWage,
+                    request.Allowances,
+                    request.Kind,
+                    request.EndsOn,
+                    request.PayFrequency,
+                    PositionId: null,
+                    request.Reference,
+                    request.SignedOn,
+                    request.Reason),
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.Ok(ViewOf(result.Value));
+    }
+
+    private static EmploymentContractView ViewOf(EmploymentContract contract)
+        => new(
+            contract.Id,
+            contract.EmployeeNo,
+            contract.StartsOn,
+            contract.EndsOn,
+            contract.Kind,
+            contract.BasicWage,
+            contract.Allowances,
+            contract.PayFrequency,
+            contract.Reference,
+            contract.SignedOn,
+            contract.RecordedByUserName,
+            contract.Reason);
 
     private static bool Can(IUserContext user, string permission)
         => user.IsSuperUser || user.Has(permission);

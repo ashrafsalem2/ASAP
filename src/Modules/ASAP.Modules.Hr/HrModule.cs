@@ -67,6 +67,7 @@ public sealed class HrModule : IAsapModule, ISyncContributor
         ArgumentNullException.ThrowIfNull(services);
 
         services.AddScoped<People.EmployeeService>();
+        services.AddScoped<People.EmploymentContractService>();
         services.AddScoped<Payroll.PayrollService>();
         services.AddScoped<Leave.LeaveService>();
         services.AddScoped<Entitlements.ProvisionPostingService>();
@@ -339,6 +340,18 @@ public sealed class HrModule : IAsapModule, ISyncContributor
             Kind = NavigationKind.Group,
             Icon = "hr",
             Order = 600,
+        },
+        new()
+        {
+            Id = "Hr.Contracts",
+            Module = Id,
+            ParentId = "Hr.Root",
+            DisplayName = new LocalizedText("Employment contracts", "عقود العمل"),
+            Kind = NavigationKind.Page,
+            Route = "/hr/contracts",
+            RequiresPermission = $"{Id}.Employee.Read",
+            Order = 12,
+            HelpTopic = "hr/contracts",
         },
         new()
         {

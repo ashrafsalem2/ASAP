@@ -39,6 +39,44 @@ public sealed class HrSchema : IModuleSchema
                    .HasFilter("[IsDeleted] = 0");
         });
 
+        modelBuilder.Entity<EmploymentContract>(builder =>
+
+        {
+
+            builder.ToTable("EmploymentContracts", SchemaName);
+
+
+            builder.Property(c => c.EmployeeNo).HasMaxLength(20).IsRequired();
+
+            builder.Property(c => c.Reference).HasMaxLength(60);
+
+            builder.Property(c => c.RecordedByUserName).HasMaxLength(120);
+
+            builder.Property(c => c.Reason).HasMaxLength(500);
+
+            builder.Property(c => c.BasicWage).HasPrecision(18, 2);
+
+            builder.Property(c => c.Allowances).HasPrecision(18, 2);
+
+            builder.Property(c => c.RowVersion).IsRowVersion();
+
+
+            builder.HasOne<Employee>()
+
+                   .WithMany()
+
+                   .HasForeignKey(c => c.EmployeeId)
+
+                   .OnDelete(DeleteBehavior.Restrict);
+
+
+            // Every payroll run reads along this, one query for the whole period.
+
+            builder.HasIndex(c => new { c.CompanyId, c.EmployeeId, c.StartsOn });
+
+        });
+
+
         modelBuilder.Entity<Employee>(builder =>
         {
             builder.ToTable("Employees", SchemaName);

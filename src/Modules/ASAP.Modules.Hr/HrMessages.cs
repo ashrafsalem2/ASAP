@@ -39,6 +39,33 @@ public static class HrMessages
     /// <summary>A wage below nothing.</summary>
     public static readonly MessageCode WageNegative = new("HR.EMPLOYEE.WAGE_NEGATIVE");
 
+    /// <summary>Two contracts would cover the same day.</summary>
+    public static readonly MessageCode ContractOverlaps = new("HR.CONTRACT.OVERLAPS");
+
+    /// <summary>A contract would start before the person was hired.</summary>
+    public static readonly MessageCode ContractBeforeHiring = new("HR.CONTRACT.BEFORE_HIRING");
+
+    /// <summary>A contract would end before it starts.</summary>
+    public static readonly MessageCode ContractEndsBeforeItStarts = new("HR.CONTRACT.ENDS_BEFORE_START");
+
+    /// <summary>A fixed-term contract has no term.</summary>
+    public static readonly MessageCode ContractHasNoEnd = new("HR.CONTRACT.NO_END");
+
+    /// <summary>An open-ended contract has been given an end.</summary>
+    public static readonly MessageCode ContractShouldNotEnd = new("HR.CONTRACT.SHOULD_NOT_END");
+
+    /// <summary>A contract pays nothing.</summary>
+    public static readonly MessageCode ContractPaysNothing = new("HR.CONTRACT.PAYS_NOTHING");
+
+    /// <summary>A contract is not there.</summary>
+    public static readonly MessageCode ContractNotFound = new("HR.CONTRACT.NOT_FOUND");
+
+    /// <summary>Somebody is being paid past the end of their contract.</summary>
+    public static readonly MessageCode PaidPastContractEnd = new("HR.CONTRACT.PAID_PAST_END");
+
+    /// <summary>Somebody has no contract, so the figures on their record were used.</summary>
+    public static readonly MessageCode NoContractForPeriod = new("HR.CONTRACT.NONE_FOR_PERIOD");
+
     /// <summary>The leave request named does not exist.</summary>
     public static readonly MessageCode LeaveNotFound = new("HR.LEAVE.NOT_FOUND");
 
@@ -139,6 +166,135 @@ public static class HrMessages
                 "Choose the reason. It is an input to the award, not a note about it.",
                 "اختر السبب، فهو عنصر في احتساب المكافأة لا ملاحظة عليها."),
             HelpTopic = "hr/end-of-service",
+        },
+        new()
+        {
+            Code = ContractOverlaps,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("They cannot be on two contracts", "لا يمكن أن يكون على عقدين"),
+            Detail = new LocalizedText(
+                "{EmployeeNo} is already on a contract that started on {ExistingFrom:d} and still "
+                + "covers {FromDate:d}. Payroll would have two wages for the same day and would pay "
+                + "whichever it read first.",
+                "الموظف {EmployeeNo} على عقد بدأ في {ExistingFrom:d} وما زال يغطي {FromDate:d}. "
+                + "وسيجد الرواتب أجرين لليوم نفسه فيدفع أيّهما قرأه أولًا."),
+            Resolution = new LocalizedText(
+                "End the earlier contract the day before this one begins. Superseding it does that "
+                + "for you.",
+                "أنهِ العقد السابق في اليوم الذي يسبق بداية هذا العقد. وخيار الإحلال يفعل ذلك عنك."),
+            HelpTopic = "hr/contracts",
+        },
+        new()
+        {
+            Code = ContractBeforeHiring,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Before they were hired", "قبل تعيينه"),
+            Detail = new LocalizedText(
+                "{EmployeeNo} was hired on {HiredOn:d}, and this contract starts on {FromDate:d}.",
+                "عُيّن {EmployeeNo} في {HiredOn:d}، وهذا العقد يبدأ في {FromDate:d}."),
+            Resolution = new LocalizedText(
+                "Start the contract on or after the hiring date, or correct the hiring date.",
+                "ابدأ العقد في تاريخ التعيين أو بعده، أو صحّح تاريخ التعيين."),
+            HelpTopic = "hr/contracts",
+        },
+        new()
+        {
+            Code = ContractEndsBeforeItStarts,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("It ends before it starts", "ينتهي قبل أن يبدأ"),
+            Detail = new LocalizedText(
+                "This contract runs from {FromDate:d} to {ToDate:d}.",
+                "هذا العقد من {FromDate:d} إلى {ToDate:d}."),
+            Resolution = new LocalizedText(
+                "Check the two dates. One of them is the wrong way round.",
+                "راجع التاريخين. أحدهما مقلوب."),
+            HelpTopic = "hr/contracts",
+        },
+        new()
+        {
+            Code = ContractHasNoEnd,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("A fixed term with no end", "مدة محددة بلا نهاية"),
+            Detail = new LocalizedText(
+                "This contract runs to a date, and no end date is set.",
+                "هذا العقد يمتد إلى تاريخ، ولم يُحدَّد تاريخ انتهاء."),
+            Resolution = new LocalizedText(
+                "Set the end date, or record it as a permanent contract instead.",
+                "حدّد تاريخ الانتهاء، أو سجّله عقدًا دائمًا بدلًا من ذلك."),
+            HelpTopic = "hr/contracts",
+        },
+        new()
+        {
+            Code = ContractShouldNotEnd,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("A permanent contract with an end", "عقد دائم بتاريخ انتهاء"),
+            Detail = new LocalizedText(
+                "This contract is recorded as permanent and ends on {ToDate:d}.",
+                "هذا العقد مسجَّل دائمًا وينتهي في {ToDate:d}."),
+            Resolution = new LocalizedText(
+                "Record it as a fixed term, or take the end date off. The difference matters to "
+                + "notice and to end-of-service.",
+                "سجّله محدد المدة، أو احذف تاريخ الانتهاء. فالفرق يمسّ الإشعار ومكافأة نهاية الخدمة."),
+            HelpTopic = "hr/contracts",
+        },
+        new()
+        {
+            Code = ContractPaysNothing,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("A contract that pays nothing", "عقد بلا أجر"),
+            Detail = new LocalizedText(
+                "{EmployeeNo} would be on a basic wage of nothing from {FromDate:d}.",
+                "سيكون {EmployeeNo} على أجر أساسي صفر من {FromDate:d}."),
+            Resolution = new LocalizedText(
+                "Enter the basic wage the contract agrees.",
+                "أدخل الأجر الأساسي المتفق عليه في العقد."),
+            HelpTopic = "hr/contracts",
+        },
+        new()
+        {
+            Code = ContractNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such contract", "لا يوجد عقد بهذا"),
+            Detail = new LocalizedText(
+                "No contract in this company has that reference.",
+                "لا يوجد عقد في هذه الشركة بهذا المعرّف."),
+            Resolution = new LocalizedText(
+                "Check it against the contract list.",
+                "راجعه مقابل قائمة العقود."),
+            HelpTopic = "hr/contracts",
+        },
+        new()
+        {
+            Code = PaidPastContractEnd,
+            Severity = MessageSeverity.Warning,
+            Title = new LocalizedText("Paid past the end of a contract", "الدفع بعد انتهاء العقد"),
+            Detail = new LocalizedText(
+                "{EmployeeNo}'s contract ended on {ToDate:d} and nothing follows it, so "
+                + "{UncoveredDays} day(s) of this period are covered by no contract.",
+                "انتهى عقد {EmployeeNo} في {ToDate:d} ولا عقد بعده، فبقي {UncoveredDays} يومًا من "
+                + "هذه الفترة بلا عقد يغطيها."),
+            Resolution = new LocalizedText(
+                "Renew the contract, or record them as having left. They are being paid on the "
+                + "figures from their record, which nothing dates.",
+                "جدّد العقد، أو سجّل انتهاء خدمته. فهو يُدفع له الآن على أرقام سجلّه، وهي أرقام لا "
+                + "يؤرّخها شيء."),
+            HelpTopic = "hr/contracts",
+        },
+        new()
+        {
+            Code = NoContractForPeriod,
+            Severity = MessageSeverity.Warning,
+            Title = new LocalizedText("No contract on record", "لا عقد مسجَّل"),
+            Detail = new LocalizedText(
+                "{EmployeeNo} has no contract covering this period, so the wage on their record "
+                + "was used.",
+                "لا عقد لـ {EmployeeNo} يغطي هذه الفترة، فاستُخدم الأجر المدوَّن في سجلّه."),
+            Resolution = new LocalizedText(
+                "Record their contract. The figure on the record has no date, so it will be "
+                + "whatever it says today if this run is ever repeated.",
+                "سجّل عقده. فالرقم في السجل بلا تاريخ، وسيكون ما يقوله اليوم إن أُعيد تشغيل هذه "
+                + "الدورة يومًا."),
+            HelpTopic = "hr/contracts",
         },
         new()
         {

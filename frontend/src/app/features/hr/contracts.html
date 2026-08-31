@@ -1,0 +1,152 @@
+<div class="page">
+  <h1>{{ t('hr.contracts.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('hr.contracts.intro') }}</p>
+
+    <div class="panel__body draft">
+      <label class="field">
+        <span class="field__label">{{ t('hr.contracts.employee') }}</span>
+        <select class="select" [(ngModel)]="selectedEmployeeNo" name="employee" (ngModelChange)="select()">
+          <option value="">{{ t('hr.contracts.everybody') }}</option>
+          @for (employee of employees(); track employee.no) {
+            <option [value]="employee.no">{{ employee.no }} — {{ employee.name }}</option>
+          }
+        </select>
+      </label>
+    </div>
+
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else if (contracts().length === 0) {
+      <p class="empty">{{ t('hr.contracts.none') }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              @if (!selectedEmployeeNo) {
+                <th>{{ t('hr.contracts.employee') }}</th>
+              }
+              <th>{{ t('hr.contracts.from') }}</th>
+              <th>{{ t('hr.contracts.to') }}</th>
+              <th>{{ t('hr.contracts.kind') }}</th>
+              <th class="numeric">{{ t('hr.contracts.basic') }}</th>
+              <th class="numeric">{{ t('hr.contracts.allowances') }}</th>
+              <th>{{ t('hr.contracts.reason') }}</th>
+              <th>{{ t('hr.contracts.recordedBy') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (contract of contracts(); track contract.id) {
+              <tr>
+                @if (!selectedEmployeeNo) {
+                  <td>
+                    <span class="code">{{ contract.employeeNo }}</span> {{ nameOf(contract.employeeNo) }}
+                  </td>
+                }
+                <td>
+                  {{ contract.startsOn }}
+                  @if (isCurrent(contract)) {
+                    <span class="tag">{{ t('hr.contracts.current') }}</span>
+                  }
+                </td>
+                <td>{{ contract.endsOn ?? '—' }}</td>
+                <td>{{ kindLabel(contract.kind) }}</td>
+                <td class="numeric">{{ i18n.amount(contract.basicWage) }}</td>
+                <td class="numeric">{{ i18n.amount(contract.allowances) }}</td>
+                <td>{{ contract.reason ?? '—' }}</td>
+                <td>{{ contract.recordedByUserName ?? '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+
+  @if (canWrite() && selectedEmployeeNo) {
+    <section class="panel">
+      <h2 class="panel__title">
+        {{ t('hr.contracts.recordFor', { Name: nameOf(selectedEmployeeNo) }) }}
+      </h2>
+
+      <div class="panel__body draft">
+        <label class="field">
+          <span class="field__label">{{ t('hr.contracts.from') }}</span>
+          <input class="input" type="date" [(ngModel)]="draftStartsOn" name="startsOn" />
+        </label>
+
+        <label class="field">
+          <span class="field__label">{{ t('hr.contracts.kind') }}</span>
+          <select class="select" [(ngModel)]="draftKind" name="kind">
+            <option value="Permanent">{{ t('hr.contracts.permanent') }}</option>
+            <option value="FixedTerm">{{ t('hr.contracts.fixedTerm') }}</option>
+            <option value="Probation">{{ t('hr.contracts.probation') }}</option>
+          </select>
+        </label>
+
+        <!-- Only where a term is what it is. A permanent contract with an end date is refused,
+             so offering the box would be offering a way to be refused. -->
+        @if (needsEnd()) {
+          <label class="field">
+            <span class="field__label">{{ t('hr.contracts.to') }}</span>
+            <input class="input" type="date" [(ngModel)]="draftEndsOn" name="endsOn" />
+          </label>
+        }
+
+        <label class="field">
+          <span class="field__label">{{ t('hr.contracts.basic') }}</span>
+          <input
+            class="input input--number"
+            type="number"
+            inputmode="decimal"
+            [(ngModel)]="draftBasicWage"
+            name="basic"
+          />
+        </label>
+
+        <label class="field">
+          <span class="field__label">{{ t('hr.contracts.allowances') }}</span>
+          <input
+            class="input input--number"
+            type="number"
+            inputmode="decimal"
+            [(ngModel)]="draftAllowances"
+            name="allowances"
+          />
+        </label>
+
+        <label class="field">
+          <span class="field__label">{{ t('hr.contracts.reference') }}</span>
+          <input class="input" [(ngModel)]="draftReference" name="reference" maxlength="60" />
+        </label>
+
+        <label class="field">
+          <span class="field__label">{{ t('hr.contracts.signedOn') }}</span>
+          <input class="input" type="date" [(ngModel)]="draftSignedOn" name="signedOn" />
+        </label>
+
+        <label class="field">
+          <span class="field__label">{{ t('hr.contracts.reason') }}</span>
+          <input class="input" [(ngModel)]="draftReason" name="reason" maxlength="500" />
+        </label>
+
+        <button
+          type="button"
+          class="button button--primary"
+          [disabled]="busy() || !draftStartsOn || !draftBasicWage"
+          (click)="record()"
+        >
+          {{ wouldSupersede() ? t('hr.contracts.supersede') : t('hr.contracts.record') }}
+        </button>
+      </div>
+
+      @if (wouldSupersede()) {
+        <p class="panel__body hint">{{ t('hr.contracts.supersedeHint') }}</p>
+      }
+    </section>
+  } @else if (canWrite()) {
+    <p class="panel__body hint">{{ t('hr.contracts.pickSomebody') }}</p>
+  }
+</div>

@@ -107,9 +107,23 @@ public sealed class PayrollService(
             .UnpaidByEmployeeAsync(from, to, cancellationToken: cancellationToken)
             .ConfigureAwait(false);
 
+        // And one query for every contract that touches the period. A run of fifty people that
+        // fetched each person's contracts on its own would be fifty round trips for a figure the
+        // database can hand over in one.
+        var ids = employees.Select(static e => e.Id).ToList();
+
+        var contractsByEmployee = (await context.Set<EmploymentContract>()
+                .AsNoTracking()
+                .Where(c => ids.Contains(c.EmployeeId))
+                .Where(c => c.StartsOn <= to && (c.EndsOn == null || c.EndsOn >= from))
+                .ToListAsync(cancellationToken)
+                .ConfigureAwait(false))
+            .GroupBy(static c => c.EmployeeId)
+            .ToDictionary(static g => g.Key, static g => g.OrderBy(static c => c.StartsOn).ToList());
+
         foreach (var employee in employees)
         {
-            var line = LineFor(run, employee, from, to, awayByEmployee, found);
+            var line = LineFor(run, employee, from, to, awayByEmployee, contractsByEmployee, found);
 
             if (line is not null)
             {
@@ -158,6 +172,7 @@ public sealed class PayrollService(
         DateOnly from,
         DateOnly to,
         IReadOnlyDictionary<Guid, Leave.LeavePay> awayByEmployee,
+        IReadOnlyDictionary<Guid, List<EmploymentContract>> contractsByEmployee,
         List<AsapMessage> found)
     {
         var byBranch = WageApportionment.DaysByBranch(employee, from, to);
@@ -184,8 +199,44 @@ public sealed class PayrollService(
         }
 
         var days = run.DaysInPeriod;
-        var basic = WageApportionment.ForPartMonth(employee.BasicWage, daysWorked, days);
-        var allowances = WageApportionment.ForPartMonth(employee.Allowances, daysWorked, days);
+
+        // The contract in force decides the wage, not the figure on the employee. That figure has
+        // no date, so a raise entered in April would quietly restate a March run made before it —
+        // the same payroll, re-run, paying a different amount and nothing saying why.
+        var contracts = contractsByEmployee.GetValueOrDefault(employee.Id) ?? [];
+        var covering = ContractApportionment.Covering(contracts, from, to);
+
+        decimal basic;
+        decimal allowances;
+
+        if (covering.Count == 0)
+        {
+            basic = WageApportionment.ForPartMonth(employee.BasicWage, daysWorked, days);
+            allowances = WageApportionment.ForPartMonth(employee.Allowances, daysWorked, days);
+
+            found.Add(messages.Render(
+                HrMessages.NoContractForPeriod,
+                Args(("EmployeeNo", employee.No), ("FromDate", from), ("ToDate", to))));
+        }
+        else
+        {
+            (basic, allowances) = ContractApportionment.Wages(covering, daysWorked, days);
+
+            // A contract that ran out inside the period leaves days nobody agreed a wage for.
+            // Said rather than absorbed: somebody being paid past the end of their contract is
+            // precisely the thing that goes unnoticed until it has run for months.
+            var uncovered = days - covering.Sum(static c => c.Days);
+
+            if (uncovered > 0)
+            {
+                found.Add(messages.Render(
+                    HrMessages.PaidPastContractEnd,
+                    Args(
+                        ("EmployeeNo", employee.No),
+                        ("ToDate", covering[^1].Contract.EndsOn),
+                        ("UncoveredDays", uncovered))));
+            }
+        }
 
         var line = new PayrollLine
         {
@@ -206,7 +257,14 @@ public sealed class PayrollService(
         // to tell unpaid leave from having joined mid-month.
         if (awayByEmployee.TryGetValue(employee.Id, out var away) && away.UnpaidDays > 0m)
         {
-            line.Deductions = Round(employee.TotalWage / 30m * away.UnpaidDays);
+            // Measured against what the contract pays, for the same reason the wage is. A
+            // deduction worked out on today's figure against a wage from a year ago would take
+            // off more than the days were ever worth.
+            var monthly = covering.Count > 0
+                ? covering[^1].Contract.TotalWage
+                : employee.TotalWage;
+
+            line.Deductions = Round(monthly / 30m * away.UnpaidDays);
             line.Note = $"{away.UnpaidDays:N1} days of leave carrying no pay";
         }
 

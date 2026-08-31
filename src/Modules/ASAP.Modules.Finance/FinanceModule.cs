@@ -71,6 +71,7 @@ public sealed class FinanceModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISync
         services.AddScoped<JournalPostingValidator>();
 
 
+        services.AddScoped<Currencies.CurrencyRevaluationService>();
         services.AddScoped<Parties.CustomerGroupService>();
 
         services.AddScoped<ASAP.Platform.Kernel.Accounting.IChartOfAccounts, Accounts.ChartOfAccountsLookup>();
@@ -512,6 +513,18 @@ public sealed class FinanceModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISync
             RequiresPermission = $"{Id}.Party.Read",
             Order = 33,
             HelpTopic = "finance/customer-groups",
+        },
+        new()
+        {
+            Id = "Finance.Revaluation",
+            Module = Id,
+            ParentId = "Finance.Root",
+            DisplayName = new LocalizedText("Currency revaluation", "إعادة تقييم العملات"),
+            Kind = NavigationKind.Page,
+            Route = "/finance/revaluation",
+            RequiresPermission = $"{Id}.Report.Read",
+            Order = 36,
+            HelpTopic = "finance/revaluation",
         },
         new()
         {

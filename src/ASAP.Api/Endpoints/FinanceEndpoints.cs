@@ -6,6 +6,8 @@ using ASAP.Modules.Finance.Periods;
 using ASAP.Modules.Finance.Posting;
 using ASAP.Modules.Finance.Reporting;
 using ASAP.Modules.Finance.Currencies;
+using ASAP.Modules.Finance.Parties;
+using ASAP.Platform.Kernel.Messaging;
 using ASAP.Platform.Kernel.Security;
 using ASAP.Platform.Kernel.Tenancy;
 using ASAP.Modules.Finance.Tax;
@@ -215,6 +217,36 @@ public sealed record SaveExchangeRateRequest(
     decimal BaseAmount,
     decimal CurrencyAmount = 1m);
 
+/// <summary>One open balance, and what it is worth at the closing rate.</summary>
+/// <param name="PartyNo">Whose it is.</param>
+/// <param name="PartyName">What they are called.</param>
+/// <param name="DocumentNo">The document still open.</param>
+/// <param name="PostingDate">When it was raised.</param>
+/// <param name="CurrencyCode">What it is owed in.</param>
+/// <param name="RemainingInCurrency">What is still owed, in that currency.</param>
+/// <param name="CarryingAmount">What that is carried at in the company's own currency.</param>
+/// <param name="ClosingRate">The rate on the day being closed.</param>
+/// <param name="RevaluedAmount">What it is worth at that rate.</param>
+/// <param name="Difference">What the revaluation posts: positive is a loss.</param>
+/// <param name="ControlAccountNo">The account the balance sits on.</param>
+public sealed record RevaluationRowView(
+    string PartyNo,
+    string PartyName,
+    string DocumentNo,
+    DateOnly PostingDate,
+    string CurrencyCode,
+    decimal RemainingInCurrency,
+    decimal CarryingAmount,
+    decimal ClosingRate,
+    decimal RevaluedAmount,
+    decimal Difference,
+    string ControlAccountNo);
+
+/// <summary>What a client sends to restate open foreign balances.</summary>
+/// <param name="AsAt">The day being closed.</param>
+/// <param name="Kind">Customers or vendors.</param>
+public sealed record PostRevaluationRequest(DateOnly AsAt, PartyKind Kind = PartyKind.Customer);
+
 /// <summary>Chart of accounts, journals and the general ledger.</summary>
 public static class FinanceEndpoints
 {
@@ -241,6 +273,14 @@ public static class FinanceEndpoints
         group.MapPost("/journals/reverse", ReverseAsync)
              .WithName("ReverseTransaction")
              .WithSummary("Reverses a posted transaction by posting its mirror image.");
+
+        group.MapGet("/revaluation", RevaluationPreviewAsync)
+             .WithName("RevaluationPreview")
+             .WithSummary("What closing the day would restate, without restating it.");
+
+        group.MapPost("/revaluation", RevaluationPostAsync)
+             .WithName("PostRevaluation")
+             .WithSummary("Restates open foreign balances at the rate on the day being closed.");
 
         group.MapGet("/reports/trial-balance", TrialBalanceAsync)
              .WithName("TrialBalance")
@@ -1172,6 +1212,75 @@ public static class FinanceEndpoints
     /// instead of going through a command. Everything in this file that does go through a command
     /// is guarded by the attribute on the command itself.
     /// </remarks>
+    private static async Task<IResult> RevaluationPreviewAsync(
+        CurrencyRevaluationService revaluation,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken,
+        [FromQuery] DateOnly? asAt = null,
+        [FromQuery] PartyKind kind = PartyKind.Customer)
+    {
+        if (!Can(user, "Finance.Report.Read"))
+        {
+            return Forbidden("Finance.Report.Read", "preview a revaluation", http);
+        }
+
+        var result = await revaluation
+            .PreviewAsync(asAt ?? DateOnly.FromDateTime(DateTime.UtcNow), kind, cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.Ok(ViewOf(result.Value, result.Messages));
+    }
+
+    private static async Task<IResult> RevaluationPostAsync(
+        PostRevaluationRequest request,
+        CurrencyRevaluationService revaluation,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        // Posting to the ledger, so the permission is the one that posts, not the one that reads.
+        // Previewing is a report; restating a balance sheet is not.
+        if (!Can(user, "Finance.Journal.Post"))
+        {
+            return Forbidden("Finance.Journal.Post", "post a revaluation", http);
+        }
+
+        var result = await revaluation
+            .PostAsync(request.AsAt, request.Kind, cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.Ok(ViewOf(result.Value, result.Messages));
+    }
+
+    private static object ViewOf(RevaluationRun run, IReadOnlyList<AsapMessage> found)
+        => new
+        {
+            asAt = run.AsAt,
+            totalDifference = run.TotalDifference,
+            transactionNo = run.TransactionNo,
+            rows = run.Rows.Select(static r => new RevaluationRowView(
+                r.PartyNo,
+                r.PartyName,
+                r.DocumentNo,
+                r.PostingDate,
+                r.CurrencyCode,
+                r.RemainingInCurrency,
+                r.CarryingAmount,
+                r.ClosingRate,
+                r.RevaluedAmount,
+                r.Difference,
+                r.ControlAccountNo)),
+            messages = MessagePayload.FromAll(found),
+        };
+
+    private static IResult Refused(Platform.Kernel.Results.Result result, HttpContext http)
+        => Results.Json(
+            AsapProblem.From(result, AsapProblem.StatusFor(result.Messages), http.Request.Path),
+            statusCode: AsapProblem.StatusFor(result.Messages));
+
     private static bool Can(IUserContext user, string permission)
         => user.IsSuperUser || user.Has(permission);
 

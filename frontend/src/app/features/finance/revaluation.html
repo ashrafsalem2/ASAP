@@ -1,0 +1,97 @@
+<div class="page">
+  <h1>{{ t('finance.revaluation.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('finance.revaluation.intro') }}</p>
+
+    <div class="panel__body draft">
+      <label class="field">
+        <span class="field__label">{{ t('finance.revaluation.asAt') }}</span>
+        <input class="input" type="date" [(ngModel)]="asAt" name="asAt" (change)="preview()" />
+      </label>
+
+      <label class="field">
+        <span class="field__label">{{ t('finance.revaluation.kind') }}</span>
+        <select class="select" [(ngModel)]="kind" name="kind" (ngModelChange)="preview()">
+          <option value="Customer">{{ t('finance.revaluation.customers') }}</option>
+          <option value="Vendor">{{ t('finance.revaluation.vendors') }}</option>
+        </select>
+      </label>
+
+      <button type="button" class="button" [disabled]="busy()" (click)="preview()">
+        {{ t('finance.revaluation.preview') }}
+      </button>
+    </div>
+
+    @if (busy()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else if (run(); as result) {
+      @if (result.rows.length === 0) {
+        <p class="empty">{{ t('finance.revaluation.nothingToDo') }}</p>
+      } @else {
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('finance.revaluation.party') }}</th>
+                <th>{{ t('finance.revaluation.document') }}</th>
+                <th>{{ t('finance.revaluation.currency') }}</th>
+
+                <!-- All five figures. A revaluation nobody can reproduce is one nobody signs off. -->
+                <th class="numeric">{{ t('finance.revaluation.owed') }}</th>
+                <th class="numeric">{{ t('finance.revaluation.carried') }}</th>
+                <th class="numeric">{{ t('finance.revaluation.rate') }}</th>
+                <th class="numeric">{{ t('finance.revaluation.revalued') }}</th>
+                <th class="numeric">{{ t('finance.revaluation.difference') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of result.rows; track row.partyNo + row.documentNo) {
+                <tr>
+                  <td><span class="code">{{ row.partyNo }}</span> {{ row.partyName }}</td>
+                  <td class="code">{{ row.documentNo }}</td>
+                  <td class="code">{{ row.currencyCode }}</td>
+                  <td class="numeric">{{ i18n.amount(row.remainingInCurrency) }}</td>
+                  <td class="numeric">{{ i18n.amount(row.carryingAmount) }}</td>
+                  <td class="numeric">{{ row.closingRate }}</td>
+                  <td class="numeric">{{ i18n.amount(row.revaluedAmount) }}</td>
+                  <td class="numeric">
+                    <span [class.tag]="true" [class.tag--warning]="isLoss(row.difference)">
+                      {{ i18n.amount(row.difference) }}
+                    </span>
+                  </td>
+                </tr>
+              }
+            </tbody>
+            <tfoot>
+              <tr>
+                <td colspan="7">
+                  {{ isLoss(result.totalDifference)
+                    ? t('finance.revaluation.netLoss')
+                    : t('finance.revaluation.netGain') }}
+                </td>
+                <td class="numeric"><strong>{{ i18n.amount(result.totalDifference) }}</strong></td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        @if (posted()) {
+          <p class="panel__body hint">
+            {{ t('finance.revaluation.done', { Transaction: result.transactionNo ?? 0 }) }}
+          </p>
+        } @else if (canPost()) {
+          <div class="panel__body draft">
+            <button type="button" class="button button--primary" [disabled]="busy()" (click)="post()">
+              {{ t('finance.revaluation.post') }}
+            </button>
+          </div>
+
+          <!-- Safe to repeat, and worth saying: the commonest worry about a revaluation is
+               whether running it twice doubles it. -->
+          <p class="panel__body hint">{{ t('finance.revaluation.postHint') }}</p>
+        }
+      }
+    }
+  </section>
+</div>

@@ -247,11 +247,20 @@ public static class FinanceMessages
         {
             Code = AccountMissing,
             Severity = MessageSeverity.Error,
-            Title = new LocalizedText("A line has no account", "أحد السطور بدون حساب"),
+            Title = new LocalizedText(
+                "A line has no account in the chart",
+                "أحد السطور بلا حساب في الدليل"),
+
+            // Raised both when a line names nothing and when it names something the chart has not
+            // got. The second is the commoner one and the harder to see, so the wording covers it:
+            // "names no account" in front of a line that plainly names one sends somebody looking
+            // at the wrong thing.
             Detail = new LocalizedText(
-                "Line {LineNo} names no account to post to.",
-                "السطر {LineNo} لا يحدد حسابًا للترحيل إليه."),
-            Resolution = new LocalizedText("Choose an account on line {LineNo}.", "اختر حسابًا في السطر {LineNo}."),
+                "Line {LineNo} names no account, or names one this company's chart does not have.",
+                "السطر {LineNo} لا يحدد حسابًا، أو يحدد حسابًا غير موجود في دليل هذه الشركة."),
+            Resolution = new LocalizedText(
+                "Choose an account on line {LineNo}, and check it against the chart of accounts.",
+                "اختر حسابًا في السطر {LineNo}، وراجعه مقابل دليل الحسابات."),
         },
         new()
         {

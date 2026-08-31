@@ -19,6 +19,7 @@ import {
   PartyLedgerEntry,
   PostJournalLine,
   PostingReceipt,
+  RevaluationResult,
   TrialBalance,
   FiscalYearRow,
 } from './asap-api.models';
@@ -201,6 +202,22 @@ export class FinanceService {
   }
 
   /** The two ledgers differ only in their route segment. */
+  /** What closing the day would restate, without restating it. */
+  revaluationPreview(asAt: string, kind: PartyKind): Promise<RevaluationResult> {
+    const params = new HttpParams().set('asAt', asAt).set('kind', kind);
+
+    return firstValueFrom(
+      this.http.get<RevaluationResult>(`${this.base}/finance/revaluation`, { params }),
+    );
+  }
+
+  /** Restates open foreign balances at the rate on the day being closed. */
+  postRevaluation(asAt: string, kind: PartyKind): Promise<RevaluationResult> {
+    return firstValueFrom(
+      this.http.post<RevaluationResult>(`${this.base}/finance/revaluation`, { asAt, kind }),
+    );
+  }
+
   /** The kinds of customer, and how many are in each. */
   customerGroups(): Promise<CustomerGroup[]> {
     return firstValueFrom(

@@ -395,6 +395,30 @@ export interface CustomerGroupPriceList {
   priceListCode: string;
 }
 
+/** One open balance, and what it is worth at the closing rate. */
+export interface RevaluationRow {
+  partyNo: string;
+  partyName: string;
+  documentNo: string;
+  postingDate: string;
+  currencyCode: string;
+  remainingInCurrency: number;
+  carryingAmount: number;
+  closingRate: number;
+  revaluedAmount: number;
+  difference: number;
+  controlAccountNo: string;
+}
+
+/** What a revaluation run said, or did. */
+export interface RevaluationResult {
+  asAt: string;
+  totalDifference: number;
+  transactionNo: number | null;
+  rows: RevaluationRow[];
+  messages?: AsapMessage[];
+}
+
 /** A kind of customer: wholesale, retail, staff, government. */
 export interface CustomerGroup {
   code: string;

@@ -140,6 +140,12 @@ export const routes: Routes = [
           import('./features/finance/customer-groups').then((m) => m.CustomerGroups),
       },
       {
+        path: 'finance/revaluation',
+        canActivate: [requirePermission('Finance.Report.Read')],
+        loadComponent: () =>
+          import('./features/finance/revaluation').then((m) => m.CurrencyRevaluation),
+      },
+      {
         path: 'finance/currencies',
         canActivate: [requirePermission('Finance.Currency.Read')],
         loadComponent: () => import('./features/finance/currencies').then((m) => m.Currencies),

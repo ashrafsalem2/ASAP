@@ -9,6 +9,15 @@ namespace ASAP.Modules.Finance;
 public static class FinanceMessages
 {
     /// <summary>Debits and credits do not agree.</summary>
+    /// <summary>A customer group was saved without a code or a name.</summary>
+    public static readonly MessageCode CustomerGroupNeedsACodeAndName = new("FIN.GROUP.INCOMPLETE");
+
+    /// <summary>No customer group by that code.</summary>
+    public static readonly MessageCode CustomerGroupNotFound = new("FIN.GROUP.NOT_FOUND");
+
+    /// <summary>The group has been withdrawn from use.</summary>
+    public static readonly MessageCode CustomerGroupWithdrawn = new("FIN.GROUP.WITHDRAWN");
+
     public static readonly MessageCode OutOfBalance = new("FIN.JOURNAL.OUT_OF_BALANCE");
 
     /// <summary>There is nothing in the batch to post.</summary>
@@ -166,6 +175,49 @@ public static class FinanceMessages
     /// <summary>Every message the module declares.</summary>
     public static IReadOnlyCollection<MessageDefinition> All { get; } =
     [
+        new()
+        {
+            Code = CustomerGroupNeedsACodeAndName,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("A group needs a code and a name", "المجموعة تحتاج رمزًا واسمًا"),
+            Detail = new LocalizedText(
+                "A customer group was saved with {Code} and no name, or with no code at all.",
+                "حُفظت مجموعة عملاء بالرمز {Code} دون اسم، أو دون رمز أصلًا."),
+            Resolution = new LocalizedText(
+                "Give it both. Offers and price lists point at the code and people read the name.",
+                "امنحها الاثنين. فالعروض وقوائم الأسعار تشير إلى الرمز، والناس يقرؤون الاسم."),
+            HelpTopic = "finance/customer-groups",
+        },
+        new()
+        {
+            Code = CustomerGroupNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such customer group", "لا توجد مجموعة عملاء بهذا الرمز"),
+            Detail = new LocalizedText(
+                "Nothing in this company is coded {GroupCode}.",
+                "لا يوجد في هذه الشركة ما يحمل الرمز {GroupCode}."),
+            Resolution = new LocalizedText(
+                "Check the code, or add the group first.",
+                "تحقق من الرمز، أو أضف المجموعة أولًا."),
+            HelpTopic = "finance/customer-groups",
+        },
+        new()
+        {
+            Code = CustomerGroupWithdrawn,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("That group is no longer in use", "تلك المجموعة لم تعد مستعملة"),
+            Detail = new LocalizedText(
+                "{GroupCode} ({Name}) has been switched off.",
+                "أُوقفت المجموعة {GroupCode} ({Name})."),
+            Resolution = new LocalizedText(
+                "Put them in a group still in use, or switch this one back on. Customers already "
+                + "in it stay where they are: a customer silently leaving a group is a customer "
+                + "silently losing a price.",
+                "ضعهم في مجموعة ما زالت مستعملة، أو أعد تشغيل هذه. ويبقى من فيها كما هم: فخروج "
+                + "العميل من مجموعته في صمت خروجه من سعره في صمت."),
+            HelpTopic = "finance/customer-groups",
+        },
+
         new()
         {
             Code = OutOfBalance,

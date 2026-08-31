@@ -70,6 +70,9 @@ public sealed class FinanceModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISync
 
         services.AddScoped<JournalPostingValidator>();
 
+
+        services.AddScoped<Parties.CustomerGroupService>();
+
         services.AddScoped<ASAP.Platform.Kernel.Accounting.IChartOfAccounts, Accounts.ChartOfAccountsLookup>();
         services.AddScoped<JournalPostingService>();
         services.AddScoped<Banking.BankReconciliationService>();
@@ -497,6 +500,18 @@ public sealed class FinanceModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISync
             Route = "/finance/bank-reconciliation",
             RequiresPermission = $"{Id}.Bank.Read",
             Order = 34,
+        },
+        new()
+        {
+            Id = "Finance.CustomerGroups",
+            Module = Id,
+            ParentId = "Finance.Root",
+            DisplayName = new LocalizedText("Customer groups", "مجموعات العملاء"),
+            Kind = NavigationKind.Setup,
+            Route = "/finance/customer-groups",
+            RequiresPermission = $"{Id}.Party.Read",
+            Order = 33,
+            HelpTopic = "finance/customer-groups",
         },
         new()
         {

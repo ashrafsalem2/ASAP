@@ -1,3 +1,4 @@
+using ASAP.Modules.Finance;
 using ASAP.Modules.Inventory;
 using ASAP.Modules.Inventory.Items;
 using ASAP.Modules.Sales.Pricing;
@@ -258,7 +259,7 @@ public sealed class PriceListTests : IDisposable
             _tenancy,
             new StubUser(),
             _clock,
-            [new InventorySchema(), new SalesSchema()]);
+            [new InventorySchema(), new FinanceSchema(), new SalesSchema()]);
 
         _opened.Add(context);
 

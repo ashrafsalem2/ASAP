@@ -126,6 +126,28 @@ public sealed class PriceListLine : CompanyEntity
             + (MinimumQuantity > 0m ? 1 : 0);
 }
 
+/// <summary>Which price list a whole customer group is on.</summary>
+/// <remarks>
+/// <para>
+/// Kept apart from the customer's own assignment rather than folded into one table, because
+/// "this customer is on the trade list" and "wholesalers are on the trade list" are two different
+/// statements. One table holding either would need an invariant that exactly one of two columns
+/// is filled, and nothing would enforce it.
+/// </para>
+/// <para>
+/// A customer's own list always wins over their group's. That is the same rule the price lines
+/// themselves follow: the more specific thing decides.
+/// </para>
+/// </remarks>
+public sealed class CustomerGroupPriceList : CompanyEntity
+{
+    /// <summary>The group.</summary>
+    public required string CustomerGroupCode { get; set; }
+
+    /// <summary>The price list they are on.</summary>
+    public required string PriceListCode { get; set; }
+}
+
 /// <summary>Which price list a customer is on.</summary>
 /// <remarks>
 /// Held here rather than on the customer, because a customer belongs to Finance and what they pay

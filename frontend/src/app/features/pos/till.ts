@@ -4,6 +4,8 @@ import {
   Item,
   ParkedSale,
   PosSession,
+  Party,
+  PosReceiptPosted,
   PosStation,
   TaxCodeSummary,
   TenderKind,
@@ -61,6 +63,7 @@ export class Till implements OnInit {
   protected readonly stations = signal<PosStation[]>([]);
   protected readonly items = signal<Item[]>([]);
   protected readonly taxCodes = signal<TaxCodeSummary[]>([]);
+  protected readonly customers = signal<Party[]>([]);
   protected readonly session = signal<PosSession | null>(null);
   protected readonly loading = signal(true);
   protected readonly busy = signal<string | null>(null);
@@ -81,6 +84,17 @@ export class Till implements OnInit {
   protected scannedDiscount: number | null = null;
   protected parkedAs = '';
   protected returnsReceiptNo = '';
+
+  /**
+   * Who the sale is for, or blank for whoever walks in.
+   *
+   * Blank is the ordinary case and stays the default: naming a customer at a shop counter slows
+   * every sale down, and most sales have nobody to name. It matters when there is one, because a
+   * customer's group is what decides whether an offer limited to staff or to trade applies at
+   * all. Without this field those offers read as configured on the offer screen and discount
+   * nobody, which is worse than not having them.
+   */
+  protected customerNo = '';
 
   /**
    * Whether the till is taking goods back rather than selling them.
@@ -170,15 +184,17 @@ export class Till implements OnInit {
 
   async ngOnInit(): Promise<void> {
     try {
-      const [stations, items, taxCodes] = await Promise.all([
+      const [stations, items, taxCodes, customers] = await Promise.all([
         this.pos.stations(),
         this.inventory.items(),
         this.finance.taxCodes(),
+        this.finance.parties('Customer'),
       ]);
 
       this.stations.set(stations.filter((station) => !station.isBlocked));
       this.items.set(items.filter((item) => !item.isBlocked));
       this.taxCodes.set(taxCodes);
+      this.customers.set(customers.filter((customer) => !customer.isBlocked));
 
       // Straight back to whichever till is already trading. A cashier returning from a break
       // should not have to remember which one they were on.
@@ -324,11 +340,34 @@ export class Till implements OnInit {
     this.tenders.update((tenders) => tenders.filter((_, position) => position !== index));
   }
 
+  /** What to tell the cashier about the sale that just posted. */
+  private receiptSummary(posted: PosReceiptPosted): string {
+    if (posted.promotionAmount > 0) {
+      return this.t('pos.receipt.saved', {
+        No: posted.receiptNo,
+        Total: this.i18n.total(posted.totalAmount),
+        Saved: this.i18n.total(posted.promotionAmount),
+      });
+    }
+
+    return posted.changeGiven > 0
+      ? this.t('pos.receipt.doneWithChange', {
+          No: posted.receiptNo,
+          Total: this.i18n.total(posted.totalAmount),
+          Change: this.i18n.total(posted.changeGiven),
+        })
+      : this.t('pos.receipt.done', {
+          No: posted.receiptNo,
+          Total: this.i18n.total(posted.totalAmount),
+        });
+  }
+
   protected clearSale(): void {
     this.lines.set([]);
     this.tenders.set([]);
     this.recalledFrom.set(null);
     this.returnsReceiptNo = '';
+    this.customerNo = '';
     this.returning = false;
     this.messages.clear();
   }
@@ -456,23 +495,17 @@ export class Till implements OnInit {
       }));
 
       const posted = await this.pos.postReceipt(session.no, this.payloadLines(), tenders, {
+        customerNo: this.customerNo || undefined,
         returnsReceiptNo: this.returnsReceiptNo || undefined,
         parkedReceiptNo: this.recalledFrom() ?? undefined,
       });
 
       this.report(posted.messages);
-      this.messages.showSuccess(
-        posted.changeGiven > 0
-          ? this.t('pos.receipt.doneWithChange', {
-              No: posted.receiptNo,
-              Total: this.i18n.total(posted.totalAmount),
-              Change: this.i18n.total(posted.changeGiven),
-            })
-          : this.t('pos.receipt.done', {
-              No: posted.receiptNo,
-              Total: this.i18n.total(posted.totalAmount),
-            }),
-      );
+
+      // What the offers took off is worth saying out loud. Offers are decided on the server, so
+      // the screen the customer was looking at showed the ordinary price and they then paid less
+      // than it. Without a line naming the difference, a cashier asked why has nothing to point at.
+      this.messages.showSuccess(this.receiptSummary(posted));
 
       this.clearSale();
 

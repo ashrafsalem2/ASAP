@@ -20,6 +20,14 @@ A receipt can be paid with several tenders — some cash, the rest on a card. Ch
 
 A sale can be parked and recalled later — the customer who has forgotten something and gone back for it. A parked sale holds no stock and posts nothing; it is a basket, not a transaction.
 
+## Naming the customer
+
+The customer box is blank by default, and blank is the ordinary case: most sales at a counter have nobody to name, and asking a cashier to pick one every time slows every sale down.
+
+It matters when there is a customer, because their **customer group** is what decides whether an offer limited to staff or to trade applies at all. Leave it blank and the sale goes to the till's walk-in customer, who is in no group, so only offers open to everybody apply.
+
 ## Discounts and offers
 
 A line discount above the limit set for the till is refused, overridable by somebody with the permission, with a reason. Offers apply automatically and each line records which offer priced it, so a campaign can be totalled either way. See the promotions topics.
+
+Offers are decided by the server, not by the till, so the screen shows the ordinary price and the amount charged can come out lower. When an offer takes something off, the message after the sale names the amount, so a cashier asked why the total changed has something to point at.

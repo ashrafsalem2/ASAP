@@ -1,0 +1,208 @@
+<div class="page">
+  <h1>{{ t('finance.customerGroups.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('finance.customerGroups.intro') }}</p>
+
+    @if (canWrite()) {
+      <div class="panel__body draft">
+        <button type="button" class="button" (click)="startNew()">
+          {{ t('finance.customerGroups.new') }}
+        </button>
+      </div>
+    }
+
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else if (groups().length === 0) {
+      <p class="empty">{{ t('finance.customerGroups.none') }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('finance.customerGroups.code') }}</th>
+              <th>{{ t('finance.customerGroups.name') }}</th>
+              <th class="numeric">{{ t('finance.customerGroups.members') }}</th>
+              <th>{{ t('finance.customerGroups.priceList') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (group of groups(); track group.code) {
+              <tr
+                class="admin__row"
+                [class.admin__row--selected]="selected()?.code === group.code"
+                (click)="select(group)"
+              >
+                <td class="code">
+                  {{ group.code }}
+                  @if (!group.isActive) {
+                    <span class="tag">{{ t('finance.customerGroups.withdrawn') }}</span>
+                  }
+                </td>
+                <td>{{ name(group) }}</td>
+
+                <!-- A group nobody is in is the one somebody is about to withdraw by mistake. -->
+                <td class="numeric">{{ group.memberCount }}</td>
+
+                <td>
+                  @if (listOf(group.code)) {
+                    <span class="code">{{ listOf(group.code) }}</span>
+                  } @else {
+                    <span class="muted">{{ t('finance.customerGroups.noPriceList') }}</span>
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+
+  @if (canWrite()) {
+    <section class="panel">
+      <h2 class="panel__title">
+        {{ selected() ? t('finance.customerGroups.editing', { code: selected()!.code }) : t('finance.customerGroups.new') }}
+      </h2>
+
+      <div class="panel__body draft">
+        <label class="field">
+          <span class="field__label">{{ t('finance.customerGroups.code') }}</span>
+          <input
+            class="input"
+            [(ngModel)]="draftCode"
+            [disabled]="selected() !== null"
+            name="code"
+            maxlength="40"
+          />
+        </label>
+
+        <label class="field">
+          <span class="field__label">{{ t('finance.customerGroups.name') }}</span>
+          <input class="input" [(ngModel)]="draftName" name="name" maxlength="200" />
+        </label>
+
+        <label class="field">
+          <span class="field__label">{{ t('finance.customerGroups.nameArabic') }}</span>
+          <input class="input" [(ngModel)]="draftNameArabic" name="nameArabic" maxlength="200" dir="rtl" />
+        </label>
+
+        <label class="field">
+          <span class="field__label">{{ t('finance.customerGroups.description') }}</span>
+          <input class="input" [(ngModel)]="draftDescription" name="description" maxlength="500" />
+        </label>
+
+        <label class="checkbox">
+          <input type="checkbox" [(ngModel)]="draftActive" name="active" />
+          {{ t('finance.customerGroups.active') }}
+        </label>
+
+        <button type="button" class="button button--primary" [disabled]="busy()" (click)="save()">
+          {{ t('finance.customerGroups.save') }}
+        </button>
+      </div>
+
+      @if (!draftActive) {
+        <p class="panel__body hint">{{ t('finance.customerGroups.withdrawnHint') }}</p>
+      }
+    </section>
+  }
+
+  @if (selected(); as group) {
+    @if (canPrice()) {
+      <section class="panel">
+        <h2 class="panel__title">{{ t('finance.customerGroups.priceListFor', { name: name(group) }) }}</h2>
+
+        <p class="panel__body hint">{{ t('finance.customerGroups.priceListHint') }}</p>
+
+        <div class="panel__body draft">
+          <label class="field">
+            <span class="field__label">{{ t('finance.customerGroups.priceList') }}</span>
+            <select
+              class="input"
+              [ngModel]="listOf(group.code)"
+              name="priceList"
+              [disabled]="busy()"
+              (ngModelChange)="setList(group.code, $event)"
+            >
+              <option value="">{{ t('finance.customerGroups.noPriceList') }}</option>
+              @for (list of priceLists(); track list.code) {
+                <option [value]="list.code">{{ list.code }} — {{ list.name }}</option>
+              }
+            </select>
+          </label>
+        </div>
+      </section>
+    }
+
+    <section class="panel">
+      <h2 class="panel__title">{{ t('finance.customerGroups.membersOf', { name: name(group) }) }}</h2>
+
+      @if (canWrite()) {
+        <div class="panel__body draft">
+          <label class="field">
+            <span class="field__label">{{ t('finance.customerGroups.addCustomer') }}</span>
+            <select class="input" [(ngModel)]="joiningCustomerNo" name="joining" [disabled]="busy()">
+              <option value="">—</option>
+              @for (customer of unassigned(); track customer.no) {
+                <option [value]="customer.no">{{ customer.no }} — {{ customer.name }}</option>
+              }
+            </select>
+          </label>
+
+          <button
+            type="button"
+            class="button button--primary"
+            [disabled]="busy() || !joiningCustomerNo"
+            (click)="join()"
+          >
+            {{ t('finance.customerGroups.add') }}
+          </button>
+        </div>
+
+        @if (!group.isActive) {
+          <p class="panel__body hint">{{ t('finance.customerGroups.withdrawnMembers') }}</p>
+        }
+      }
+
+      @if (members().length === 0) {
+        <p class="empty">{{ t('finance.customerGroups.noMembers') }}</p>
+      } @else {
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('finance.customerGroups.customer') }}</th>
+                <th>{{ t('finance.customerGroups.customerName') }}</th>
+                @if (canWrite()) {
+                  <th></th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (customer of members(); track customer.no) {
+                <tr>
+                  <td class="code">{{ customer.no }}</td>
+                  <td>{{ customer.name }}</td>
+                  @if (canWrite()) {
+                    <td>
+                      <button
+                        type="button"
+                        class="button button--quiet"
+                        [disabled]="busy()"
+                        (click)="leave(customer.no)"
+                      >
+                        {{ t('finance.customerGroups.remove') }}
+                      </button>
+                    </td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+  }
+</div>

@@ -91,6 +91,17 @@ public abstract class Party : CompanyEntity
     /// <summary>The tax registration number, required on an invoice in most jurisdictions.</summary>
     public string? TaxRegistrationNo { get; set; }
 
+    /// <summary>
+    /// Which customer group they are in, on a customer.
+    /// </summary>
+    /// <remarks>
+    /// A fact about who the customer is rather than about any arrangement a module has with them,
+    /// which is why it lives here and the price list does not. Promotions asks whether an offer is
+    /// for wholesale and Sales asks which list a group is on; neither owns the answer, and a copy
+    /// in either would be the one that went stale.
+    /// </remarks>
+    public string? CustomerGroupCode { get; set; }
+
     /// <summary>Whether the party may be posted to at all.</summary>
     public bool IsPostable => !IsBlocked && !IsDeleted;
 }

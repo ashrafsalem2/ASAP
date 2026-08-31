@@ -22,6 +22,7 @@ namespace ASAP.Api.Endpoints;
 /// <param name="IsBlocked">Whether they are withdrawn from use.</param>
 /// <param name="Email">Contact email.</param>
 /// <param name="Phone">Contact telephone.</param>
+/// <param name="CustomerGroupCode">The kind of customer they are, where they are in a group.</param>
 public sealed record PartyView(
     string No,
     string Name,
@@ -33,7 +34,27 @@ public sealed record PartyView(
     string? ControlAccountNo,
     bool IsBlocked,
     string? Email,
-    string? Phone);
+    string? Phone,
+    string? CustomerGroupCode);
+
+/// <summary>A kind of customer, as it is reported back.</summary>
+/// <param name="Code">Its code.</param>
+/// <param name="Name">What it is called.</param>
+/// <param name="NameArabic">What it is called in Arabic.</param>
+/// <param name="Description">What sort of customer belongs in it.</param>
+/// <param name="IsActive">Whether customers may still be put in it.</param>
+/// <param name="MemberCount">How many customers are in it.</param>
+public sealed record CustomerGroupView(
+    string Code,
+    string Name,
+    string? NameArabic,
+    string? Description,
+    bool IsActive,
+    int MemberCount);
+
+/// <summary>Puts a customer in a group, or takes them out of one.</summary>
+/// <param name="CustomerGroupCode">The group, or null to take them out of whatever they are in.</param>
+public sealed record AssignCustomerGroupRequest(string? CustomerGroupCode);
 
 /// <summary>One entry on a party's account.</summary>
 /// <param name="Id">The entry key, used when applying.</param>
@@ -83,6 +104,11 @@ public static class PartyEndpoints
 {
     private const string ReadPermission = "Finance.Party.Read";
     private const string ApplyPermission = "Finance.Party.Post";
+
+    // Groups are maintained under the same permission as the customers themselves. A group is a
+    // fact about who a customer is, so whoever may change the customer may say which kind they
+    // are; a separate permission would only be a separate thing to forget to grant.
+    private const string WritePermission = "Finance.Party.Update";
 
     /// <summary>Maps the customer and vendor endpoints.</summary>
     /// <param name="app">The route builder.</param>
@@ -139,6 +165,18 @@ public static class PartyEndpoints
              .WithName("UnapplyVendorEntries")
              .WithSummary("Undoes a vendor application.");
 
+        group.MapGet("/customer-groups", CustomerGroupsAsync)
+             .WithName("CustomerGroups")
+             .WithSummary("The kinds of customer, and how many are in each.");
+
+        group.MapPut("/customer-groups/{code}", SaveCustomerGroupAsync)
+             .WithName("SaveCustomerGroup")
+             .WithSummary("Writes a customer group.");
+
+        group.MapPut("/customers/{customerNo}/group", AssignCustomerGroupAsync)
+             .WithName("AssignCustomerGroup")
+             .WithSummary("Puts a customer in a group, or takes them out of one.");
+
         group.MapGet("/reports/aged-analysis", AgedAnalysisAsync)
              .WithName("AgedAnalysis")
              .WithSummary("Reports what is outstanding, split by how late it is.");
@@ -172,7 +210,8 @@ public static class PartyEndpoints
                 p.ControlAccountNo,
                 p.IsBlocked,
                 p.Email,
-                p.Phone))
+                p.Phone,
+                p.CustomerGroupCode))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
@@ -300,6 +339,96 @@ public static class PartyEndpoints
         });
     }
 
+    private static async Task<IResult> CustomerGroupsAsync(
+        CustomerGroupService groups,
+        AsapDbContext context,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, ReadPermission))
+        {
+            return Forbidden(ReadPermission, "view customers and vendors", http);
+        }
+
+        var all = await groups.ListAsync(activeOnly: false, cancellationToken).ConfigureAwait(false);
+
+        // The count comes back with the group because a group nobody is in is the one somebody is
+        // about to withdraw, and the one everybody is in is the one to be careful with.
+        var members = await context.Set<Customer>()
+            .AsNoTracking()
+            .Where(c => c.CustomerGroupCode != null)
+            .GroupBy(c => c.CustomerGroupCode!)
+            .Select(g => new { Code = g.Key, Count = g.Count() })
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var counts = members.ToDictionary(
+            static m => m.Code,
+            static m => m.Count,
+            StringComparer.OrdinalIgnoreCase);
+
+        return Results.Ok(all.Select(g => new CustomerGroupView(
+            g.Code,
+            g.Name,
+            g.NameArabic,
+            g.Description,
+            g.IsActive,
+            counts.GetValueOrDefault(g.Code))));
+    }
+
+    private static async Task<IResult> SaveCustomerGroupAsync(
+        string code,
+        CustomerGroupRequest request,
+        CustomerGroupService groups,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, WritePermission))
+        {
+            return Forbidden(WritePermission, "maintain customer groups", http);
+        }
+
+        var result = await groups
+            .SaveAsync(request with { Code = code }, cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed
+            ? Refused(result, http)
+            : Results.Ok(new CustomerGroupView(
+                result.Value.Code,
+                result.Value.Name,
+                result.Value.NameArabic,
+                result.Value.Description,
+                result.Value.IsActive,
+                0));
+    }
+
+    private static async Task<IResult> AssignCustomerGroupAsync(
+        string customerNo,
+        AssignCustomerGroupRequest request,
+        CustomerGroupService groups,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, WritePermission))
+        {
+            return Forbidden(WritePermission, "put customers in groups", http);
+        }
+
+        var result = await groups
+            .AssignAsync(customerNo, request.CustomerGroupCode, cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.NoContent();
+    }
+
     private static async Task<IResult> AgedAnalysisAsync(
         IDispatcher dispatcher,
         [FromQuery] string? kind,
@@ -333,6 +462,11 @@ public static class PartyEndpoints
 
         return parsed.Count > 0 ? parsed : null;
     }
+
+    private static IResult Refused(Platform.Kernel.Results.Result result, HttpContext http)
+        => Results.Json(
+            AsapProblem.From(result, AsapProblem.StatusFor(result.Messages), http.Request.Path),
+            statusCode: AsapProblem.StatusFor(result.Messages));
 
     private static bool Can(IUserContext user, string permission)
         => user.IsSuperUser || user.Has(permission);

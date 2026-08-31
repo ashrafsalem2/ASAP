@@ -43,6 +43,7 @@ public sealed class PromotionEngineTests
         string? itemNo = null,
         Guid? categoryId = null,
         string? couponCode = null,
+        string? customerGroup = null,
         Guid? branchId = null,
         SalesChannel channels = SalesChannel.All,
         TimeOnly? startsAt = null,
@@ -63,6 +64,7 @@ public sealed class PromotionEngineTests
             Stacking = stacking,
             Priority = priority,
             CouponCode = couponCode,
+            CustomerGroup = customerGroup,
             BranchId = branchId,
             Channels = channels,
             StartsOn = new DateOnly(2026, 1, 1),
@@ -216,6 +218,50 @@ public sealed class PromotionEngineTests
 
         priced.Discounts.Select(static d => d.OfferCode).Distinct().ShouldBe(["FUNDED"]);
         priced.TotalDiscount.ShouldBe(10m, "five per cent of each line and nothing else");
+    }
+
+    /// <summary>
+    /// A group-limited offer applies to the group it names and to nobody else.
+    /// </summary>
+    /// <remarks>
+    /// Both halves are worth stating. The rule was written before customer groups existed, which
+    /// meant every group-limited offer took the second branch for everybody: it read as configured
+    /// on the offer screen and discounted nothing. Nothing failed, which is what made it hard to
+    /// see.
+    /// </remarks>
+    [Fact]
+    public void A_group_limited_offer_applies_to_that_group_only()
+    {
+        var staff = Offer("STAFF", value: 20m, customerGroup: "STAFF");
+
+        Price(Engine(), [Line()], [staff], Context(customerGroup: "STAFF"))
+            .TotalDiscount.ShouldBe(20m);
+
+        Price(Engine(), [Line()], [staff], Context(customerGroup: "WHOLESALE"))
+            .TotalDiscount.ShouldBe(0m);
+    }
+
+    /// <summary>
+    /// Somebody in no group gets the offers that are open to everybody, and only those.
+    /// </summary>
+    [Fact]
+    public void Somebody_in_no_group_gets_only_what_is_open_to_everybody()
+    {
+        var staff = Offer("STAFF", value: 20m, customerGroup: "STAFF");
+        var everybody = Offer("SALE", value: 5m);
+
+        Price(Engine(), [Line()], [staff, everybody], Context())
+            .TotalDiscount.ShouldBe(5m, "a walk-in is in no group and the staff offer is not theirs");
+    }
+
+    /// <summary>The group is matched without regard to case, as codes are entered by hand.</summary>
+    [Fact]
+    public void The_group_is_matched_whatever_the_case()
+    {
+        var staff = Offer("STAFF", value: 20m, customerGroup: "STAFF");
+
+        Price(Engine(), [Line()], [staff], Context(customerGroup: "staff"))
+            .TotalDiscount.ShouldBe(20m);
     }
 
     [Fact]

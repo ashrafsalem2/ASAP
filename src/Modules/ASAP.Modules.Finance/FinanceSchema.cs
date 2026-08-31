@@ -40,6 +40,21 @@ public sealed class FinanceSchema : IModuleSchema
 
     private void ConfigureTax(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<Parties.CustomerGroup>(builder =>
+        {
+            builder.ToTable("CustomerGroups", SchemaName);
+
+            builder.Property(g => g.Code).HasMaxLength(40).IsRequired();
+            builder.Property(g => g.Name).HasMaxLength(200).IsRequired();
+            builder.Property(g => g.NameArabic).HasMaxLength(200);
+            builder.Property(g => g.Description).HasMaxLength(500);
+            builder.Property(g => g.RowVersion).IsRowVersion();
+
+            builder.HasIndex(g => new { g.CompanyId, g.Code })
+                   .IsUnique()
+                   .HasFilter("[IsDeleted] = 0");
+        });
+
         modelBuilder.Entity<RecurringJournalBatch>(builder =>
         {
             builder.ToTable("RecurringJournalBatches", SchemaName);
@@ -329,6 +344,10 @@ public sealed class FinanceSchema : IModuleSchema
             builder.Property(p => p.Email).HasMaxLength(320);
             builder.Property(p => p.Phone).HasMaxLength(40);
             builder.Property(p => p.TaxRegistrationNo).HasMaxLength(40);
+            builder.Property(p => p.CustomerGroupCode).HasMaxLength(40);
+            
+            // Every group-limited offer and every group price list reads along this.
+            builder.HasIndex(p => new { p.CompanyId, p.CustomerGroupCode });
             builder.Property(p => p.CreditLimit).HasColumnType(DecimalPrecisionConventions.Money);
             builder.Property(p => p.Balance).HasColumnType(DecimalPrecisionConventions.Money);
             builder.Property(p => p.RowVersion).IsRowVersion();

@@ -184,6 +184,45 @@ public sealed class SalesSchema : IModuleSchema
         });
 
 
+        modelBuilder.Entity<Pricing.CustomerGroupPriceList>(builder =>
+
+
+        {
+
+
+            builder.ToTable("CustomerGroupPriceLists", SchemaName);
+
+
+
+            builder.Property(g => g.CustomerGroupCode).HasMaxLength(40).IsRequired();
+
+
+            builder.Property(g => g.PriceListCode).HasMaxLength(32).IsRequired();
+
+
+            builder.Property(g => g.RowVersion).IsRowVersion();
+
+
+
+            // One list per group, for the same reason as one per customer: two would make what a
+
+
+            // whole class of customer pays depend on which row was read.
+
+
+            builder.HasIndex(g => new { g.CompanyId, g.CustomerGroupCode })
+
+
+                   .IsUnique()
+
+
+                   .HasFilter("[IsDeleted] = 0");
+
+
+        });
+
+
+
         modelBuilder.Entity<Pricing.CustomerPriceList>(builder =>
 
         {

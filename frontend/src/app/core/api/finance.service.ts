@@ -13,6 +13,7 @@ import {
   GlEntry,
   IncomeStatement,
   MenuNode,
+  CustomerGroup,
   Party,
   PartyKind,
   PartyLedgerEntry,
@@ -200,6 +201,39 @@ export class FinanceService {
   }
 
   /** The two ledgers differ only in their route segment. */
+  /** The kinds of customer, and how many are in each. */
+  customerGroups(): Promise<CustomerGroup[]> {
+    return firstValueFrom(
+      this.http.get<CustomerGroup[]>(`${this.base}/finance/customer-groups`),
+    );
+  }
+
+  /** Writes a customer group. */
+  saveCustomerGroup(request: {
+    code: string;
+    name: string;
+    nameArabic?: string | null;
+    description?: string | null;
+    isActive?: boolean;
+  }): Promise<CustomerGroup> {
+    return firstValueFrom(
+      this.http.put<CustomerGroup>(
+        `${this.base}/finance/customer-groups/${encodeURIComponent(request.code)}`,
+        request,
+      ),
+    );
+  }
+
+  /** Puts a customer in a group, or takes them out of one when the code is null. */
+  assignCustomerGroup(customerNo: string, customerGroupCode: string | null): Promise<void> {
+    return firstValueFrom(
+      this.http.put<void>(
+        `${this.base}/finance/customers/${encodeURIComponent(customerNo)}/group`,
+        { customerGroupCode },
+      ),
+    );
+  }
+
   private path(kind: PartyKind): string {
     return kind === 'Customer' ? 'customers' : 'vendors';
   }

@@ -361,6 +361,85 @@ public sealed class PricingService(
     private static string? Normalise(string? value)
         => string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToUpperInvariant();
 
+    /// <summary>
+    /// Puts a whole customer group on a price list, or takes it off one.
+    /// </summary>
+    /// <param name="customerGroupCode">The group.</param>
+    /// <param name="priceListCode">The list, or null to take the group off.</param>
+    /// <param name="cancellationToken">Cancels the work.</param>
+    /// <returns>Whether it was saved, or why not.</returns>
+    public async Task<Result> AssignGroupAsync(
+        string customerGroupCode,
+        string? priceListCode,
+        CancellationToken cancellationToken = default)
+    {
+        var group = customerGroupCode?.Trim().ToUpperInvariant() ?? string.Empty;
+
+        if (group.Length == 0)
+        {
+            return Result.Failure(messages.Render(SalesMessages.PriceListNeedsACustomer, Args()));
+        }
+
+        var existing = await context.Set<CustomerGroupPriceList>()
+            .FirstOrDefaultAsync(g => g.CustomerGroupCode == group, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (string.IsNullOrWhiteSpace(priceListCode))
+        {
+            if (existing is not null)
+            {
+                context.Set<CustomerGroupPriceList>().Remove(existing);
+                await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            return Result.Success();
+        }
+
+        var code = priceListCode.Trim().ToUpperInvariant();
+
+        var list = await context.Set<PriceList>()
+            .AsNoTracking()
+            .FirstOrDefaultAsync(l => l.Code == code, cancellationToken)
+            .ConfigureAwait(false);
+
+        if (list is null)
+        {
+            return Result.Failure(messages.Render(
+                SalesMessages.PriceListNotFound,
+                Args(("PriceListCode", code))));
+        }
+
+        if (existing is null)
+        {
+            context.Set<CustomerGroupPriceList>().Add(new CustomerGroupPriceList
+            {
+                TenantId = tenancy.RequireTenantId(),
+                CompanyId = tenancy.RequireCompanyId(),
+                CustomerGroupCode = group,
+                PriceListCode = code,
+            });
+        }
+        else
+        {
+            existing.PriceListCode = code;
+        }
+
+        await context.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
+
+        return Result.Success();
+    }
+
+    /// <summary>Which groups are on which list.</summary>
+    /// <param name="cancellationToken">Cancels the work.</param>
+    /// <returns>Every group assignment.</returns>
+    public async Task<IReadOnlyList<CustomerGroupPriceList>> GroupAssignmentsAsync(
+        CancellationToken cancellationToken = default)
+        => await context.Set<CustomerGroupPriceList>()
+            .AsNoTracking()
+            .OrderBy(g => g.CustomerGroupCode)
+            .ToListAsync(cancellationToken)
+            .ConfigureAwait(false);
+
     /// <summary>The lists, with their lines.</summary>
     /// <param name="cancellationToken">Cancels the work.</param>
     /// <returns>Every price list.</returns>
@@ -383,6 +462,14 @@ public sealed class PricingService(
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
+    /// <summary>
+    /// Which list a customer is on, whether by name or by the group they are in.
+    /// </summary>
+    /// <remarks>
+    /// Their own assignment wins. That is the same rule the price lines follow -- the more
+    /// specific thing decides -- and it is what lets a group price be set for a hundred
+    /// wholesalers while one of them keeps the arrangement somebody negotiated separately.
+    /// </remarks>
     private async Task<string?> ListForCustomerAsync(string customerNo, CancellationToken cancellationToken)
     {
         var customer = customerNo?.Trim().ToUpperInvariant() ?? string.Empty;
@@ -392,10 +479,34 @@ public sealed class PricingService(
             return null;
         }
 
-        return await context.Set<CustomerPriceList>()
+        var own = await context.Set<CustomerPriceList>()
             .AsNoTracking()
             .Where(c => c.CustomerNo == customer)
             .Select(static c => c.PriceListCode)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (own is { Length: > 0 })
+        {
+            return own;
+        }
+
+        var group = await context.Set<Finance.Parties.Customer>()
+            .AsNoTracking()
+            .Where(c => c.No == customer)
+            .Select(static c => c.CustomerGroupCode)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        if (group is not { Length: > 0 })
+        {
+            return null;
+        }
+
+        return await context.Set<CustomerGroupPriceList>()
+            .AsNoTracking()
+            .Where(g => g.CustomerGroupCode == group)
+            .Select(static g => g.PriceListCode)
             .FirstOrDefaultAsync(cancellationToken)
             .ConfigureAwait(false);
     }

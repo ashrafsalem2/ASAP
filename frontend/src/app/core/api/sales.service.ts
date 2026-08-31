@@ -5,6 +5,7 @@ import { environment } from '../../../environments/environment';
 import {
   CreateSalesOrderRequest,
   CreateSalesQuoteRequest,
+  CustomerGroupPriceList,
   CustomerPriceList,
   MarginRow,
   OpenSalesOrderRow,
@@ -245,6 +246,23 @@ export class SalesService {
   savePriceList(list: PriceList): Promise<PriceList> {
     return firstValueFrom(
       this.http.put<PriceList>(`${this.base}/price-lists/${encodeURIComponent(list.code)}`, list),
+    );
+  }
+
+  /** Which customer group is on which price list. */
+  groupPriceListAssignments(): Promise<CustomerGroupPriceList[]> {
+    return firstValueFrom(
+      this.http.get<CustomerGroupPriceList[]>(`${this.base}/price-lists/group-assignments`),
+    );
+  }
+
+  /** Puts a customer group on a price list, or takes it off one when the code is null. */
+  assignGroupPriceList(customerGroupCode: string, priceListCode: string | null): Promise<void> {
+    return firstValueFrom(
+      this.http.put<void>(
+        `${this.base}/price-lists/group-assignments/${encodeURIComponent(customerGroupCode)}`,
+        { priceListCode },
+      ),
     );
   }
 

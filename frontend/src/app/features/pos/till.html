@@ -43,6 +43,25 @@
             }
           </div>
 
+          <!-- Blank is the ordinary case. It matters when there is a customer, because their
+               group is what decides whether an offer limited to staff or to trade applies. -->
+          <div class="panel__body draft">
+            <div class="field till__scan">
+              <label class="field__label" for="customerNo">{{ t('pos.till.customer') }}</label>
+              <select id="customerNo" class="select" [(ngModel)]="customerNo">
+                <option value="">{{ t('pos.till.walkIn') }}</option>
+                @for (customer of customers(); track customer.no) {
+                  <option [value]="customer.no">
+                    {{ customer.no }} — {{ customer.name }}
+                    @if (customer.customerGroupCode) {
+                      ({{ customer.customerGroupCode }})
+                    }
+                  </option>
+                }
+              </select>
+            </div>
+          </div>
+
           <div class="panel__body draft">
             <div class="field till__scan">
               <label class="field__label" for="scanned">{{ t('pos.till.scan') }}</label>

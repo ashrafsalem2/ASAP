@@ -282,6 +282,11 @@ public sealed record CustomerPriceListView(string CustomerNo, string PriceListCo
 /// <param name="PriceListCode">The list, or null to take them off whatever they are on.</param>
 public sealed record AssignPriceListRequest(string? PriceListCode);
 
+/// <summary>Which list a whole customer group is on.</summary>
+/// <param name="CustomerGroupCode">The group.</param>
+/// <param name="PriceListCode">The list they are on.</param>
+public sealed record CustomerGroupPriceListView(string CustomerGroupCode, string PriceListCode);
+
 /// <summary>Sales orders, shipments and invoices.</summary>
 public static class SalesEndpoints
 {
@@ -395,6 +400,14 @@ public static class SalesEndpoints
         group.MapPut("/price-lists/assignments/{customerNo}", AssignPriceListAsync)
              .WithName("AssignPriceList")
              .WithSummary("Puts a customer on a price list, or takes them off one.");
+
+        group.MapGet("/price-lists/group-assignments", GroupPriceListAssignmentsAsync)
+             .WithName("GroupPriceListAssignments")
+             .WithSummary("Which customer group is on which price list.");
+
+        group.MapPut("/price-lists/group-assignments/{customerGroupCode}", AssignGroupPriceListAsync)
+             .WithName("AssignGroupPriceList")
+             .WithSummary("Puts a customer group on a price list, or takes it off one.");
 
         return app;
     }
@@ -744,6 +757,46 @@ public static class SalesEndpoints
 
         var result = await pricing
             .AssignAsync(customerNo, request.PriceListCode, cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.NoContent();
+    }
+
+    private static async Task<IResult> GroupPriceListAssignmentsAsync(
+        PricingService pricing,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, PriceReadPermission))
+        {
+            return Forbidden(PriceReadPermission, "view price list assignments", http);
+        }
+
+        var assignments = await pricing.GroupAssignmentsAsync(cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(assignments.Select(static a => new CustomerGroupPriceListView(
+            a.CustomerGroupCode,
+            a.PriceListCode)));
+    }
+
+    private static async Task<IResult> AssignGroupPriceListAsync(
+        string customerGroupCode,
+        AssignPriceListRequest request,
+        PricingService pricing,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, PriceWritePermission))
+        {
+            return Forbidden(PriceWritePermission, "assign price lists", http);
+        }
+
+        var result = await pricing
+            .AssignGroupAsync(customerGroupCode, request.PriceListCode, cancellationToken)
             .ConfigureAwait(false);
 
         return result.Failed ? Refused(result, http) : Results.NoContent();

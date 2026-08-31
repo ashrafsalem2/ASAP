@@ -678,6 +678,11 @@ public static class PosEndpoints
                 transactionNo = result.Value.TransactionNo,
                 netAmount = result.Value.NetAmount,
                 discountAmount = result.Value.DiscountAmount,
+
+                // Separate from the keyed discount: the till needs to be able to print "you saved
+                // 1.20" without claiming the cashier gave it away.
+                promotionAmount = result.Value.PromotionAmount,
+
                 taxAmount = result.Value.TaxAmount,
                 roundingAmount = result.Value.RoundingAmount,
                 totalAmount = result.Value.TotalAmount,

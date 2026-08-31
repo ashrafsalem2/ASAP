@@ -122,6 +122,12 @@ export const routes: Routes = [
           import('./features/finance/bank-reconciliation').then((m) => m.BankReconciliation),
       },
       {
+        path: 'finance/customer-groups',
+        canActivate: [requirePermission('Finance.Party.Read')],
+        loadComponent: () =>
+          import('./features/finance/customer-groups').then((m) => m.CustomerGroups),
+      },
+      {
         path: 'finance/currencies',
         canActivate: [requirePermission('Finance.Currency.Read')],
         loadComponent: () => import('./features/finance/currencies').then((m) => m.Currencies),

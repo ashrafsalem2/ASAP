@@ -58,7 +58,12 @@ public readonly record struct PosTenderRequest(
 /// <param name="ReceiptNo">The receipt number issued.</param>
 /// <param name="TransactionNo">The transaction the entries posted under.</param>
 /// <param name="NetAmount">The goods, after discount and before tax.</param>
-/// <param name="DiscountAmount">What was given away.</param>
+/// <param name="DiscountAmount">What the cashier keyed off, line by line.</param>
+/// <param name="PromotionAmount">
+/// What the offers took off. Kept apart from the keyed discount because they are different
+/// things to a shop: one is a decision somebody made at the counter and the other is a promotion
+/// the company is running, and a single figure hides which of the two moved the total.
+/// </param>
 /// <param name="TaxAmount">Tax charged.</param>
 /// <param name="RoundingAmount">What was rounded off to make the total payable.</param>
 /// <param name="TotalAmount">What the customer paid.</param>
@@ -69,6 +74,7 @@ public readonly record struct PosReceiptPosted(
     long TransactionNo,
     decimal NetAmount,
     decimal DiscountAmount,
+    decimal PromotionAmount,
     decimal TaxAmount,
     decimal RoundingAmount,
     decimal TotalAmount,
@@ -209,6 +215,7 @@ public sealed class PosReceiptService(
                 items,
                 station,
                 session,
+                customerNo ?? station.DefaultCustomerNo,
                 heldOverridePermissions,
                 found,
                 cancellationToken)
@@ -331,6 +338,7 @@ public sealed class PosReceiptService(
                 posted.Value.TransactionNo,
                 receipt.NetAmount,
                 receipt.DiscountAmount,
+                receipt.PromotionAmount,
                 receipt.TaxAmount,
                 receipt.RoundingAmount,
                 receipt.TotalAmount,
@@ -895,12 +903,18 @@ public sealed class PosReceiptService(
     /// customer already had whatever discount they had, and applying today's promotion to a
     /// refund would hand back more than was ever paid.
     /// </para>
+    /// <para>
+    /// The customer's group goes in with the basket. Without it every group-limited offer matched
+    /// nobody at the till while still reading as configured on the offer screen, which is worse
+    /// than the feature being absent — somebody sets a wholesale price and watches it not happen.
+    /// </para>
     /// </remarks>
     private async Task<List<BuiltLine>> ApplyOffersAsync(
         List<BuiltLine> built,
         IReadOnlyDictionary<string, Item> items,
         PosStation station,
         PosSession session,
+        string customerNo,
         IReadOnlySet<string>? held,
         List<AsapMessage> found,
         CancellationToken cancellationToken)
@@ -935,18 +949,26 @@ public sealed class PosReceiptService(
                 line.DiscountPercent))
             .ToList();
 
-        var context = new BasketContext(
+        var group = await context.Set<Customer>()
+            .AsNoTracking()
+            .Where(customer => customer.No == customerNo)
+            .Select(static customer => customer.CustomerGroupCode)
+            .FirstOrDefaultAsync(cancellationToken)
+            .ConfigureAwait(false);
+
+        var basketContext = new BasketContext(
             session.BusinessDate,
             TimeOnly.FromDateTime(clock.UtcNow),
             SalesChannel.PointOfSale,
-            station.BranchId);
+            station.BranchId,
+            group);
 
         var names = items.ToDictionary(
             static i => i.Key,
             static i => (string?)i.Value.Description,
             StringComparer.OrdinalIgnoreCase);
 
-        var priced = promotions.Price(basket, running, context, floor, names, found);
+        var priced = promotions.Price(basket, running, basketContext, floor, names, found);
 
         if (priced.Discounts.Count == 0)
         {

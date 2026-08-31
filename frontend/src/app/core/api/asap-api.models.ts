@@ -352,6 +352,22 @@ export interface CustomerPriceList {
   priceListCode: string;
 }
 
+/** Which price list a whole customer group is on. */
+export interface CustomerGroupPriceList {
+  customerGroupCode: string;
+  priceListCode: string;
+}
+
+/** A kind of customer: wholesale, retail, staff, government. */
+export interface CustomerGroup {
+  code: string;
+  name: string;
+  nameArabic: string | null;
+  description: string | null;
+  isActive: boolean;
+  memberCount: number;
+}
+
 /** What a customer pays for one item, and where the figure came from. */
 export interface ResolvedPrice {
   itemNo: string;
@@ -815,6 +831,7 @@ export interface Party {
   isBlocked: boolean;
   email?: string;
   phone?: string;
+  customerGroupCode?: string | null;
 }
 
 /** One entry on a party's account. */
@@ -1399,6 +1416,7 @@ export interface PosReceiptPosted {
   transactionNo: number;
   netAmount: number;
   discountAmount: number;
+  promotionAmount: number;
   taxAmount: number;
   roundingAmount: number;
   totalAmount: number;

@@ -3,7 +3,10 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
+  CreateRequisitionRequest,
   PurchaseReturnResult,
+  Requisition,
+  RequisitionOrderLine,
   ApprovalLimit,
   OpenOrderRow,
   PurchaseAnalysisRow,
@@ -46,6 +49,83 @@ export class PurchasingService {
       this.http.post<PurchaseReturnResult>(
         `${this.base}/orders/${encodeURIComponent(orderNo)}/return`,
         { lines, reason, overrideReason },
+      ),
+    );
+  }
+
+  /** What has been asked for, newest first. */
+  requisitions(status?: string): Promise<Requisition[]> {
+    let params = new HttpParams();
+
+    if (status) {
+      params = params.set('status', status);
+    }
+
+    return firstValueFrom(this.http.get<Requisition[]>(`${this.base}/requisitions`, { params }));
+  }
+
+  /** One requisition and what is on it. */
+  requisition(requisitionNo: string): Promise<Requisition> {
+    return firstValueFrom(
+      this.http.get<Requisition>(`${this.base}/requisitions/${encodeURIComponent(requisitionNo)}`),
+    );
+  }
+
+  /** Asks for something to be bought. Commits nothing. */
+  createRequisition(request: CreateRequisitionRequest): Promise<Requisition> {
+    return firstValueFrom(this.http.post<Requisition>(`${this.base}/requisitions`, request));
+  }
+
+  /** Sends it for approval, or approves it where none is needed. */
+  submitRequisition(requisitionNo: string): Promise<Requisition> {
+    return this.actOnRequisition(requisitionNo, 'submit');
+  }
+
+  /** Signs for a requisition. Never your own. */
+  approveRequisition(requisitionNo: string): Promise<Requisition> {
+    return this.actOnRequisition(requisitionNo, 'approve');
+  }
+
+  /** Turns a requisition down, and says why. */
+  rejectRequisition(requisitionNo: string, reason?: string): Promise<Requisition> {
+    return this.actOnRequisition(requisitionNo, 'reject', { reason });
+  }
+
+  /** Abandons a requisition before it becomes anything. */
+  cancelRequisition(requisitionNo: string, reason?: string): Promise<Requisition> {
+    return this.actOnRequisition(requisitionNo, 'cancel', { reason });
+  }
+
+  /**
+   * Turns part of an approved requisition into an order for one vendor.
+   *
+   * Called once per vendor: a requisition asking for paper, bolts and a kettle is one question
+   * with three answers. The prices come from here rather than from the requisition, which carried
+   * a guess.
+   */
+  orderFromRequisition(
+    requisitionNo: string,
+    vendorNo: string,
+    lines?: RequisitionOrderLine[],
+    expectedReceiptDate?: string,
+  ): Promise<PurchaseOrderCreated> {
+    return firstValueFrom(
+      this.http.post<PurchaseOrderCreated>(
+        `${this.base}/requisitions/${encodeURIComponent(requisitionNo)}/order`,
+        { vendorNo, lines, expectedReceiptDate },
+      ),
+    );
+  }
+
+  private actOnRequisition(
+    requisitionNo: string,
+    what: string,
+    body: Record<string, unknown> = {},
+  ): Promise<Requisition> {
+    return firstValueFrom(
+      this.http.post<Requisition>(
+        `${this.base}/requisitions/${encodeURIComponent(requisitionNo)}/${what}`,
+        body,
       ),
     );
   }

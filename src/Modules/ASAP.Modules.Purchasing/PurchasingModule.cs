@@ -58,6 +58,7 @@ public sealed class PurchasingModule : IAsapModule
 
 
         services.AddScoped<Orders.PurchaseReturnService>();
+        services.AddScoped<Requisitions.PurchaseRequisitionService>();
 
 
         services.AddScoped<Approvals.PurchaseApprovalService>();
@@ -70,6 +71,31 @@ public sealed class PurchasingModule : IAsapModule
     /// <inheritdoc />
     public IReadOnlyCollection<PermissionDescriptor> Permissions =>
     [
+        PermissionDescriptor.Define(
+            Id, "Requisition", PermissionAction.Read,
+            new LocalizedText("View requisitions", "عرض طلبات الشراء")),
+
+        PermissionDescriptor.Define(
+            Id, "Requisition", PermissionAction.Create,
+            new LocalizedText("Ask for something to be bought", "طلب شراء شيء"),
+            new LocalizedText(
+                "A requisition commits nothing and posts nothing, so it belongs with whoever "
+                + "runs out of things rather than with whoever places orders.",
+                "طلب الشراء لا يلزم بشيء ولا يرحّل شيئًا، فمكانه مع من ينفد ما عنده لا مع من "
+                + "يضع الأوامر."),
+            implies: [$"{Id}.Requisition.Read"]),
+
+        PermissionDescriptor.Define(
+            Id, "Requisition", PermissionAction.Approve,
+            new LocalizedText("Sign for a requisition", "التوقيع على طلب شراء"),
+            new LocalizedText(
+                "Nobody signs for their own request, whatever this permission says. An approval "
+                + "you can give yourself is a checkbox rather than a control.",
+                "لا يوقّع أحد على طلبه هو، مهما قالت هذه الصلاحية. فالموافقة التي تمنحها لنفسك "
+                + "خانة تأشير لا ضابط."),
+            isSensitive: true),
+
+
         PermissionDescriptor.Define(
             Id, "Return", PermissionAction.Post,
             new LocalizedText("Send goods back to a vendor", "إعادة البضاعة إلى المورد"),
@@ -173,6 +199,23 @@ public sealed class PurchasingModule : IAsapModule
     /// <inheritdoc />
     public IReadOnlyCollection<SetupDescriptor> Setups =>
     [
+        new()
+        {
+            Key = $"{Id}.Requisitions.NumberSeries",
+            Module = Id,
+            Group = new LocalizedText("Numbering", "الترقيم"),
+            DisplayName = new LocalizedText("Requisition numbers", "ترقيم طلبات الشراء"),
+            Description = new LocalizedText(
+                "The series requisition numbers are issued from. A requisition commits nothing, "
+                + "so gaps in it cost nothing.",
+                "المسلسل الذي تصدر منه أرقام طلبات الشراء. وطلب الشراء لا يُلزم بشيء، فلا ضير "
+                + "في فجواته."),
+            ValueType = SetupValueType.Text,
+            Scope = SetupScope.Company,
+            DefaultValue = "PURCH-REQ",
+            RequiresPermission = $"{Id}.Order.Update",
+            HelpTopic = "purchasing/setup",
+        },
         new()
         {
             Key = $"{Id}.CreditMemos.NumberSeries",
@@ -281,6 +324,18 @@ public sealed class PurchasingModule : IAsapModule
             Kind = NavigationKind.Group,
             Icon = "purchasing",
             Order = 300,
+        },
+        new()
+        {
+            Id = "Purchasing.Requisitions",
+            Module = Id,
+            ParentId = "Purchasing.Root",
+            DisplayName = new LocalizedText("Requisitions", "طلبات الشراء"),
+            Kind = NavigationKind.Page,
+            Route = "/purchasing/requisitions",
+            RequiresPermission = $"{Id}.Requisition.Read",
+            Order = 5,
+            HelpTopic = "purchasing/requisitions",
         },
         new()
         {

@@ -1030,6 +1030,75 @@ export interface SalesInvoiceResult {
   messages?: AsapMessage[];
 }
 
+/** Where a requisition stands. */
+export type RequisitionStatus =
+  | 'Draft'
+  | 'Submitted'
+  | 'Approved'
+  | 'Rejected'
+  | 'Ordered'
+  | 'Cancelled';
+
+/** One thing asked for on a requisition. */
+export interface RequisitionLine {
+  lineNo: number;
+  type: string;
+  no?: string | null;
+  variantCode?: string | null;
+  description: string;
+  locationCode?: string | null;
+  quantity: number;
+  estimatedUnitCost: number;
+  estimatedAmount: number;
+  quantityOrdered: number;
+  outstandingToOrder: number;
+  suggestedVendorNo?: string | null;
+}
+
+/** A request for something to be bought. */
+export interface Requisition {
+  no: string;
+  status: RequisitionStatus;
+  requisitionDate: string;
+  neededByDate?: string | null;
+  locationCode?: string | null;
+  description?: string | null;
+  justification?: string | null;
+  requestedByUserName?: string | null;
+  approvedByUserName?: string | null;
+  approvedAtUtc?: string | null;
+  approvedAmount?: number | null;
+  rejectionReason?: string | null;
+  estimatedAmount: number;
+  isEditable: boolean;
+  canBeOrdered: boolean;
+  lines: RequisitionLine[];
+}
+
+/** What a client sends to ask for something to be bought. */
+export interface CreateRequisitionRequest {
+  lines: {
+    type: string;
+    no: string;
+    quantity: number;
+    estimatedUnitCost?: number;
+    description?: string | null;
+    locationCode?: string | null;
+    suggestedVendorNo?: string | null;
+  }[];
+  locationCode?: string | null;
+  neededByDate?: string | null;
+  description?: string | null;
+  justification?: string | null;
+}
+
+/** Which requisition lines go onto an order, and at what price. */
+export interface RequisitionOrderLine {
+  lineNo: number;
+  quantity: number;
+  directUnitCost: number;
+}
+
 /** What sending goods back to a vendor posted. */
 export interface PurchaseReturnResult {
   orderNo: string;

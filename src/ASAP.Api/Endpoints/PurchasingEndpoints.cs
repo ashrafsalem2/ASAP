@@ -3,6 +3,7 @@ using ASAP.Modules.Purchasing;
 using ASAP.Modules.Purchasing.Approvals;
 using ASAP.Modules.Purchasing.Costing;
 using ASAP.Modules.Purchasing.Orders;
+using ASAP.Modules.Purchasing.Requisitions;
 using ASAP.Modules.Purchasing.Reporting;
 using ASAP.Platform.Kernel.Security;
 using ASAP.Platform.Kernel.Time;
@@ -73,6 +74,113 @@ public sealed record PurchaseLinePayload(
     string? TaxCode = null,
     string? LocationCode = null,
     string? VariantCode = null);
+
+/// <summary>One thing asked for on a new requisition, as a client sends it.</summary>
+/// <param name="Type">Whether it asks for stock or a cost.</param>
+/// <param name="No">The item number, or the account number on a cost line.</param>
+/// <param name="Quantity">How much is wanted.</param>
+/// <param name="EstimatedUnitCost">What whoever is asking thinks it costs.</param>
+/// <param name="Description">What is wanted, in words.</param>
+/// <param name="LocationCode">Where it is wanted.</param>
+/// <param name="VariantCode">Which variant, on an item that has them.</param>
+/// <param name="SuggestedVendorNo">A vendor somebody has in mind. A suggestion, not a commitment.</param>
+public sealed record RequisitionLinePayload(
+    PurchaseLineType Type,
+    string No,
+    decimal Quantity,
+    decimal EstimatedUnitCost = 0m,
+    string? Description = null,
+    string? LocationCode = null,
+    string? VariantCode = null,
+    string? SuggestedVendorNo = null);
+
+/// <summary>What a client sends to ask for something to be bought.</summary>
+/// <param name="Lines">What is being asked for.</param>
+/// <param name="LocationCode">Where the goods are wanted.</param>
+/// <param name="NeededByDate">When they are wanted by.</param>
+/// <param name="Description">What it is for.</param>
+/// <param name="Justification">Why it is needed, which is what an approver reads.</param>
+public sealed record CreateRequisitionRequest(
+    IReadOnlyList<RequisitionLinePayload> Lines,
+    string? LocationCode = null,
+    DateOnly? NeededByDate = null,
+    string? Description = null,
+    string? Justification = null);
+
+/// <summary>What a client sends to turn part of a requisition into an order.</summary>
+/// <param name="VendorNo">Who to buy from.</param>
+/// <param name="Lines">Which lines and at what price, or null for everything left at its estimate.</param>
+/// <param name="ExpectedReceiptDate">When the goods are expected.</param>
+public sealed record OrderFromRequisitionRequest(
+    string VendorNo,
+    IReadOnlyList<RequisitionOrderLineRequest>? Lines = null,
+    DateOnly? ExpectedReceiptDate = null);
+
+/// <summary>What a client sends to turn a requisition down or abandon it.</summary>
+/// <param name="Reason">Why.</param>
+public sealed record RequisitionReasonRequest(string? Reason = null);
+
+/// <summary>One line of a requisition as it is reported back.</summary>
+/// <param name="LineNo">Its position.</param>
+/// <param name="Type">Whether it asks for stock or a cost.</param>
+/// <param name="No">The item or account number.</param>
+/// <param name="VariantCode">Which variant, where the item has them.</param>
+/// <param name="Description">What is wanted.</param>
+/// <param name="LocationCode">Where it is wanted.</param>
+/// <param name="Quantity">How much is wanted.</param>
+/// <param name="EstimatedUnitCost">What somebody thinks it costs.</param>
+/// <param name="EstimatedAmount">What the line is estimated at.</param>
+/// <param name="QuantityOrdered">How much has been turned into an order.</param>
+/// <param name="OutstandingToOrder">How much is still waiting to be ordered.</param>
+/// <param name="SuggestedVendorNo">The vendor somebody suggested.</param>
+public sealed record RequisitionLineView(
+    int LineNo,
+    string Type,
+    string? No,
+    string? VariantCode,
+    string Description,
+    string? LocationCode,
+    decimal Quantity,
+    decimal EstimatedUnitCost,
+    decimal EstimatedAmount,
+    decimal QuantityOrdered,
+    decimal OutstandingToOrder,
+    string? SuggestedVendorNo);
+
+/// <summary>A requisition as it is reported back.</summary>
+/// <param name="No">Its number.</param>
+/// <param name="Status">Where it stands.</param>
+/// <param name="RequisitionDate">The day it was raised.</param>
+/// <param name="NeededByDate">When the goods are wanted by.</param>
+/// <param name="LocationCode">Where they are wanted.</param>
+/// <param name="Description">What it is for.</param>
+/// <param name="Justification">Why it is needed.</param>
+/// <param name="RequestedByUserName">Who asked.</param>
+/// <param name="ApprovedByUserName">Who signed, or turned it down.</param>
+/// <param name="ApprovedAtUtc">When.</param>
+/// <param name="ApprovedAmount">What it was estimated at when it was signed for.</param>
+/// <param name="RejectionReason">Why it was turned down, where it was.</param>
+/// <param name="EstimatedAmount">What it is estimated at now.</param>
+/// <param name="IsEditable">Whether its lines may still be changed.</param>
+/// <param name="CanBeOrdered">Whether orders may still be raised from it.</param>
+/// <param name="Lines">What is being asked for.</param>
+public sealed record RequisitionView(
+    string No,
+    string Status,
+    DateOnly RequisitionDate,
+    DateOnly? NeededByDate,
+    string? LocationCode,
+    string? Description,
+    string? Justification,
+    string? RequestedByUserName,
+    string? ApprovedByUserName,
+    DateTime? ApprovedAtUtc,
+    decimal? ApprovedAmount,
+    string? RejectionReason,
+    decimal EstimatedAmount,
+    bool IsEditable,
+    bool CanBeOrdered,
+    IReadOnlyList<RequisitionLineView> Lines);
 
 /// <summary>What a client sends to send goods back to a vendor.</summary>
 /// <param name="Lines">How much of each line is going back, or null for everything that still could.</param>
@@ -279,6 +387,53 @@ public static class PurchasingEndpoints
         group.MapGet("/reports/purchase-analysis", PurchaseAnalysisAsync)
              .WithName("PurchaseAnalysis")
              .WithSummary("What was bought over a period, by vendor or by item.");
+
+        group.MapGet("/requisitions", ListRequisitionsAsync)
+             .WithName("ListPurchaseRequisitions")
+             .WithSummary("What has been asked for, newest first.");
+
+
+
+        group.MapGet("/requisitions/{requisitionNo}", GetRequisitionAsync)
+             .WithName("GetPurchaseRequisition")
+             .WithSummary("One requisition and what is on it.");
+
+
+
+        group.MapPost("/requisitions", CreateRequisitionAsync)
+             .WithName("CreatePurchaseRequisition")
+             .WithSummary("Asks for something to be bought. Commits nothing.");
+
+
+
+        group.MapPost("/requisitions/{requisitionNo}/submit", SubmitRequisitionAsync)
+             .WithName("SubmitPurchaseRequisition")
+             .WithSummary("Sends it for approval, or approves it where none is needed.");
+
+
+
+        group.MapPost("/requisitions/{requisitionNo}/approve", ApproveRequisitionAsync)
+             .WithName("ApprovePurchaseRequisition")
+             .WithSummary("Signs for a requisition. Never your own.");
+
+
+
+        group.MapPost("/requisitions/{requisitionNo}/reject", RejectRequisitionAsync)
+             .WithName("RejectPurchaseRequisition")
+             .WithSummary("Turns a requisition down, and says why.");
+
+
+
+        group.MapPost("/requisitions/{requisitionNo}/order", OrderFromRequisitionAsync)
+             .WithName("OrderFromPurchaseRequisition")
+             .WithSummary("Turns part of an approved requisition into an order for one vendor.");
+
+
+
+        group.MapPost("/requisitions/{requisitionNo}/cancel", CancelRequisitionAsync)
+             .WithName("CancelPurchaseRequisition")
+             .WithSummary("Abandons a requisition before it becomes anything.");
+
 
         group.MapPost("/orders/{orderNo}/return", ReturnAsync)
              .WithName("PostPurchaseReturn")
@@ -621,6 +776,224 @@ public static class PurchasingEndpoints
 
         return result.Failed ? Refused(result, http) : Results.Ok(View(result.Value, result.Messages));
     }
+    private static async Task<IResult> ListRequisitionsAsync(
+        PurchaseRequisitionService requisitions,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken,
+        [FromQuery] string? status = null)
+    {
+        if (!Can(user, "Purchasing.Requisition.Read"))
+        {
+            return Forbidden("Purchasing.Requisition.Read", "view requisitions", http);
+        }
+
+        var wanted = Enum.TryParse<PurchaseRequisitionStatus>(status, ignoreCase: true, out var parsed)
+            ? parsed
+            : (PurchaseRequisitionStatus?)null;
+
+        var found = await requisitions.ListAsync(wanted, cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(found.Select(ViewOf));
+    }
+
+    private static async Task<IResult> GetRequisitionAsync(
+        string requisitionNo,
+        PurchaseRequisitionService requisitions,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, "Purchasing.Requisition.Read"))
+        {
+            return Forbidden("Purchasing.Requisition.Read", "view requisitions", http);
+        }
+
+        var found = await requisitions.LoadAsync(requisitionNo, cancellationToken).ConfigureAwait(false);
+
+        return found is null ? Results.NotFound() : Results.Ok(ViewOf(found));
+    }
+
+    private static async Task<IResult> CreateRequisitionAsync(
+        CreateRequisitionRequest request,
+        PurchaseRequisitionService requisitions,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, "Purchasing.Requisition.Create"))
+        {
+            return Forbidden("Purchasing.Requisition.Create", "ask for something to be bought", http);
+        }
+
+        var result = await requisitions
+            .CreateAsync(
+                [
+                    .. (request.Lines ?? []).Select(static l => new PurchaseRequisitionLineRequest(
+                        l.Type,
+                        l.No,
+                        l.Quantity,
+                        l.EstimatedUnitCost,
+                        l.Description,
+                        l.LocationCode,
+                        l.VariantCode,
+                        l.SuggestedVendorNo)),
+                ],
+                request.LocationCode,
+                request.NeededByDate,
+                request.Description,
+                request.Justification,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.Ok(ViewOf(result.Value));
+    }
+
+    private static async Task<IResult> SubmitRequisitionAsync(
+        string requisitionNo,
+        PurchaseRequisitionService requisitions,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, "Purchasing.Requisition.Create"))
+        {
+            return Forbidden("Purchasing.Requisition.Create", "submit requisitions", http);
+        }
+
+        var result = await requisitions.SubmitAsync(requisitionNo, cancellationToken).ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.Ok(ViewOf(result.Value));
+    }
+
+    private static async Task<IResult> ApproveRequisitionAsync(
+        string requisitionNo,
+        PurchaseRequisitionService requisitions,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, "Purchasing.Requisition.Approve"))
+        {
+            return Forbidden("Purchasing.Requisition.Approve", "sign for a requisition", http);
+        }
+
+        var result = await requisitions.ApproveAsync(requisitionNo, cancellationToken).ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.Ok(ViewOf(result.Value));
+    }
+
+    private static async Task<IResult> RejectRequisitionAsync(
+        string requisitionNo,
+        RequisitionReasonRequest request,
+        PurchaseRequisitionService requisitions,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, "Purchasing.Requisition.Approve"))
+        {
+            return Forbidden("Purchasing.Requisition.Approve", "turn a requisition down", http);
+        }
+
+        var result = await requisitions
+            .RejectAsync(requisitionNo, request.Reason, cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.Ok(ViewOf(result.Value));
+    }
+
+    private static async Task<IResult> OrderFromRequisitionAsync(
+        string requisitionNo,
+        OrderFromRequisitionRequest request,
+        PurchaseRequisitionService requisitions,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        // Raising the order needs what raising an order needs. Somebody who may ask for things
+        // does not thereby become somebody who may commit the company to buying them.
+        if (!Can(user, "Purchasing.Order.Create"))
+        {
+            return Forbidden("Purchasing.Order.Create", "raise an order from a requisition", http);
+        }
+
+        var result = await requisitions
+            .OrderAsync(
+                requisitionNo,
+                request.VendorNo,
+                request.Lines,
+                request.ExpectedReceiptDate,
+                Overrides(user),
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed
+            ? Refused(result, http)
+            : Results.Ok(new { order = View(result.Value), messages = result.Messages });
+    }
+
+    private static async Task<IResult> CancelRequisitionAsync(
+        string requisitionNo,
+        RequisitionReasonRequest request,
+        PurchaseRequisitionService requisitions,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, "Purchasing.Requisition.Create"))
+        {
+            return Forbidden("Purchasing.Requisition.Create", "cancel a requisition", http);
+        }
+
+        var result = await requisitions
+            .CancelAsync(requisitionNo, request.Reason, cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed ? Refused(result, http) : Results.Ok(ViewOf(result.Value));
+    }
+
+    private static RequisitionView ViewOf(PurchaseRequisition requisition)
+        => new(
+            requisition.No,
+            requisition.Status.ToString(),
+            requisition.RequisitionDate,
+            requisition.NeededByDate,
+            requisition.LocationCode,
+            requisition.Description,
+            requisition.Justification,
+            requisition.RequestedByUserName,
+            requisition.ApprovedByUserName,
+            requisition.ApprovedAtUtc,
+            requisition.ApprovedAmount,
+            requisition.RejectionReason,
+            requisition.EstimatedAmount,
+            requisition.IsEditable,
+            requisition.CanBeOrdered,
+            [.. requisition.Lines
+                .OrderBy(static l => l.LineNo)
+                .Select(static l => new RequisitionLineView(
+                    l.LineNo,
+                    l.Type.ToString(),
+                    l.ItemNo ?? l.AccountNo,
+                    l.VariantCode,
+                    l.Description,
+                    l.LocationCode,
+                    l.Quantity,
+                    l.EstimatedUnitCost,
+                    l.EstimatedAmount,
+                    l.QuantityOrdered,
+                    l.OutstandingToOrder,
+                    l.SuggestedVendorNo))]);
+
     private static async Task<IResult> ReturnAsync(
         string orderNo,
         PurchaseReturnRequest request,

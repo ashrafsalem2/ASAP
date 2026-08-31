@@ -51,6 +51,148 @@ public sealed class PurchasingSchema : IModuleSchema
         });
 
 
+        modelBuilder.Entity<Requisitions.PurchaseRequisition>(builder =>
+
+
+        {
+
+
+            builder.ToTable("PurchaseRequisitions", SchemaName);
+
+
+
+            builder.Property(r => r.No).HasMaxLength(20).IsRequired();
+
+
+            builder.Property(r => r.LocationCode).HasMaxLength(20);
+
+
+            builder.Property(r => r.Description).HasMaxLength(500);
+
+
+            builder.Property(r => r.Justification).HasMaxLength(1000);
+
+
+            builder.Property(r => r.RequestedByUserName).HasMaxLength(200);
+
+
+            builder.Property(r => r.ApprovedByUserName).HasMaxLength(200);
+
+
+            builder.Property(r => r.RejectionReason).HasMaxLength(500);
+
+
+            builder.Property(r => r.Status).HasConversion<int>();
+
+
+            builder.Property(r => r.ApprovedAmount).HasColumnType(DecimalPrecisionConventions.Money);
+
+
+            builder.Property(r => r.RowVersion).IsRowVersion();
+
+
+
+            builder.HasMany(r => r.Lines)
+
+
+                   .WithOne(l => l.PurchaseRequisition!)
+
+
+                   .HasForeignKey(l => l.PurchaseRequisitionId)
+
+
+                   .OnDelete(DeleteBehavior.Cascade);
+
+
+
+            builder.HasIndex(r => new { r.CompanyId, r.No })
+
+
+                   .IsUnique()
+
+
+                   .HasFilter("[IsDeleted] = 0");
+
+
+
+            builder.HasIndex(r => new { r.CompanyId, r.Status });
+
+
+
+            builder.Ignore(r => r.EstimatedAmount);
+
+
+            builder.Ignore(r => r.IsEditable);
+
+
+            builder.Ignore(r => r.CanBeOrdered);
+
+
+            builder.Ignore(r => r.HasOutstandingLines);
+
+
+        });
+
+
+
+        modelBuilder.Entity<Requisitions.PurchaseRequisitionLine>(builder =>
+
+
+        {
+
+
+            builder.ToTable("PurchaseRequisitionLines", SchemaName);
+
+
+
+            builder.Property(l => l.ItemNo).HasMaxLength(32);
+
+
+            builder.Property(l => l.VariantCode).HasMaxLength(32);
+
+
+            builder.Property(l => l.AccountNo).HasMaxLength(20);
+
+
+            builder.Property(l => l.Description).HasMaxLength(500).IsRequired();
+
+
+            builder.Property(l => l.LocationCode).HasMaxLength(20);
+
+
+            builder.Property(l => l.SuggestedVendorNo).HasMaxLength(20);
+
+
+            builder.Property(l => l.Type).HasConversion<int>();
+
+
+            builder.Property(l => l.Quantity).HasColumnType(DecimalPrecisionConventions.Quantity);
+
+
+            builder.Property(l => l.QuantityOrdered).HasColumnType(DecimalPrecisionConventions.Quantity);
+
+
+            builder.Property(l => l.EstimatedUnitCost).HasColumnType(DecimalPrecisionConventions.UnitAmount);
+
+
+            builder.Property(l => l.RowVersion).IsRowVersion();
+
+
+
+            builder.HasIndex(l => new { l.PurchaseRequisitionId, l.LineNo }).IsUnique();
+
+
+
+            builder.Ignore(l => l.EstimatedAmount);
+
+
+            builder.Ignore(l => l.OutstandingToOrder);
+
+
+        });
+
+
+
         modelBuilder.Entity<PurchaseOrder>(builder =>
         {
             builder.ToTable("PurchaseOrders", SchemaName);

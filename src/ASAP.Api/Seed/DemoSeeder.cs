@@ -321,6 +321,7 @@ public sealed class DemoSeeder(
         Add("SALES-ORD", "Sales orders", allowGaps: true, "SO-{YYYY}-00001");
         Add("SALES-INV", "Sales invoices", allowGaps: false, "INV-{YYYY}-00001");
         Add("SALES-CM", "Sales credit memos", allowGaps: false, "SCM-{YYYY}-00001");
+        Add("PURCH-REQ", "Purchase requisitions", allowGaps: true, "REQ-{YYYY}-00001");
         Add("PURCH-ORD", "Purchase orders", allowGaps: true, "PO-{YYYY}-00001");
         Add("PURCH-INV", "Purchase invoices", allowGaps: true, "PINV-{YYYY}-00001");
         Add("PURCH-CM", "Purchase credit memos", allowGaps: true, "PCM-{YYYY}-00001");

@@ -237,8 +237,21 @@ Everything else posts here, so it goes first.
 ## Phase 3 — Purchasing
 
 - **done** Vendors (through the Finance party ledger); purchase prices, discounts and lead times to come
-- *in progress* **Purchase order, goods receipt, vendor invoice, return and credit memo done**,
-  with the three-way match between them; requisition and request for quotation to come
+- *in progress* **Requisition, purchase order, goods receipt, vendor invoice, return and credit
+  memo done**, with the three-way match between them; request for quotation to come
+- **done** Requisitions. A requisition names a need rather than a purchase: who to buy from may
+  not be known and what it will cost is a guess, so nothing posts and nothing commits the company.
+  Nobody signs for their own request, because an approval you can give yourself is a checkbox
+  rather than a control. Below the company threshold it goes through unsigned, which is not a gap
+  -- the threshold is a number somebody chose and choosing it is the decision. Approving a
+  requisition is not approving the orders that come out of it: the approval was measured against
+  an estimate somebody typed, and the orders carry real prices through the order's own approval,
+  because letting an approved estimate authorise an order at any price would make the estimate the
+  control and the estimate is the one number nobody has checked. One requisition becomes as many
+  orders as it has vendors, and each line counts what has already gone -- ordering past what was
+  asked for is refused and cannot be overridden. A requisition with orders behind it cannot be
+  cancelled, or those orders would point at a document saying nothing was ever wanted. Reorder
+  policy raising requisitions automatically still to come
 - **done** Returns to a vendor and their credit memos. Bounded by what was *received* rather than
   what was invoiced, which is the one place this differs from a sales return: goods can go back
   before their invoice ever turns up, and rejecting a faulty delivery at the door is the ordinary

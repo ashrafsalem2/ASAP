@@ -6,6 +6,36 @@ namespace ASAP.Modules.Purchasing;
 public static class PurchasingMessages
 {
     /// <summary>An approval limit was set below nothing.</summary>
+    /// <summary>The requisition named does not exist.</summary>
+    public static readonly MessageCode RequisitionNotFound = new("PUR.REQ.NOT_FOUND");
+
+    /// <summary>A requisition was raised with nothing on it.</summary>
+    public static readonly MessageCode RequisitionHasNoLines = new("PUR.REQ.NO_LINES");
+
+    /// <summary>A requisition line asks for nothing.</summary>
+    public static readonly MessageCode RequisitionQuantityZero = new("PUR.REQ.QUANTITY_ZERO");
+
+    /// <summary>Only a draft can be submitted.</summary>
+    public static readonly MessageCode RequisitionNotADraft = new("PUR.REQ.NOT_A_DRAFT");
+
+    /// <summary>The requisition is not waiting on an answer.</summary>
+    public static readonly MessageCode RequisitionNotAwaitingApproval = new("PUR.REQ.NOT_AWAITING");
+
+    /// <summary>Somebody tried to sign for their own request.</summary>
+    public static readonly MessageCode CannotApproveYourOwnRequisition = new("PUR.REQ.SELF_APPROVAL");
+
+    /// <summary>Orders may only be raised from an approved requisition.</summary>
+    public static readonly MessageCode RequisitionNotApproved = new("PUR.REQ.NOT_APPROVED");
+
+    /// <summary>Everything on the requisition has already been ordered.</summary>
+    public static readonly MessageCode NothingLeftToOrder = new("PUR.REQ.NOTHING_LEFT");
+
+    /// <summary>An order would buy more than was asked for.</summary>
+    public static readonly MessageCode OrderExceedsRequisition = new("PUR.REQ.EXCEEDS_REQUEST");
+
+    /// <summary>The requisition has orders behind it already.</summary>
+    public static readonly MessageCode RequisitionAlreadyOrdered = new("PUR.REQ.ALREADY_ORDERED");
+
     /// <summary>Nothing on the order could go back.</summary>
     public static readonly MessageCode NothingToSendBack = new("PUR.RETURN.NOTHING");
 
@@ -101,6 +131,136 @@ public static class PurchasingMessages
     /// <summary>Every message the module declares.</summary>
     public static IReadOnlyCollection<MessageDefinition> All { get; } =
     [
+        new()
+        {
+            Code = RequisitionNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such requisition", "لا يوجد طلب شراء بهذا الرقم"),
+            Detail = new LocalizedText(
+                "Nothing in this company carries the number {RequisitionNo}.",
+                "لا يوجد في هذه الشركة ما يحمل الرقم {RequisitionNo}."),
+            Resolution = new LocalizedText(
+                "Check the number.",
+                "تحقق من الرقم."),
+            HelpTopic = "purchasing/requisitions",
+        },
+        new()
+        {
+            Code = RequisitionHasNoLines,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Nothing was asked for", "لم يُطلب شيء"),
+            Detail = new LocalizedText(
+                "A requisition was raised with nothing on it.",
+                "رُفع طلب شراء لا شيء عليه."),
+            Resolution = new LocalizedText(
+                "Say what is needed. A requisition with no lines asks nobody for anything.",
+                "حدّد ما هو مطلوب. فطلب الشراء بلا سطور لا يطلب من أحد شيئًا."),
+            HelpTopic = "purchasing/requisitions",
+        },
+        new()
+        {
+            Code = RequisitionQuantityZero,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Say how much", "حدّد الكمية"),
+            Detail = new LocalizedText(
+                "Line {LineNo} asks for {ItemNo} and names no quantity.",
+                "يطلب السطر {LineNo} الصنف {ItemNo} دون كمية."),
+            Resolution = new LocalizedText(
+                "Give it a quantity above nought, or take the line off.",
+                "امنحه كمية أكبر من صفر، أو احذف السطر."),
+            HelpTopic = "purchasing/requisitions",
+        },
+        new()
+        {
+            Code = RequisitionNotADraft,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Already sent", "أُرسل بالفعل"),
+            Detail = new LocalizedText(
+                "{RequisitionNo} is {Status}, and only a draft can be submitted.",
+                "حالة {RequisitionNo} هي {Status}، ولا يُرسل إلا ما كان مسودة."),
+            Resolution = new LocalizedText(
+                "Work with it where it now stands.",
+                "تعامل معه في حالته الراهنة."),
+            HelpTopic = "purchasing/requisitions",
+        },
+        new()
+        {
+            Code = RequisitionNotAwaitingApproval,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Not waiting on an answer", "لا ينتظر جوابًا"),
+            Detail = new LocalizedText(
+                "{RequisitionNo} is {Status} rather than waiting for approval.",
+                "حالة {RequisitionNo} هي {Status} لا انتظار الموافقة."),
+            Resolution = new LocalizedText(
+                "Only a submitted requisition can be approved or turned down.",
+                "لا يُوافق على طلب الشراء أو يُرفض إلا إذا كان مرسلًا."),
+            HelpTopic = "purchasing/requisitions",
+        },
+        new()
+        {
+            Code = CannotApproveYourOwnRequisition,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Somebody else has to sign", "يوقّع غيرك"),
+            Detail = new LocalizedText(
+                "You raised {RequisitionNo}, so you cannot approve it.",
+                "أنت من رفع {RequisitionNo}، فلا يمكنك الموافقة عليه."),
+            Resolution = new LocalizedText(
+                "An approval you can give yourself is a checkbox rather than a control. The whole point is that a second person looked.",
+                "الموافقة التي تمنحها لنفسك خانة تأشير لا ضابط. فالمقصود كله أن ينظر فيه شخص ثانٍ."),
+            HelpTopic = "purchasing/requisitions",
+        },
+        new()
+        {
+            Code = RequisitionNotApproved,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Not approved yet", "لم يُوافق عليه بعد"),
+            Detail = new LocalizedText(
+                "{RequisitionNo} is {Status}, and orders are only raised from an approved requisition.",
+                "حالة {RequisitionNo} هي {Status}، ولا تُرفع الأوامر إلا من طلب موافق عليه."),
+            Resolution = new LocalizedText(
+                "Submit it and have somebody sign for it first.",
+                "أرسله ودع أحدهم يوقّع عليه أولًا."),
+            HelpTopic = "purchasing/requisitions",
+        },
+        new()
+        {
+            Code = NothingLeftToOrder,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Everything is on order", "كل شيء تحت الطلب"),
+            Detail = new LocalizedText(
+                "Nothing on {RequisitionNo} is still waiting to be ordered.",
+                "لا شيء في {RequisitionNo} ما زال ينتظر الطلب."),
+            Resolution = new LocalizedText(
+                "One requisition can become several orders, so check what has already been raised from it.",
+                "قد يصير طلب الشراء الواحد عدة أوامر، فتحقق مما رُفع منه بالفعل."),
+            HelpTopic = "purchasing/requisitions",
+        },
+        new()
+        {
+            Code = OrderExceedsRequisition,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("More than was asked for", "أكثر مما طُلب"),
+            Detail = new LocalizedText(
+                "Line {LineNo} orders {Ordered:0.#####} of {ItemNo}, and only {OutstandingQuantity:0.#####} of the {Requested:0.#####} requested is left to order.",
+                "يطلب السطر {LineNo} كمية {Ordered:0.#####} من {ItemNo}، ولم يبق من {Requested:0.#####} المطلوبة إلا {OutstandingQuantity:0.#####}."),
+            Resolution = new LocalizedText(
+                "Order what was asked for, or less. A requisition is authority for a quantity, and buying past it commits the company to something nobody signed for.",
+                "اطلب ما طُلب أو أقل منه. فطلب الشراء تفويض بكمية، وتجاوزها يُلزم الشركة بما لم يوقّع عليه أحد."),
+            HelpTopic = "purchasing/requisitions",
+        },
+        new()
+        {
+            Code = RequisitionAlreadyOrdered,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Orders have been raised from it", "رُفعت منه أوامر"),
+            Detail = new LocalizedText(
+                "Something on {RequisitionNo} has already been ordered.",
+                "طُلب بالفعل شيء من {RequisitionNo}."),
+            Resolution = new LocalizedText(
+                "Cancel the orders instead. Cancelling the requisition would leave them pointing at a document saying nothing was ever wanted.",
+                "ألغِ الأوامر بدلًا من ذلك. فإلغاء طلب الشراء يتركها تشير إلى مستند يقول إنه لم يُطلب شيء قط."),
+            HelpTopic = "purchasing/requisitions",
+        },
         new()
         {
             Code = NothingToSendBack,

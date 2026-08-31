@@ -1,0 +1,318 @@
+<div class="page">
+  <h1>{{ t('purchasing.requisitions.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('purchasing.requisitions.intro') }}</p>
+    <p class="panel__body hint">{{ t('purchasing.requisitions.approvalHint') }}</p>
+    <p class="panel__body hint">{{ t('purchasing.requisitions.orderHint') }}</p>
+  </section>
+
+  @if (loading()) {
+    <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+  } @else {
+    @if (drafting()) {
+      <section class="panel">
+        <h2 class="panel__title">{{ t('purchasing.requisitions.newOne') }}</h2>
+
+        <div class="panel__body form-row">
+          <label>
+            {{ t('purchasing.requisitions.location') }}
+            <input type="text" [(ngModel)]="locationCode" name="locationCode" />
+          </label>
+          <label>
+            {{ t('purchasing.requisitions.neededBy') }}
+            <input type="date" [(ngModel)]="neededBy" name="neededBy" />
+          </label>
+          <label>
+            {{ t('purchasing.requisitions.description') }}
+            <input type="text" [(ngModel)]="description" name="description" />
+          </label>
+        </div>
+
+        <div class="panel__body">
+          <label class="field">
+            {{ t('purchasing.requisitions.justification') }}
+            <input
+              class="input"
+              type="text"
+              [(ngModel)]="justification"
+              name="justification"
+              [placeholder]="t('purchasing.requisitions.justificationPlaceholder')"
+            />
+          </label>
+        </div>
+
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('purchasing.requisitions.item') }}</th>
+                <th>{{ t('purchasing.requisitions.description') }}</th>
+                <th class="numeric">{{ t('purchasing.requisitions.quantity') }}</th>
+                <th class="numeric">{{ t('purchasing.requisitions.estimate') }}</th>
+                <th>{{ t('purchasing.requisitions.suggestedVendor') }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (line of draftLines; track trackLine($index); let i = $index) {
+                <tr>
+                  <td><input type="text" [(ngModel)]="line.no" [name]="'no' + i" /></td>
+                  <td><input type="text" [(ngModel)]="line.description" [name]="'desc' + i" /></td>
+                  <td class="numeric">
+                    <input type="number" [(ngModel)]="line.quantity" [name]="'qty' + i" />
+                  </td>
+                  <td class="numeric">
+                    <input type="number" [(ngModel)]="line.estimatedUnitCost" [name]="'est' + i" />
+                  </td>
+                  <td>
+                    <input type="text" [(ngModel)]="line.suggestedVendorNo" [name]="'vendor' + i" />
+                  </td>
+                  <td>
+                    <button type="button" class="button button--quiet" (click)="removeLine(i)">
+                      {{ t('purchasing.requisitions.removeLine') }}
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+            <tfoot>
+              <tr>
+                <th colspan="3">{{ t('purchasing.requisitions.estimatedTotal') }}</th>
+                <th class="numeric" colspan="3">{{ i18n.total(draftEstimate()) }}</th>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <div class="panel__body form-row">
+          <button type="button" class="button button--quiet" (click)="addLine()">
+            {{ t('purchasing.requisitions.addLine') }}
+          </button>
+          <button
+            type="button"
+            class="button button--primary"
+            [disabled]="busy() !== null"
+            (click)="save()"
+          >
+            {{ t('purchasing.requisitions.save') }}
+          </button>
+          <button type="button" class="button button--quiet" (click)="cancelDraft()">
+            {{ t('purchasing.requisitions.leaveIt') }}
+          </button>
+        </div>
+      </section>
+    }
+
+    @if (selected(); as req) {
+      <section class="panel">
+        <div class="panel__header">
+          <h2>{{ req.no }}</h2>
+        </div>
+
+        <p class="panel__body">
+          <span class="badge">{{ statusLabel(req.status) }}</span>
+          {{ t('purchasing.requisitions.askedBy') }} {{ req.requestedByUserName || '—' }} ·
+          {{ i18n.total(req.estimatedAmount) }}
+          @if (req.approvedByUserName) {
+            · {{ t('purchasing.requisitions.signedBy') }} {{ req.approvedByUserName }}
+          }
+          @if (req.rejectionReason) {
+            · {{ req.rejectionReason }}
+          }
+        </p>
+
+        @if (req.justification) {
+          <p class="panel__body order__hint">{{ req.justification }}</p>
+        }
+
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('purchasing.requisitions.item') }}</th>
+                <th>{{ t('purchasing.requisitions.description') }}</th>
+                <th class="numeric">{{ t('purchasing.requisitions.quantity') }}</th>
+                <th class="numeric">{{ t('purchasing.requisitions.estimate') }}</th>
+                <th class="numeric">{{ t('purchasing.requisitions.ordered') }}</th>
+                <th class="numeric">{{ t('purchasing.requisitions.outstanding') }}</th>
+                <th>{{ t('purchasing.requisitions.suggestedVendor') }}</th>
+                @if (canOrder() && req.canBeOrdered) {
+                  <th class="numeric">{{ t('purchasing.requisitions.orderQuantity') }}</th>
+                  <th class="numeric">{{ t('purchasing.requisitions.realPrice') }}</th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (line of req.lines; track line.lineNo) {
+                <tr>
+                  <td class="code">{{ line.no }}</td>
+                  <td>{{ line.description }}</td>
+                  <td class="numeric">{{ line.quantity }}</td>
+                  <td class="numeric">{{ i18n.total(line.estimatedUnitCost) }}</td>
+                  <td class="numeric">{{ line.quantityOrdered }}</td>
+                  <td class="numeric">{{ line.outstandingToOrder }}</td>
+                  <td class="code">{{ line.suggestedVendorNo || '—' }}</td>
+                  @if (canOrder() && req.canBeOrdered) {
+                    <td class="numeric">
+                      <input
+                        class="input input--number input--compact"
+                        type="number"
+                        min="0"
+                        [placeholder]="line.outstandingToOrder"
+                        [ngModel]="orderQuantityOf(line.lineNo)"
+                        (ngModelChange)="setOrderQuantity(line.lineNo, $event)"
+                        [name]="'oq' + line.lineNo"
+                      />
+                    </td>
+                    <td class="numeric">
+                      <input
+                        class="input input--number input--compact"
+                        type="number"
+                        min="0"
+                        [placeholder]="line.estimatedUnitCost"
+                        [ngModel]="orderPriceOf(line.lineNo)"
+                        (ngModelChange)="setOrderPrice(line.lineNo, $event)"
+                        [name]="'op' + line.lineNo"
+                      />
+                    </td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        @if (req.status === 'Draft' || req.status === 'Submitted') {
+          <div class="panel__body">
+            <label class="field">
+              {{ t('purchasing.requisitions.reason') }}
+              <input
+                class="input"
+                type="text"
+                [(ngModel)]="reason"
+                name="reason"
+                [placeholder]="t('purchasing.requisitions.reasonPlaceholder')"
+              />
+            </label>
+          </div>
+        }
+
+        <div class="panel__body draft__actions">
+          @if (canAsk() && req.status === 'Draft') {
+            <button
+              type="button"
+              class="button button--primary"
+              [disabled]="busy() !== null"
+              (click)="submit()"
+            >
+              {{ t('purchasing.requisitions.submit') }}
+            </button>
+            <button
+              type="button"
+              class="button button--quiet"
+              [disabled]="busy() !== null"
+              (click)="cancel()"
+            >
+              {{ t('purchasing.requisitions.abandon') }}
+            </button>
+          }
+          @if (canApprove() && req.status === 'Submitted') {
+            <button
+              type="button"
+              class="button button--primary"
+              [disabled]="busy() !== null"
+              (click)="approve()"
+            >
+              {{ t('purchasing.requisitions.approve') }}
+            </button>
+            <button
+              type="button"
+              class="button button--quiet"
+              [disabled]="busy() !== null"
+              (click)="reject()"
+            >
+              {{ t('purchasing.requisitions.reject') }}
+            </button>
+          }
+        </div>
+
+        @if (canOrder() && req.canBeOrdered) {
+          <div class="panel__body form-row">
+            <label>
+              {{ t('purchasing.requisitions.vendor') }}
+              <input type="text" [(ngModel)]="orderVendorNo" name="orderVendorNo" />
+            </label>
+            <button
+              type="button"
+              class="button button--primary"
+              [disabled]="busy() !== null"
+              (click)="raiseOrder()"
+            >
+              {{ t('purchasing.requisitions.raiseOrder') }}
+            </button>
+          </div>
+        }
+      </section>
+    }
+
+    <section class="panel">
+      <div class="panel__body form-row">
+        <label>
+          {{ t('purchasing.requisitions.status') }}
+          <select [(ngModel)]="statusFilter" name="statusFilter" (change)="refresh()">
+            <option value="">—</option>
+            <option value="Draft">{{ t('purchasing.requisitions.status.Draft') }}</option>
+            <option value="Submitted">{{ t('purchasing.requisitions.status.Submitted') }}</option>
+            <option value="Approved">{{ t('purchasing.requisitions.status.Approved') }}</option>
+            <option value="Rejected">{{ t('purchasing.requisitions.status.Rejected') }}</option>
+            <option value="Ordered">{{ t('purchasing.requisitions.status.Ordered') }}</option>
+            <option value="Cancelled">{{ t('purchasing.requisitions.status.Cancelled') }}</option>
+          </select>
+        </label>
+        @if (canAsk()) {
+          <button type="button" class="button" (click)="startNew()">
+            {{ t('purchasing.requisitions.newOne') }}
+          </button>
+        }
+      </div>
+
+      @if (requisitions().length === 0) {
+        <p class="empty">{{ t('purchasing.requisitions.none') }}</p>
+      } @else {
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('purchasing.requisitions.no') }}</th>
+                <th>{{ t('purchasing.requisitions.status') }}</th>
+                <th>{{ t('purchasing.requisitions.askedBy') }}</th>
+                <th>{{ t('purchasing.requisitions.raised') }}</th>
+                <th>{{ t('purchasing.requisitions.neededBy') }}</th>
+                <th class="numeric">{{ t('purchasing.requisitions.estimatedTotal') }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (req of requisitions(); track req.no) {
+                <tr>
+                  <td class="code">{{ req.no }}</td>
+                  <td>{{ statusLabel(req.status) }}</td>
+                  <td>{{ req.requestedByUserName || '—' }}</td>
+                  <td>{{ req.requisitionDate }}</td>
+                  <td>{{ req.neededByDate || '—' }}</td>
+                  <td class="numeric">{{ i18n.total(req.estimatedAmount) }}</td>
+                  <td>
+                    <button type="button" class="button button--quiet" (click)="open(req)">
+                      {{ t('purchasing.requisitions.open') }}
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+  }
+</div>

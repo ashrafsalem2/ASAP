@@ -174,6 +174,69 @@ export interface StockLocation {
   usesBins: boolean;
 }
 
+/** Where a quote stands. */
+export type SalesQuoteStatus = 'Draft' | 'Sent' | 'Accepted' | 'Declined' | 'Expired';
+
+/** One line of a quote. */
+export interface SalesQuoteLine {
+  lineNo: number;
+  type: string;
+  no?: string | null;
+  variantCode?: string | null;
+  description: string;
+  locationCode?: string | null;
+  quantity: number;
+  unitPrice: number;
+  discountPercent: number;
+  taxCode?: string | null;
+  lineAmount: number;
+}
+
+/** A price offered to a customer, before anybody has committed to anything. */
+export interface SalesQuote {
+  no: string;
+  customerNo: string;
+  customerName: string;
+  status: SalesQuoteStatus;
+  quoteDate: string;
+  validUntil: string;
+  hasExpired: boolean;
+  locationCode?: string | null;
+  customerOrderNo?: string | null;
+  description?: string | null;
+  orderNo?: string | null;
+  declineReason?: string | null;
+  totalAmount: number;
+  isEditable: boolean;
+  lines: SalesQuoteLine[];
+}
+
+/** What a client sends to offer a customer a price. */
+export interface CreateSalesQuoteRequest {
+  customerNo: string;
+  lines: {
+    type: string;
+    no: string;
+    quantity: number;
+    unitPrice?: number;
+    discountPercent?: number;
+    description?: string | null;
+    taxCode?: string | null;
+    locationCode?: string | null;
+    variantCode?: string | null;
+  }[];
+  validUntil?: string | null;
+  locationCode?: string | null;
+  description?: string | null;
+  customerOrderNo?: string | null;
+}
+
+/** A quote as it was written, with anything the server had to say about it. */
+export interface SalesQuoteCreated {
+  quote: SalesQuote;
+  messages?: AsapMessage[];
+}
+
 /** One agreed price on a price list. */
 export interface PriceListLine {
   itemNo: string;

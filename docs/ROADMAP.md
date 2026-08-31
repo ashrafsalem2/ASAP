@@ -258,7 +258,20 @@ Everything else posts here, so it goes first.
   warning exists for. The assignment is held by Sales rather than on the party, because a customer
   belongs to Finance and what they pay for goods is a sales arrangement. Customer groups and
   offers-on-top still to come
-- *in progress* **Order, shipment, invoice, return and credit memo done**; quote to come
+- **done** Quote, order, shipment, invoice, return and credit memo
+- **done** Quotes. A quote promises price and not stock, so quoting for goods that have not
+  arrived is the ordinary use of a lead time rather than an error -- it checks that the customer
+  and the item exist and says nothing about the shelf. Every quote carries an expiry, because a
+  price nobody can withdraw is not a price and the arrangement nobody remembers is always found by
+  a customer holding paper from two years ago. Accepting carries the quoted figures onto the order
+  verbatim: the price list may well have moved, and the customer accepted the number in front of
+  them rather than the one the list now holds. For the same reason an expired quote is refused
+  rather than repriced -- silently repricing is the same wrong in a different coat. Everything
+  else is rechecked through the ordinary order path, because the location and whether the customer
+  has since been blocked are properties of the order and a three-week-old quote has nothing useful
+  to say about them. Held as its own document rather than a status on the order, so a quote cannot
+  turn up in the order book, the open-orders report or the shipping queue. Revising a sent quote
+  into a new version, and quote-to-quote copying, still to come
 - **done** Returns and credit memos. A return is two postings that are right for different reasons:
   the stock comes back at what it cost on the way out, which is why the return names the order,
   and the credit memo is the invoice run backwards at the prices the customer was actually

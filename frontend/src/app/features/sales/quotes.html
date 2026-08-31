@@ -1,0 +1,272 @@
+<div class="page">
+  <h1>{{ t('sales.quotes.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('sales.quotes.intro') }}</p>
+    <p class="panel__body hint">{{ t('sales.quotes.expiryHint') }}</p>
+    <p class="panel__body hint">{{ t('sales.quotes.acceptHint') }}</p>
+  </section>
+
+  @if (loading()) {
+    <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+  } @else {
+    @if (drafting()) {
+      <section class="panel">
+        <h2 class="panel__title">{{ t('sales.quotes.newQuote') }}</h2>
+
+        <div class="panel__body form-row">
+          <label>
+            {{ t('sales.quotes.customer') }}
+            <input type="text" [(ngModel)]="customerNo" name="customerNo" />
+          </label>
+          <label>
+            {{ t('sales.quotes.validUntil') }}
+            <input type="date" [(ngModel)]="validUntil" name="validUntil" />
+          </label>
+          <label>
+            {{ t('sales.quotes.location') }}
+            <input type="text" [(ngModel)]="locationCode" name="locationCode" />
+          </label>
+        </div>
+
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('sales.quotes.item') }}</th>
+                <th class="numeric">{{ t('sales.quotes.quantity') }}</th>
+                <th class="numeric">{{ t('sales.quotes.unitPrice') }}</th>
+                <th class="numeric">{{ t('sales.quotes.discount') }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (line of draftLines; track trackLine($index); let i = $index) {
+                <tr>
+                  <td><input type="text" [(ngModel)]="line.no" [name]="'no' + i" /></td>
+                  <td class="numeric">
+                    <input type="number" [(ngModel)]="line.quantity" [name]="'qty' + i" />
+                  </td>
+                  <td class="numeric">
+                    <input type="number" [(ngModel)]="line.unitPrice" [name]="'price' + i" />
+                  </td>
+                  <td class="numeric">
+                    <input type="number" [(ngModel)]="line.discountPercent" [name]="'disc' + i" />
+                  </td>
+                  <td>
+                    <button type="button" class="button button--quiet" (click)="removeLine(i)">
+                      {{ t('sales.quotes.removeLine') }}
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+            <tfoot>
+              <tr>
+                <th>{{ t('sales.quotes.total') }}</th>
+                <th class="numeric" colspan="4">
+                  @if (draftIsPriced()) {
+                    {{ i18n.total(draftTotal()) }}
+                  } @else {
+                    {{ t('sales.quotes.pricedOnSaving') }}
+                  }
+                </th>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        <div class="panel__body form-row">
+          <button type="button" class="button button--quiet" (click)="addLine()">
+            {{ t('sales.quotes.addLine') }}
+          </button>
+          <button
+            type="button"
+            class="button button--primary"
+            [disabled]="busy() !== null"
+            (click)="save()"
+          >
+            {{ t('sales.quotes.save') }}
+          </button>
+          <button type="button" class="button button--quiet" (click)="cancel()">
+            {{ t('sales.quotes.cancel') }}
+          </button>
+        </div>
+      </section>
+    }
+
+    @if (selected(); as quote) {
+      <section class="panel">
+        <div class="panel__header">
+          <h2>{{ quote.no }}</h2>
+        </div>
+
+        <p class="panel__body">
+          <span class="badge">{{ statusLabel(quote.status) }}</span>
+          {{ quote.customerName }} ·
+          {{ t('sales.quotes.validUntil') }} {{ quote.validUntil }}
+          @if (quote.hasExpired) {
+            · <strong>{{ t('sales.quotes.expiredFlag') }}</strong>
+          }
+          @if (quote.orderNo) {
+            · {{ t('sales.quotes.orderNo') }} {{ quote.orderNo }}
+          }
+        </p>
+
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('sales.quotes.item') }}</th>
+                <th>{{ t('sales.quotes.description') }}</th>
+                <th class="numeric">{{ t('sales.quotes.quantity') }}</th>
+                <th class="numeric">{{ t('sales.quotes.unitPrice') }}</th>
+                <th class="numeric">{{ t('sales.quotes.discount') }}</th>
+                <th class="numeric">{{ t('sales.quotes.lineAmount') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (line of quote.lines; track line.lineNo) {
+                <tr>
+                  <td class="code">{{ line.no }}</td>
+                  <td>{{ line.description }}</td>
+                  <td class="numeric">{{ line.quantity }}</td>
+                  <td class="numeric">{{ i18n.total(line.unitPrice) }}</td>
+                  <td class="numeric">{{ line.discountPercent || '' }}</td>
+                  <td class="numeric">{{ i18n.total(line.lineAmount) }}</td>
+                </tr>
+              }
+            </tbody>
+            <tfoot>
+              <tr>
+                <th colspan="5">{{ t('sales.quotes.total') }}</th>
+                <th class="numeric">{{ i18n.total(quote.totalAmount) }}</th>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+
+        @if (quote.status === 'Draft' || quote.status === 'Sent') {
+          <div class="panel__body">
+            <label class="field">
+              {{ t('sales.quotes.declineReason') }}
+              <input
+                class="input"
+                type="text"
+                [(ngModel)]="declineReason"
+                name="declineReason"
+                [placeholder]="t('sales.quotes.declineReasonPlaceholder')"
+              />
+            </label>
+          </div>
+
+          <div class="panel__body form-row">
+            @if (canWrite() && quote.status === 'Draft') {
+              <button
+                type="button"
+                class="button button--quiet"
+                [disabled]="busy() !== null"
+                (click)="send()"
+              >
+                {{ t('sales.quotes.send') }}
+              </button>
+            }
+            @if (canOrder() && !quote.hasExpired) {
+              <button
+                type="button"
+                class="button button--primary"
+                [disabled]="busy() !== null"
+                (click)="accept()"
+              >
+                {{ t('sales.quotes.accept') }}
+              </button>
+            }
+            @if (canWrite()) {
+              <button
+                type="button"
+                class="button button--quiet"
+                [disabled]="busy() !== null"
+                (click)="decline()"
+              >
+                {{ t('sales.quotes.decline') }}
+              </button>
+            }
+          </div>
+        }
+      </section>
+    }
+
+    <section class="panel">
+      <div class="panel__body form-row">
+        <label>
+          {{ t('sales.quotes.status') }}
+          <select [(ngModel)]="statusFilter" name="statusFilter" (change)="refresh()">
+            <option value="">—</option>
+            <option value="Draft">{{ t('sales.quotes.status.Draft') }}</option>
+            <option value="Sent">{{ t('sales.quotes.status.Sent') }}</option>
+            <option value="Accepted">{{ t('sales.quotes.status.Accepted') }}</option>
+            <option value="Declined">{{ t('sales.quotes.status.Declined') }}</option>
+            <option value="Expired">{{ t('sales.quotes.status.Expired') }}</option>
+          </select>
+        </label>
+        @if (canWrite()) {
+          <button type="button" class="button" (click)="startNew()">
+            {{ t('sales.quotes.newQuote') }}
+          </button>
+          <button
+            type="button"
+            class="button button--quiet"
+            [disabled]="busy() !== null"
+            (click)="expire()"
+          >
+            {{ t('sales.quotes.expire') }}
+          </button>
+        }
+      </div>
+
+      @if (quotes().length === 0) {
+        <p class="empty">{{ t('sales.quotes.none') }}</p>
+      } @else {
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('sales.quotes.no') }}</th>
+                <th>{{ t('sales.quotes.customer') }}</th>
+                <th>{{ t('sales.quotes.status') }}</th>
+                <th>{{ t('sales.quotes.quoteDate') }}</th>
+                <th>{{ t('sales.quotes.validUntil') }}</th>
+                <th class="numeric">{{ t('sales.quotes.total') }}</th>
+                <th>{{ t('sales.quotes.orderNo') }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (quote of quotes(); track quote.no) {
+                <tr>
+                  <td class="code">{{ quote.no }}</td>
+                  <td>{{ quote.customerName }}</td>
+                  <td>
+                    {{ statusLabel(quote.status) }}
+                    @if (quote.hasExpired && quote.status !== 'Accepted') {
+                      <span class="badge">{{ t('sales.quotes.expiredFlag') }}</span>
+                    }
+                  </td>
+                  <td>{{ quote.quoteDate }}</td>
+                  <td>{{ quote.validUntil }}</td>
+                  <td class="numeric">{{ i18n.total(quote.totalAmount) }}</td>
+                  <td class="code">{{ quote.orderNo || '—' }}</td>
+                  <td>
+                    <button type="button" class="button button--quiet" (click)="open(quote)">
+                      {{ t('sales.quotes.open') }}
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+  }
+</div>

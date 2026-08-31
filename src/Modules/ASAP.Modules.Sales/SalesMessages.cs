@@ -5,6 +5,21 @@ namespace ASAP.Modules.Sales;
 /// <summary>Everything the Sales module can tell the user.</summary>
 public static class SalesMessages
 {
+    /// <summary>The quote named does not exist.</summary>
+    public static readonly MessageCode QuoteNotFound = new("SAL.QUOTE.NOT_FOUND");
+
+    /// <summary>The prices on the quote no longer stand.</summary>
+    public static readonly MessageCode QuoteHasExpired = new("SAL.QUOTE.EXPIRED");
+
+    /// <summary>The quote has already become an order.</summary>
+    public static readonly MessageCode QuoteAlreadyAccepted = new("SAL.QUOTE.ALREADY_ACCEPTED");
+
+    /// <summary>The customer already said no to this quote.</summary>
+    public static readonly MessageCode QuoteWasDeclined = new("SAL.QUOTE.DECLINED");
+
+    /// <summary>A quote was made with an expiry already in the past.</summary>
+    public static readonly MessageCode QuoteExpiresBeforeItIsMade = new("SAL.QUOTE.EXPIRES_IN_PAST");
+
     /// <summary>A return names nothing that could come back.</summary>
     public static readonly MessageCode NothingToReturn = new("SAL.RETURN.NOTHING");
 
@@ -62,6 +77,78 @@ public static class SalesMessages
     /// <summary>Every message the module declares.</summary>
     public static IReadOnlyCollection<MessageDefinition> All { get; } =
     [
+        new()
+        {
+            Code = QuoteNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such quote", "لا يوجد عرض سعر بهذا الرقم"),
+            Detail = new LocalizedText(
+                "Nothing in this company carries the number {QuoteNo}.",
+                "لا يوجد في هذه الشركة ما يحمل الرقم {QuoteNo}."),
+            Resolution = new LocalizedText(
+                "Check the number.",
+                "تحقق من الرقم."),
+            HelpTopic = "sales/quotes",
+        },
+        new()
+        {
+            Code = QuoteHasExpired,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("The quote has run out", "انتهى أجل عرض السعر"),
+            Detail = new LocalizedText(
+                "{QuoteNo} stood until {ValidUntil}, which has passed.",
+                "كان {QuoteNo} قائمًا حتى {ValidUntil}، وقد مضى ذلك التاريخ."),
+            Resolution = new LocalizedText(
+                "Quote again at today's prices. It is refused rather than repriced on purpose: "
+                + "the customer accepted the number in front of them, and charging them a "
+                + "different one without saying so would look correct in every report.",
+                "أصدر عرضًا جديدًا بأسعار اليوم. والرفض هنا مقصود بدل إعادة التسعير: فالعميل قبل "
+                + "الرقم الذي أمامه، وتحميله رقمًا آخر دون إخباره يبدو صحيحًا في كل تقرير."),
+            HelpTopic = "sales/quotes",
+        },
+        new()
+        {
+            Code = QuoteAlreadyAccepted,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Already an order", "صار أمرًا بالفعل"),
+            Detail = new LocalizedText(
+                "{QuoteNo} was accepted and became order {OrderNo}.",
+                "قُبل {QuoteNo} وصار الأمر {OrderNo}."),
+            Resolution = new LocalizedText(
+                "Work on that order. Accepting twice would put two orders behind one agreement, "
+                + "and the goods would go out twice.",
+                "اعمل على ذلك الأمر. فالقبول مرتين يضع أمرين خلف اتفاق واحد، وتخرج البضاعة "
+                + "مرتين."),
+            HelpTopic = "sales/quotes",
+        },
+        new()
+        {
+            Code = QuoteWasDeclined,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("The customer said no", "رفض العميل"),
+            Detail = new LocalizedText(
+                "{QuoteNo} was declined.",
+                "رُفض {QuoteNo}."),
+            Resolution = new LocalizedText(
+                "Quote again if they have changed their mind. The declined one is kept as it "
+                + "stands, because why business was lost is worth knowing.",
+                "أصدر عرضًا جديدًا إن غيّروا رأيهم. ويُحفظ المرفوض كما هو، لأن سبب خسارة الصفقة "
+                + "جدير بأن يُعرف."),
+            HelpTopic = "sales/quotes",
+        },
+        new()
+        {
+            Code = QuoteExpiresBeforeItIsMade,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("It runs out before it starts", "ينتهي قبل أن يبدأ"),
+            Detail = new LocalizedText(
+                "The quote would stand until {ValidUntil}, and today is {Today}.",
+                "سيقوم العرض حتى {ValidUntil}، واليوم هو {Today}."),
+            Resolution = new LocalizedText(
+                "Give it a date the customer can still answer by.",
+                "امنحه تاريخًا يستطيع العميل الرد قبله."),
+            HelpTopic = "sales/quotes",
+        },
         new()
         {
             Code = NothingToReturn,

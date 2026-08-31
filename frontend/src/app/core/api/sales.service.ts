@@ -4,6 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
   CreateSalesOrderRequest,
+  CreateSalesQuoteRequest,
   CustomerPriceList,
   MarginRow,
   OpenSalesOrderRow,
@@ -12,6 +13,8 @@ import {
   SalesInvoiceResult,
   SalesOrder,
   SalesOrderCreated,
+  SalesQuote,
+  SalesQuoteCreated,
   SalesReturnResult,
   SalesShipmentResult,
 } from './asap-api.models';
@@ -152,6 +155,72 @@ export class SalesService {
 
     return firstValueFrom(
       this.http.get<OpenSalesOrderRow[]>(`${this.base}/reports/open-orders`, { params }),
+    );
+  }
+
+  /** The quotes offered, newest first. */
+  quotes(status?: string, customerNo?: string): Promise<SalesQuote[]> {
+    let params = new HttpParams();
+
+    if (status) {
+      params = params.set('status', status);
+    }
+
+    if (customerNo) {
+      params = params.set('customerNo', customerNo);
+    }
+
+    return firstValueFrom(this.http.get<SalesQuote[]>(`${this.base}/quotes`, { params }));
+  }
+
+  /** One quote and what is on it. */
+  quote(quoteNo: string): Promise<SalesQuote> {
+    return firstValueFrom(
+      this.http.get<SalesQuote>(`${this.base}/quotes/${encodeURIComponent(quoteNo)}`),
+    );
+  }
+
+  /** Offers a customer a price, without promising any stock. */
+  createQuote(request: CreateSalesQuoteRequest): Promise<SalesQuoteCreated> {
+    return firstValueFrom(this.http.post<SalesQuoteCreated>(`${this.base}/quotes`, request));
+  }
+
+  /** Marks a quote as sent to the customer. */
+  sendQuote(quoteNo: string): Promise<SalesQuote> {
+    return firstValueFrom(
+      this.http.post<SalesQuote>(`${this.base}/quotes/${encodeURIComponent(quoteNo)}/send`, {}),
+    );
+  }
+
+  /**
+   * Turns an accepted quote into an order.
+   *
+   * The prices go across exactly as quoted. What the price list holds today is beside the point:
+   * the customer accepted the number in front of them.
+   */
+  acceptQuote(quoteNo: string, locationCode?: string): Promise<SalesOrderCreated> {
+    return firstValueFrom(
+      this.http.post<SalesOrderCreated>(
+        `${this.base}/quotes/${encodeURIComponent(quoteNo)}/accept`,
+        { locationCode },
+      ),
+    );
+  }
+
+  /** Records that the customer said no, and why. */
+  declineQuote(quoteNo: string, reason?: string): Promise<SalesQuote> {
+    return firstValueFrom(
+      this.http.post<SalesQuote>(
+        `${this.base}/quotes/${encodeURIComponent(quoteNo)}/decline`,
+        { reason },
+      ),
+    );
+  }
+
+  /** Marks every quote that ran out without an answer. */
+  expireQuotes(): Promise<{ expired: number }> {
+    return firstValueFrom(
+      this.http.post<{ expired: number }>(`${this.base}/quotes/expire`, {}),
     );
   }
 

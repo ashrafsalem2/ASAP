@@ -56,6 +56,7 @@ public sealed class SalesModule : IAsapModule
 
 
         services.AddScoped<Pricing.PricingService>();
+        services.AddScoped<Quotes.SalesQuoteService>();
         services.AddScoped<Orders.SalesReturnService>();
         services.AddScoped<Reporting.SalesReportService>();
         services.AddScoped<ASAP.Platform.Kernel.Documents.IDocumentParties, Reporting.SalesDocumentParties>();
@@ -66,6 +67,21 @@ public sealed class SalesModule : IAsapModule
     /// <inheritdoc />
     public IReadOnlyCollection<PermissionDescriptor> Permissions =>
     [
+        PermissionDescriptor.Define(
+            Id, "Quote", PermissionAction.Read,
+            new LocalizedText("View quotes", "عرض عروض الأسعار")),
+
+        PermissionDescriptor.Define(
+            Id, "Quote", PermissionAction.Create,
+            new LocalizedText("Offer a customer a price", "تقديم سعر للعميل"),
+            new LocalizedText(
+                "A quote commits nothing and moves nothing, so it sits with whoever talks to "
+                + "customers rather than with whoever posts documents.",
+                "عرض السعر لا يلزم بشيء ولا يحرك شيئًا، فمكانه مع من يتحدث إلى العملاء لا مع "
+                + "من يرحّل المستندات."),
+            implies: [$"{Id}.Quote.Read"]),
+
+
         PermissionDescriptor.Define(
             Id, "Return", PermissionAction.Post,
             new LocalizedText("Take goods back and credit the customer", "استعادة البضاعة وتقييد العميل دائنًا"),
@@ -237,6 +253,42 @@ public sealed class SalesModule : IAsapModule
             RequiresPermission = $"{Id}.Order.Update",
             HelpTopic = "sales/setup",
         },
+        new()
+        {
+            Key = $"{Id}.Quotes.NumberSeries",
+            Module = Id,
+            Group = new LocalizedText("Numbering", "الترقيم"),
+            DisplayName = new LocalizedText("Quote numbers", "ترقيم عروض الأسعار"),
+            Description = new LocalizedText(
+                "The series quote numbers are issued from. A quote is not a tax document, so gaps "
+                + "in it cost nothing and the series can be gap-tolerant.",
+                "المسلسل الذي تصدر منه أرقام عروض الأسعار. وعرض السعر ليس مستندًا ضريبيًا، فلا "
+                + "ضير في فجواته ويجوز أن يكون المسلسل متسامحًا معها."),
+            ValueType = SetupValueType.Text,
+            Scope = SetupScope.Company,
+            DefaultValue = "SALES-QTE",
+            RequiresPermission = $"{Id}.Order.Update",
+            HelpTopic = "sales/setup",
+        },
+        new()
+        {
+            Key = $"{Id}.Quotes.ValidForDays",
+            Module = Id,
+            Group = new LocalizedText("Quotes", "عروض الأسعار"),
+            DisplayName = new LocalizedText("How long a quote stands", "مدة سريان عرض السعر"),
+            Description = new LocalizedText(
+                "How many days a quote holds its prices for, unless somebody says otherwise on "
+                + "the quote itself. Costs move and suppliers put prices up, so a quote that "
+                + "never ran out would be a price the company could never withdraw.",
+                "كم يومًا يحتفظ عرض السعر بأسعاره، ما لم يُحدَّد غير ذلك على العرض نفسه. "
+                + "فالتكاليف تتحرك والموردون يرفعون أسعارهم، والعرض الذي لا ينتهي سعرٌ لا "
+                + "تستطيع الشركة سحبه أبدًا."),
+            ValueType = SetupValueType.Integer,
+            Scope = SetupScope.Company,
+            DefaultValue = "30",
+            RequiresPermission = $"{Id}.Order.Update",
+            HelpTopic = "sales/quotes",
+        },
     ];
 
     /// <inheritdoc />
@@ -250,6 +302,18 @@ public sealed class SalesModule : IAsapModule
             Kind = NavigationKind.Group,
             Icon = "sales",
             Order = 400,
+        },
+        new()
+        {
+            Id = "Sales.Quotes",
+            Module = Id,
+            ParentId = "Sales.Root",
+            DisplayName = new LocalizedText("Quotes", "عروض الأسعار"),
+            Kind = NavigationKind.Page,
+            Route = "/sales/quotes",
+            RequiresPermission = $"{Id}.Quote.Read",
+            Order = 5,
+            HelpTopic = "sales/quotes",
         },
         new()
         {

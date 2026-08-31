@@ -22,6 +22,102 @@ public sealed class SalesSchema : IModuleSchema
     {
         ArgumentNullException.ThrowIfNull(modelBuilder);
 
+        modelBuilder.Entity<Quotes.SalesQuote>(builder =>
+
+        {
+
+            builder.ToTable("SalesQuotes", SchemaName);
+
+
+            builder.Property(q => q.No).HasMaxLength(20).IsRequired();
+
+            builder.Property(q => q.CustomerNo).HasMaxLength(20).IsRequired();
+
+            builder.Property(q => q.CustomerName).HasMaxLength(200).IsRequired();
+
+            builder.Property(q => q.LocationCode).HasMaxLength(20);
+
+            builder.Property(q => q.CustomerOrderNo).HasMaxLength(50);
+
+            builder.Property(q => q.Description).HasMaxLength(500);
+
+            builder.Property(q => q.OrderNo).HasMaxLength(20);
+
+            builder.Property(q => q.DeclineReason).HasMaxLength(500);
+
+            builder.Property(q => q.Status).HasConversion<int>();
+
+            builder.Property(q => q.RowVersion).IsRowVersion();
+
+
+            builder.HasMany(q => q.Lines)
+
+                   .WithOne(l => l.SalesQuote!)
+
+                   .HasForeignKey(l => l.SalesQuoteId)
+
+                   .OnDelete(DeleteBehavior.Cascade);
+
+
+            builder.HasIndex(q => new { q.CompanyId, q.No })
+
+                   .IsUnique()
+
+                   .HasFilter("[IsDeleted] = 0");
+
+
+            // The expiry sweep reads this one, and so does anybody asking what is still outstanding.
+
+            builder.HasIndex(q => new { q.CompanyId, q.Status, q.ValidUntil });
+
+
+            builder.Ignore(q => q.TotalAmount);
+
+            builder.Ignore(q => q.IsEditable);
+
+        });
+
+
+        modelBuilder.Entity<Quotes.SalesQuoteLine>(builder =>
+
+        {
+
+            builder.ToTable("SalesQuoteLines", SchemaName);
+
+
+            builder.Property(l => l.ItemNo).HasMaxLength(32);
+
+            builder.Property(l => l.VariantCode).HasMaxLength(32);
+
+            builder.Property(l => l.AccountNo).HasMaxLength(20);
+
+            builder.Property(l => l.Description).HasMaxLength(500).IsRequired();
+
+            builder.Property(l => l.LocationCode).HasMaxLength(20);
+
+            builder.Property(l => l.TaxCode).HasMaxLength(20);
+
+            builder.Property(l => l.Type).HasConversion<int>();
+
+            builder.Property(l => l.Quantity).HasColumnType(DecimalPrecisionConventions.Quantity);
+
+            builder.Property(l => l.UnitPrice).HasColumnType(DecimalPrecisionConventions.UnitAmount);
+
+            builder.Property(l => l.DiscountPercent).HasColumnType(DecimalPrecisionConventions.Percentage);
+
+            builder.Property(l => l.RowVersion).IsRowVersion();
+
+
+            builder.HasIndex(l => new { l.SalesQuoteId, l.LineNo }).IsUnique();
+
+
+            builder.Ignore(l => l.NetUnitPrice);
+
+            builder.Ignore(l => l.LineAmount);
+
+        });
+
+
         modelBuilder.Entity<Pricing.PriceList>(builder =>
 
         {

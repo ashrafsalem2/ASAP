@@ -209,6 +209,11 @@ export const routes: Routes = [
           import('./features/purchasing/purchase-order').then((m) => m.PurchaseOrderDetail),
       },
       {
+        path: 'sales/quotes',
+        canActivate: [requirePermission('Sales.Quote.Read')],
+        loadComponent: () => import('./features/sales/quotes').then((m) => m.Quotes),
+      },
+      {
         path: 'sales/price-lists',
         canActivate: [requirePermission('Sales.PriceList.Read')],
         loadComponent: () => import('./features/sales/price-lists').then((m) => m.PriceLists),

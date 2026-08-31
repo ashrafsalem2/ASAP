@@ -72,6 +72,7 @@ public sealed class PosModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISyncCont
 
         services.AddScoped<Stations.StationBranchLookup>();
         services.AddScoped<ASAP.Platform.Kernel.Documents.IDocumentParties, Reporting.PosDocumentParties>();
+        services.AddScoped<ASAP.Platform.Kernel.Promotions.IOfferUsage, Reporting.PosOfferUsage>();
         services.AddScoped<Stations.DeviceService>();
         services.AddScoped<Printing.ReceiptPrintService>();
         services.AddScoped<Seed.PosSeeder>();

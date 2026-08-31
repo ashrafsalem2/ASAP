@@ -1030,6 +1030,66 @@ export interface SalesInvoiceResult {
   messages?: AsapMessage[];
 }
 
+/** What one offer actually did. */
+export interface OfferUptakeRow {
+  offerCode: string;
+  name: string;
+  nameArabic?: string | null;
+  kind: string;
+  startsOn: string;
+  endsOn?: string | null;
+  isActive: boolean;
+  timesApplied: number;
+  documents: number;
+  quantity: number;
+  discountGiven: number;
+  netSold: number;
+  costOfSales: number;
+  quantityWithoutCost: number;
+  margin: number | null;
+  marginPercent: number | null;
+}
+
+/** How much of an item moved before an offer and during it. */
+export interface OfferMovementRow {
+  itemNo: string;
+  description: string;
+  descriptionArabic?: string | null;
+  quantityBefore: number;
+  quantityDuring: number;
+  change: number;
+}
+
+/** What one offer actually did. */
+export interface OfferUptakeRow {
+  offerCode: string;
+  name: string;
+  nameArabic?: string | null;
+  kind: string;
+  startsOn: string;
+  endsOn?: string | null;
+  isActive: boolean;
+  timesApplied: number;
+  documents: number;
+  quantity: number;
+  discountGiven: number;
+  netSold: number;
+  costOfSales: number;
+  quantityWithoutCost: number;
+  margin: number | null;
+  marginPercent: number | null;
+}
+
+/** How much of an item moved before an offer and during it. */
+export interface OfferMovementRow {
+  itemNo: string;
+  description: string;
+  descriptionArabic?: string | null;
+  quantityBefore: number;
+  quantityDuring: number;
+  change: number;
+}
+
 /** What one vendor said about one line. */
 export interface QuotationComparisonCell {
   vendorNo: string;

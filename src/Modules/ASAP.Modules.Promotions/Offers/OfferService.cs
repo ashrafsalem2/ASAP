@@ -152,7 +152,17 @@ public sealed class OfferService(
             offer.Kind,
             offer.StartsOn);
 
-        return Result<Offer>.Success(existing ?? offer, found);
+        // Read back, and untracked. What is tracked still carries the targets just marked away --
+        // a soft delete leaves the row in the change tracker, and identity resolution would put it
+        // back into the collection however the query filter reads. The caller is owed the offer as
+        // it now stands rather than as this unit of work happens to remember it.
+        var saved = await context.Set<Offer>()
+            .AsNoTracking()
+            .Include(o => o.Targets)
+            .FirstOrDefaultAsync(o => o.Code == offer.Code, cancellationToken)
+            .ConfigureAwait(false);
+
+        return Result<Offer>.Success(saved ?? existing ?? offer, found);
     }
 
     /// <summary>
@@ -331,7 +341,17 @@ public sealed class OfferService(
     /// The counters are not copied. They belong to what the offer has done, not to what somebody
     /// is editing, and a save that reset them would lose the uptake report.
     /// </remarks>
-    private static void Apply(Offer existing, Offer wanted)
+    /// <summary>
+    /// Copies a wanted offer onto the one already stored.
+    /// </summary>
+    /// <remarks>
+    /// The targets are replaced through their own set rather than by emptying the parent's
+    /// collection. Emptying it makes EF treat every target as the orphan of a required parent, and
+    /// it then holds two opinions about the same row in one save -- a soft delete from the context
+    /// and a cascade from itself. Against SQL Server that surfaces as an update expected to affect
+    /// one row affecting none, and the offer cannot be edited at all.
+    /// </remarks>
+    private void Apply(Offer existing, Offer wanted)
     {
         existing.Name = wanted.Name;
         existing.NameArabic = wanted.NameArabic;
@@ -354,14 +374,15 @@ public sealed class OfferService(
         existing.Priority = wanted.Priority;
         existing.IsActive = wanted.IsActive;
 
-        existing.Targets.Clear();
+        context.Set<OfferTarget>().RemoveRange(existing.Targets);
 
         foreach (var target in wanted.Targets)
         {
-            existing.Targets.Add(new OfferTarget
+            context.Set<OfferTarget>().Add(new OfferTarget
             {
                 TenantId = existing.TenantId,
                 CompanyId = existing.CompanyId,
+                OfferId = existing.Id,
                 ItemNo = target.ItemNo,
                 CategoryId = target.CategoryId,
             });

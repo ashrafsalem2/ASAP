@@ -1,6 +1,8 @@
 using ASAP.Api.Infrastructure;
 using ASAP.Modules.Promotions.Offers;
+using ASAP.Modules.Promotions.Reporting;
 using ASAP.Platform.Kernel.Security;
+using ASAP.Platform.Kernel.Time;
 using Microsoft.AspNetCore.Mvc;
 
 namespace ASAP.Api.Endpoints;
@@ -91,7 +93,100 @@ public static class PromotionsEndpoints
              .WithName("PreviewOffer")
              .WithSummary("What an offer would do to every item it covers, at today's costs.");
 
+        group.MapGet("/reports/uptake", UptakeAsync)
+             .WithName("OfferUptake")
+             .WithSummary("What each offer gave away and what it left, most given away first.");
+
+
+
+        group.MapGet("/offers/{code}/movement", MovementAsync)
+             .WithName("OfferMovement")
+             .WithSummary("What moved before an offer and during it. A comparison, not a cause.");
+
+
+
+        group.MapGet("/offers/{code}/preview", PreviewSavedAsync)
+             .WithName("OfferPreview")
+             .WithSummary("What a saved offer would do at today's costs.");
+
+
+
         return app;
+    }
+
+    private static async Task<IResult> UptakeAsync(
+        PromotionReportService reports,
+        IUserContext user,
+        IClock clock,
+        HttpContext http,
+        CancellationToken cancellationToken,
+        [FromQuery] DateOnly? from = null,
+        [FromQuery] DateOnly? to = null)
+    {
+        if (!Can(user, "Promotions.Offer.Read"))
+        {
+            return Forbidden("Promotions.Offer.Read", "read offer uptake", http);
+        }
+
+        var last = to ?? clock.Today;
+
+        return Results.Ok(await reports
+            .UptakeAsync(from ?? last.AddMonths(-3), last, cancellationToken)
+            .ConfigureAwait(false));
+    }
+
+    private static async Task<IResult> MovementAsync(
+        string code,
+        PromotionReportService reports,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, "Promotions.Offer.Read"))
+        {
+            return Forbidden("Promotions.Offer.Read", "read what an offer moved", http);
+        }
+
+        return Results.Ok(await reports.MovementAsync(code, cancellationToken).ConfigureAwait(false));
+    }
+
+    /// <summary>
+    /// What a saved offer would do at today's costs.
+    /// </summary>
+    /// <remarks>
+    /// The same arithmetic that refuses an offer breaking the margin floor, run on an offer that
+    /// is already written. Deliberately the same code path: a preview that disagreed with the
+    /// refusal would be worse than no preview at all.
+    /// </remarks>
+    private static async Task<IResult> PreviewSavedAsync(
+        string code,
+        OfferService offers,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, ReadPermission))
+        {
+            return Forbidden(ReadPermission, "preview an offer", http);
+        }
+
+        var offer = await offers.LoadAsync(code, cancellationToken).ConfigureAwait(false);
+
+        if (offer is null)
+        {
+            return Results.NotFound();
+        }
+
+        var rows = await offers.PreviewAsync(offer, cancellationToken).ConfigureAwait(false);
+        var floor = await offers.FloorAsync(cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(new
+        {
+            floorPercent = floor,
+            worst = rows.Count > 0 ? rows[0].MarginPercent : (decimal?)null,
+            breaches = rows.Count(static r => !r.IsAcceptable),
+            rows,
+        });
     }
 
     private static async Task<IResult> ListAsync(

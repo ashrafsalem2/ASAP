@@ -73,6 +73,7 @@ public sealed class PromotionsModule : IAsapModule, ISyncContributor
 
         services.AddScoped<Pricing.PromotionEngine>();
         services.AddScoped<Offers.OfferService>();
+        services.AddScoped<Reporting.PromotionReportService>();
     }
 
     /// <inheritdoc />
@@ -167,6 +168,18 @@ public sealed class PromotionsModule : IAsapModule, ISyncContributor
             Kind = NavigationKind.Group,
             Icon = "promotions",
             Order = 450,
+        },
+        new()
+        {
+            Id = "Promotions.Reports",
+            Module = Id,
+            ParentId = "Promotions.Root",
+            DisplayName = new LocalizedText("Offer reports", "تقارير العروض"),
+            Kind = NavigationKind.Report,
+            Route = "/promotions/reports",
+            RequiresPermission = $"{Id}.Offer.Read",
+            Order = 20,
+            HelpTopic = "promotions/reports",
         },
         new()
         {

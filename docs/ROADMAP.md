@@ -438,9 +438,21 @@ Everything else posts here, so it goes first.
   blocking offer is settled before anything is worked out per line
 - **done** The discount posts to its own account, separate from the ordinary sales discount, and
   the receipt line carries the offer code — so a campaign can be totalled either way
-- Reports: offer uptake, realised margin, cannibalisation
-- Client screens: the offer list, and the margin preview that shows what an offer would do before
-  it runs
+- **done** Reports: offer uptake and realised margin, built from what every selling module says
+  it sold under an offer -- asked through a kernel port rather than looked up, because Promotions
+  cannot see the till and a report reaching across the module graph the wrong way would either
+  break it or quietly cover one door out of several. The margin is measured against what the
+  costing engine said at the moment of sale, which is the same figure the margin floor was checked
+  against when the offer was let through: a report and a refusal reading different numbers would
+  eventually disagree, and the report is the one nobody can argue with. Lines with no recorded
+  cost are excluded and counted in their own column, because treating a missing cost as nought
+  reports a hundred per cent margin on every line nobody has a figure for. Offers nobody used
+  appear, since that is usually the question being asked. What moved before an offer and during it
+  is shown as a comparison and deliberately carries no cannibalisation figure -- computing one
+  from two numbers invents a cause out of a coincidence, and it would be believed because it had a
+  decimal point in it
+- **done** Client screens: the offer list, the margin preview that shows what an offer would do
+  before it runs, and the uptake report
 
 ## Phase 7 — Human resources
 

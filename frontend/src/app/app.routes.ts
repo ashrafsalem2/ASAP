@@ -275,6 +275,11 @@ export const routes: Routes = [
         loadComponent: () => import('./features/pos/sessions').then((m) => m.PosSessions),
       },
       {
+        path: 'promotions/reports',
+        canActivate: [requirePermission('Promotions.Offer.Read')],
+        loadComponent: () => import('./features/promotions/reports').then((m) => m.PromotionReports),
+      },
+      {
         path: 'promotions/offers',
         canActivate: [requirePermission('Promotions.Offer.Read')],
         loadComponent: () => import('./features/promotions/offers').then((m) => m.Offers),

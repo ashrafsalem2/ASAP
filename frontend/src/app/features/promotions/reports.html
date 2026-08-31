@@ -1,0 +1,127 @@
+<div class="page">
+  <h1>{{ t('promotions.reports.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('promotions.reports.intro') }}</p>
+    <p class="panel__body hint">{{ t('promotions.reports.marginHint') }}</p>
+    <p class="panel__body hint">{{ t('promotions.reports.unknownHint') }}</p>
+
+    <div class="panel__body form-row">
+      <label>
+        {{ t('promotions.reports.from') }}
+        <input type="date" [(ngModel)]="from" name="from" (change)="refresh()" />
+      </label>
+      <label>
+        {{ t('promotions.reports.to') }}
+        <input type="date" [(ngModel)]="to" name="to" (change)="refresh()" />
+      </label>
+    </div>
+  </section>
+
+  @if (loading()) {
+    <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+  } @else {
+    <section class="panel">
+      <h2 class="panel__title">{{ t('promotions.reports.uptakeTitle') }}</h2>
+
+      @if (uptake().length === 0) {
+        <p class="empty">{{ t('promotions.reports.nothing') }}</p>
+      } @else {
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('promotions.reports.offer') }}</th>
+                <th>{{ t('promotions.reports.kind') }}</th>
+                <th>{{ t('promotions.reports.window') }}</th>
+                <th class="numeric">{{ t('promotions.reports.timesApplied') }}</th>
+                <th class="numeric">{{ t('promotions.reports.documents') }}</th>
+                <th class="numeric">{{ t('promotions.reports.quantity') }}</th>
+                <th class="numeric">{{ t('promotions.reports.given') }}</th>
+                <th class="numeric">{{ t('promotions.reports.netSold') }}</th>
+                <th class="numeric">{{ t('promotions.reports.cost') }}</th>
+                <th class="numeric">{{ t('promotions.reports.margin') }}</th>
+                <th class="numeric">{{ t('promotions.reports.marginPercent') }}</th>
+                <th class="numeric">{{ t('promotions.reports.withoutCost') }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of uptake(); track row.offerCode) {
+                <tr>
+                  <td class="code">
+                    {{ row.offerCode }} <span class="order__desc">{{ describe(row) }}</span>
+                  </td>
+                  <td>{{ row.kind }}</td>
+                  <td>{{ row.startsOn }} — {{ row.endsOn || '' }}</td>
+                  <td class="numeric">
+                    @if (row.timesApplied === 0) {
+                      <span class="badge">{{ t('promotions.reports.neverUsed') }}</span>
+                    } @else {
+                      {{ row.timesApplied }}
+                    }
+                  </td>
+                  <td class="numeric">{{ row.documents || '' }}</td>
+                  <td class="numeric">{{ row.quantity || '' }}</td>
+                  <td class="numeric">{{ row.discountGiven ? i18n.total(row.discountGiven) : '' }}</td>
+                  <td class="numeric">{{ row.netSold ? i18n.total(row.netSold) : '' }}</td>
+                  <td class="numeric">{{ row.costOfSales ? i18n.total(row.costOfSales) : '' }}</td>
+                  <td class="numeric">{{ row.margin === null ? '—' : i18n.total(row.margin) }}</td>
+                  <td class="numeric">{{ row.marginPercent === null ? '—' : row.marginPercent }}</td>
+                  <td class="numeric">{{ row.quantityWithoutCost || '' }}</td>
+                  <td>
+                    <button type="button" class="button button--quiet" (click)="showMovement(row)">
+                      {{ t('promotions.reports.show') }}
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+
+    <section class="panel">
+      <h2 class="panel__title">
+        {{ t('promotions.reports.movementTitle') }}
+        @if (chosen()) {
+          — {{ chosen() }}
+        }
+      </h2>
+
+      <p class="panel__body hint">{{ t('promotions.reports.movementHint') }}</p>
+
+      @if (!chosen()) {
+        <p class="empty">{{ t('promotions.reports.pickAnOffer') }}</p>
+      } @else if (movement().length === 0) {
+        <p class="empty">{{ t('promotions.reports.nothing') }}</p>
+      } @else {
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('promotions.reports.item') }}</th>
+                <th class="numeric">{{ t('promotions.reports.before') }}</th>
+                <th class="numeric">{{ t('promotions.reports.during') }}</th>
+                <th class="numeric">{{ t('promotions.reports.change') }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of movement(); track row.itemNo) {
+                <tr>
+                  <td class="code">
+                    {{ row.itemNo }} <span class="order__desc">{{ describeItem(row) }}</span>
+                  </td>
+                  <td class="numeric">{{ row.quantityBefore }}</td>
+                  <td class="numeric">{{ row.quantityDuring }}</td>
+                  <td class="numeric">{{ row.change }}</td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+  }
+</div>

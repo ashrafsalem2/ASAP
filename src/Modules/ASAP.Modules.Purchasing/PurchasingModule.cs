@@ -59,6 +59,7 @@ public sealed class PurchasingModule : IAsapModule
 
         services.AddScoped<Orders.PurchaseReturnService>();
         services.AddScoped<Requisitions.PurchaseRequisitionService>();
+        services.AddScoped<Quotations.PurchaseQuotationService>();
 
 
         services.AddScoped<Approvals.PurchaseApprovalService>();
@@ -71,6 +72,22 @@ public sealed class PurchasingModule : IAsapModule
     /// <inheritdoc />
     public IReadOnlyCollection<PermissionDescriptor> Permissions =>
     [
+        PermissionDescriptor.Define(
+            Id, "Quotation", PermissionAction.Read,
+            new LocalizedText("View quotation requests", "عرض طلبات عروض الأسعار")),
+
+        PermissionDescriptor.Define(
+            Id, "Quotation", PermissionAction.Update,
+            new LocalizedText("Ask vendors what something costs", "سؤال الموردين عن التكلفة"),
+            new LocalizedText(
+                "Asking commits nothing, and recording what vendors said commits nothing either. "
+                + "Awarding is where a decision is made, and it is the same permission -- the "
+                + "order it becomes has its own.",
+                "السؤال لا يلزم بشيء، وتسجيل ما قاله الموردون لا يلزم بشيء كذلك. والإسناد هو "
+                + "موضع القرار، وهو الصلاحية نفسها — وللأمر الناتج صلاحيته."),
+            implies: [$"{Id}.Quotation.Read"]),
+
+
         PermissionDescriptor.Define(
             Id, "Requisition", PermissionAction.Read,
             new LocalizedText("View requisitions", "عرض طلبات الشراء")),
@@ -201,6 +218,23 @@ public sealed class PurchasingModule : IAsapModule
     [
         new()
         {
+            Key = $"{Id}.Quotations.NumberSeries",
+            Module = Id,
+            Group = new LocalizedText("Numbering", "الترقيم"),
+            DisplayName = new LocalizedText("Quotation request numbers", "ترقيم طلبات عروض الأسعار"),
+            Description = new LocalizedText(
+                "The series numbers are issued from when vendors are asked what something would "
+                + "cost. Nothing is committed, so gaps cost nothing.",
+                "المسلسل الذي تصدر منه الأرقام حين يُسأل الموردون عن تكلفة شيء. ولا يُلزم بشيء، "
+                + "فلا ضير في الفجوات."),
+            ValueType = SetupValueType.Text,
+            Scope = SetupScope.Company,
+            DefaultValue = "PURCH-RFQ",
+            RequiresPermission = $"{Id}.Order.Update",
+            HelpTopic = "purchasing/setup",
+        },
+        new()
+        {
             Key = $"{Id}.Requisitions.NumberSeries",
             Module = Id,
             Group = new LocalizedText("Numbering", "الترقيم"),
@@ -324,6 +358,18 @@ public sealed class PurchasingModule : IAsapModule
             Kind = NavigationKind.Group,
             Icon = "purchasing",
             Order = 300,
+        },
+        new()
+        {
+            Id = "Purchasing.Quotations",
+            Module = Id,
+            ParentId = "Purchasing.Root",
+            DisplayName = new LocalizedText("Quotation requests", "طلبات عروض الأسعار"),
+            Kind = NavigationKind.Page,
+            Route = "/purchasing/quotations",
+            RequiresPermission = $"{Id}.Quotation.Read",
+            Order = 6,
+            HelpTopic = "purchasing/quotations",
         },
         new()
         {

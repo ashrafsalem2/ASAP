@@ -6,6 +6,36 @@ namespace ASAP.Modules.Purchasing;
 public static class PurchasingMessages
 {
     /// <summary>An approval limit was set below nothing.</summary>
+    /// <summary>The request for quotation named does not exist.</summary>
+    public static readonly MessageCode QuotationNotFound = new("PUR.RFQ.NOT_FOUND");
+
+    /// <summary>A request for quotation was raised with nothing on it.</summary>
+    public static readonly MessageCode QuotationHasNoLines = new("PUR.RFQ.NO_LINES");
+
+    /// <summary>A request for quotation was sent to nobody.</summary>
+    public static readonly MessageCode QuotationHasNoVendors = new("PUR.RFQ.NO_VENDORS");
+
+    /// <summary>A quote arrived from a vendor nobody asked.</summary>
+    public static readonly MessageCode VendorWasNotAsked = new("PUR.RFQ.NOT_INVITED");
+
+    /// <summary>A line was named that is not on the request.</summary>
+    public static readonly MessageCode QuotationLineNotFound = new("PUR.RFQ.LINE_NOT_FOUND");
+
+    /// <summary>A line was awarded to a vendor who never quoted for it.</summary>
+    public static readonly MessageCode VendorDidNotQuote = new("PUR.RFQ.NO_QUOTE");
+
+    /// <summary>A dearer quote won and nobody said why.</summary>
+    public static readonly MessageCode DearerQuoteNeedsAReason = new("PUR.RFQ.DEARER_NEEDS_REASON");
+
+    /// <summary>The award has already become an order.</summary>
+    public static readonly MessageCode QuotationAlreadyOrdered = new("PUR.RFQ.ALREADY_ORDERED");
+
+    /// <summary>Nothing was awarded to that vendor.</summary>
+    public static readonly MessageCode NothingAwardedToOrder = new("PUR.RFQ.NOTHING_AWARDED");
+
+    /// <summary>The request has orders behind it already.</summary>
+    public static readonly MessageCode QuotationHasOrders = new("PUR.RFQ.HAS_ORDERS");
+
     /// <summary>The requisition named does not exist.</summary>
     public static readonly MessageCode RequisitionNotFound = new("PUR.REQ.NOT_FOUND");
 
@@ -131,6 +161,144 @@ public static class PurchasingMessages
     /// <summary>Every message the module declares.</summary>
     public static IReadOnlyCollection<MessageDefinition> All { get; } =
     [
+        new()
+        {
+            Code = QuotationNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such request", "لا يوجد طلب عروض بهذا الرقم"),
+            Detail = new LocalizedText(
+                "Nothing in this company carries the number {RequestNo}.",
+                "لا يوجد في هذه الشركة ما يحمل الرقم {RequestNo}."),
+            Resolution = new LocalizedText(
+                "Check the number.",
+                "تحقق من الرقم."),
+            HelpTopic = "purchasing/quotations",
+        },
+        new()
+        {
+            Code = QuotationHasNoLines,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Nothing to ask about", "لا شيء يُسأل عنه"),
+            Detail = new LocalizedText(
+                "A request for quotation was raised with nothing on it.",
+                "رُفع طلب عروض أسعار لا شيء عليه."),
+            Resolution = new LocalizedText(
+                "Say what the vendors are being asked to price.",
+                "حدّد ما يُطلب من الموردين تسعيره."),
+            HelpTopic = "purchasing/quotations",
+        },
+        new()
+        {
+            Code = QuotationHasNoVendors,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Nobody to ask", "لا أحد يُسأل"),
+            Detail = new LocalizedText(
+                "{RequestNo} has no vendors on it.",
+                "لا موردين على {RequestNo}."),
+            Resolution = new LocalizedText(
+                "Invite at least one vendor first. A request sent to nobody waits for ever on an empty list.",
+                "ادعُ موردًا واحدًا على الأقل أولًا. فالطلب المرسل إلى لا أحد ينتظر أبدًا قائمة فارغة."),
+            HelpTopic = "purchasing/quotations",
+        },
+        new()
+        {
+            Code = VendorWasNotAsked,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("That vendor was not asked", "لم يُسأل ذلك المورد"),
+            Detail = new LocalizedText(
+                "{VendorNo} is not on {RequestNo}.",
+                "المورد {VendorNo} ليس على {RequestNo}."),
+            Resolution = new LocalizedText(
+                "Invite them first. Letting an uninvited quote in would let a vendor add themselves to a tender.",
+                "ادعُه أولًا. فقبول عرض غير مدعو يتيح لمورد أن يضيف نفسه إلى مناقصة."),
+            HelpTopic = "purchasing/quotations",
+        },
+        new()
+        {
+            Code = QuotationLineNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such line", "لا يوجد هذا السطر"),
+            Detail = new LocalizedText(
+                "{RequestNo} has no line {LineNo}.",
+                "لا يوجد في {RequestNo} سطر {LineNo}."),
+            Resolution = new LocalizedText(
+                "Check the line number against the request.",
+                "تحقق من رقم السطر مقابل الطلب."),
+            HelpTopic = "purchasing/quotations",
+        },
+        new()
+        {
+            Code = VendorDidNotQuote,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("They did not quote for it", "لم يسعّروا هذا السطر"),
+            Detail = new LocalizedText(
+                "{VendorNo} gave no price for line {LineNo} of {RequestNo}.",
+                "لم يعطِ {VendorNo} سعرًا للسطر {LineNo} من {RequestNo}."),
+            Resolution = new LocalizedText(
+                "Award it to somebody who quoted, or record their quote first. Awarding a line to a vendor who never priced it invents an agreement.",
+                "أسنده إلى من سعّر، أو سجّل عرضهم أولًا. فإسناد سطر إلى مورد لم يسعّره اختلاقٌ لاتفاق."),
+            HelpTopic = "purchasing/quotations",
+        },
+        new()
+        {
+            Code = QuotationAlreadyOrdered,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Already an order", "صار أمرًا بالفعل"),
+            Detail = new LocalizedText(
+                "Line {LineNo} of {RequestNo} became order {OrderNo}.",
+                "صار السطر {LineNo} من {RequestNo} الأمر {OrderNo}."),
+            Resolution = new LocalizedText(
+                "Change the order instead. Moving the award now would leave the order pointing at a decision that no longer says what it says.",
+                "غيّر الأمر بدلًا من ذلك. فنقل الإسناد الآن يترك الأمر مشيرًا إلى قرار لم يعد يقول ما يقوله."),
+            HelpTopic = "purchasing/quotations",
+        },
+        new()
+        {
+            Code = NothingAwardedToOrder,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Nothing was awarded to them", "لم يُسند إليهم شيء"),
+            Detail = new LocalizedText(
+                "No line of {RequestNo} is awarded to {VendorNo} and still waiting for an order.",
+                "لا سطر في {RequestNo} مُسند إلى {VendorNo} وما زال ينتظر أمرًا."),
+            Resolution = new LocalizedText(
+                "Award the lines first, or check whether the order was already raised.",
+                "أسند السطور أولًا، أو تحقق مما إذا كان الأمر قد رُفع بالفعل."),
+            HelpTopic = "purchasing/quotations",
+        },
+        new()
+        {
+            Code = QuotationHasOrders,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Orders have been raised from it", "رُفعت منه أوامر"),
+            Detail = new LocalizedText(
+                "Something on {RequestNo} has already become an order.",
+                "صار شيء في {RequestNo} أمرًا بالفعل."),
+            Resolution = new LocalizedText(
+                "Cancel the orders instead.",
+                "ألغِ الأوامر بدلًا من ذلك."),
+            HelpTopic = "purchasing/quotations",
+        },
+        new()
+        {
+            Code = DearerQuoteNeedsAReason,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Say why the dearer quote won", "بيّن لماذا فاز العرض الأغلى"),
+            Detail = new LocalizedText(
+                "Line {LineNo} of {RequestNo} was awarded to {VendorNo} at {UnitPrice:N2}, and "
+                + "{CheapestVendorNo} quoted {CheapestUnitPrice:N2} -- {Difference:N2} a unit less.",
+                "أُسند السطر {LineNo} من {RequestNo} إلى {VendorNo} بسعر {UnitPrice:N2}، وقد سعّر "
+                + "{CheapestVendorNo} بـ {CheapestUnitPrice:N2} — أقل بـ {Difference:N2} للوحدة."),
+            Resolution = new LocalizedText(
+                "Give a reason, or award the cheapest quote. Choosing the dearer supplier is a "
+                + "real decision and often the right one -- a fortnight's lead time is worth "
+                + "paying for when the shelf is empty. It is also the decision somebody asks "
+                + "about a year later, and a blank field is the difference between an answer and "
+                + "an investigation.",
+                "اذكر سببًا، أو أسند إلى الأرخص. فاختيار المورد الأغلى قرار حقيقي وكثيرًا ما يكون "
+                + "الصواب — فمهلة أقصر بأسبوعين تستحق ثمنها حين يكون الرف فارغًا. وهو أيضًا "
+                + "القرار الذي يُسأل عنه بعد سنة، والحقل الفارغ هو الفرق بين جواب وتحقيق."),
+            HelpTopic = "purchasing/quotations",
+        },
         new()
         {
             Code = RequisitionNotFound,

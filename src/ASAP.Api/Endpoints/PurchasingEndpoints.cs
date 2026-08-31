@@ -3,8 +3,10 @@ using ASAP.Modules.Purchasing;
 using ASAP.Modules.Purchasing.Approvals;
 using ASAP.Modules.Purchasing.Costing;
 using ASAP.Modules.Purchasing.Orders;
+using ASAP.Modules.Purchasing.Quotations;
 using ASAP.Modules.Purchasing.Requisitions;
 using ASAP.Modules.Purchasing.Reporting;
+using ASAP.Platform.Kernel.Results;
 using ASAP.Platform.Kernel.Security;
 using ASAP.Platform.Kernel.Time;
 using ASAP.Platform.Persistence;
@@ -74,6 +76,80 @@ public sealed record PurchaseLinePayload(
     string? TaxCode = null,
     string? LocationCode = null,
     string? VariantCode = null);
+
+/// <summary>What a client sends to ask several vendors what something would cost.</summary>
+/// <param name="Lines">What to ask about.</param>
+/// <param name="LocationCode">Where the goods are wanted.</param>
+/// <param name="RespondByDate">When answers are wanted by.</param>
+/// <param name="NeededByDate">When the goods are wanted.</param>
+/// <param name="Description">What it is for.</param>
+/// <param name="RequisitionNo">The requisition it arose from.</param>
+public sealed record CreateQuotationRequest(
+    IReadOnlyList<QuotationLineRequest> Lines,
+    string? LocationCode = null,
+    DateOnly? RespondByDate = null,
+    DateOnly? NeededByDate = null,
+    string? Description = null,
+    string? RequisitionNo = null);
+
+/// <summary>What a client sends to add vendors to a request.</summary>
+/// <param name="VendorNos">Who to ask.</param>
+public sealed record InviteVendorsRequest(IReadOnlyList<string> VendorNos);
+
+/// <summary>What a client sends to record one vendor's answer.</summary>
+/// <param name="VendorNo">Who answered.</param>
+/// <param name="Lines">What they said about each line.</param>
+public sealed record RecordQuoteRequest(
+    string VendorNo,
+    IReadOnlyList<QuotationResponseLine> Lines);
+
+/// <summary>What a client sends to record that a vendor is not quoting.</summary>
+/// <param name="VendorNo">Who said no.</param>
+/// <param name="Reason">Why.</param>
+public sealed record DeclineToQuoteRequest(string VendorNo, string? Reason = null);
+
+/// <summary>What a client sends to decide which vendor wins which line.</summary>
+/// <param name="Awards">Who wins each line, and why where a reason is needed.</param>
+public sealed record AwardQuotationRequest(IReadOnlyList<QuotationAward> Awards);
+
+/// <summary>What a client sends to turn one vendor's awards into an order.</summary>
+/// <param name="VendorNo">Whose awarded lines to order.</param>
+/// <param name="ExpectedReceiptDate">When the goods are expected.</param>
+public sealed record OrderFromQuotationRequest(string VendorNo, DateOnly? ExpectedReceiptDate = null);
+
+/// <summary>A vendor who was asked, as it is reported back.</summary>
+/// <param name="VendorNo">Who.</param>
+/// <param name="VendorName">Their name.</param>
+/// <param name="HasAnswered">Whether they answered at all.</param>
+/// <param name="DeclinedReason">Why they said no, where they said so.</param>
+public sealed record QuotationInvitationView(
+    string VendorNo,
+    string VendorName,
+    bool HasAnswered,
+    string? DeclinedReason);
+
+/// <summary>A request for quotation as it is reported back.</summary>
+/// <param name="No">Its number.</param>
+/// <param name="Status">Where it stands.</param>
+/// <param name="RequestDate">The day it was raised.</param>
+/// <param name="RespondByDate">When answers are wanted by.</param>
+/// <param name="NeededByDate">When the goods are wanted.</param>
+/// <param name="LocationCode">Where they are wanted.</param>
+/// <param name="RequisitionNo">The requisition it arose from.</param>
+/// <param name="Description">What it is for.</param>
+/// <param name="Invitations">Who was asked, and whether they answered.</param>
+/// <param name="Comparison">Every line with every quote for it.</param>
+public sealed record QuotationRequestView(
+    string No,
+    string Status,
+    DateOnly RequestDate,
+    DateOnly? RespondByDate,
+    DateOnly? NeededByDate,
+    string? LocationCode,
+    string? RequisitionNo,
+    string? Description,
+    IReadOnlyList<QuotationInvitationView> Invitations,
+    IReadOnlyList<QuotationComparisonRow> Comparison);
 
 /// <summary>One thing asked for on a new requisition, as a client sends it.</summary>
 /// <param name="Type">Whether it asks for stock or a cost.</param>
@@ -387,6 +463,66 @@ public static class PurchasingEndpoints
         group.MapGet("/reports/purchase-analysis", PurchaseAnalysisAsync)
              .WithName("PurchaseAnalysis")
              .WithSummary("What was bought over a period, by vendor or by item.");
+
+        group.MapGet("/quotations", ListQuotationsAsync)
+             .WithName("ListQuotationRequests")
+             .WithSummary("What vendors have been asked about, newest first.");
+
+
+
+        group.MapGet("/quotations/{requestNo}", GetQuotationAsync)
+             .WithName("GetQuotationRequest")
+             .WithSummary("One request, with every quote for every line side by side.");
+
+
+
+        group.MapPost("/quotations", CreateQuotationAsync)
+             .WithName("CreateQuotationRequest")
+             .WithSummary("Asks several vendors what something would cost. Commits nothing.");
+
+
+
+        group.MapPost("/quotations/{requestNo}/invite", InviteVendorsAsync)
+             .WithName("InviteQuotationVendors")
+             .WithSummary("Adds vendors to ask.");
+
+
+
+        group.MapPost("/quotations/{requestNo}/send", SendQuotationAsync)
+             .WithName("SendQuotationRequest")
+             .WithSummary("Marks the request as gone out to the vendors.");
+
+
+
+        group.MapPost("/quotations/{requestNo}/quote", RecordQuoteAsync)
+             .WithName("RecordQuotation")
+             .WithSummary("Records what one vendor said. Only from a vendor who was asked.");
+
+
+
+        group.MapPost("/quotations/{requestNo}/decline", DeclineQuotationAsync)
+             .WithName("DeclineQuotation")
+             .WithSummary("Records that a vendor is not quoting, and why.");
+
+
+
+        group.MapPost("/quotations/{requestNo}/award", AwardQuotationAsync)
+             .WithName("AwardQuotation")
+             .WithSummary("Decides which vendor wins each line. A dearer quote needs a reason.");
+
+
+
+        group.MapPost("/quotations/{requestNo}/order", OrderFromQuotationAsync)
+             .WithName("OrderFromQuotation")
+             .WithSummary("Turns one vendor's awarded lines into an order at the price they quoted.");
+
+
+
+        group.MapPost("/quotations/{requestNo}/cancel", CancelQuotationAsync)
+             .WithName("CancelQuotationRequest")
+             .WithSummary("Abandons a request that has produced no orders.");
+
+
 
         group.MapGet("/requisitions", ListRequisitionsAsync)
              .WithName("ListPurchaseRequisitions")
@@ -776,6 +912,283 @@ public static class PurchasingEndpoints
 
         return result.Failed ? Refused(result, http) : Results.Ok(View(result.Value, result.Messages));
     }
+    private static async Task<IResult> ListQuotationsAsync(
+        PurchaseQuotationService quotations,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken,
+        [FromQuery] string? status = null)
+    {
+        if (!Can(user, "Purchasing.Quotation.Read"))
+        {
+            return Forbidden("Purchasing.Quotation.Read", "view quotation requests", http);
+        }
+
+        var wanted = Enum.TryParse<QuotationRequestStatus>(status, ignoreCase: true, out var parsed)
+            ? parsed
+            : (QuotationRequestStatus?)null;
+
+        var found = await quotations.ListAsync(wanted, cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(found.Select(static r => new
+        {
+            no = r.No,
+            status = r.Status.ToString(),
+            requestDate = r.RequestDate,
+            respondByDate = r.RespondByDate,
+            description = r.Description,
+            lineCount = r.Lines.Count,
+            vendorCount = r.Invitations.Count,
+            answeredCount = r.Invitations.Count(static i => i.HasAnswered),
+        }));
+    }
+
+    private static async Task<IResult> GetQuotationAsync(
+        string requestNo,
+        PurchaseQuotationService quotations,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, "Purchasing.Quotation.Read"))
+        {
+            return Forbidden("Purchasing.Quotation.Read", "view quotation requests", http);
+        }
+
+        var request = await quotations.LoadAsync(requestNo, cancellationToken).ConfigureAwait(false);
+
+        if (request is null)
+        {
+            return Results.NotFound();
+        }
+
+        var comparison = await quotations.CompareAsync(requestNo, cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(ViewOf(request, comparison));
+    }
+
+    private static async Task<IResult> CreateQuotationAsync(
+        CreateQuotationRequest request,
+        PurchaseQuotationService quotations,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, "Purchasing.Quotation.Update"))
+        {
+            return Forbidden("Purchasing.Quotation.Update", "ask vendors what something costs", http);
+        }
+
+        var result = await quotations
+            .CreateAsync(
+                request.Lines ?? [],
+                request.LocationCode,
+                request.RespondByDate,
+                request.NeededByDate,
+                request.Description,
+                request.RequisitionNo,
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed
+            ? Refused(result, http)
+            : Results.Ok(ViewOf(result.Value, []));
+    }
+
+    private static Task<IResult> InviteVendorsAsync(
+        string requestNo,
+        InviteVendorsRequest request,
+        PurchaseQuotationService quotations,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return ActOnQuotationAsync(
+            quotations,
+            user,
+            http,
+            "invite vendors",
+            q => q.InviteAsync(requestNo, request.VendorNos ?? [], cancellationToken),
+            requestNo,
+            cancellationToken);
+    }
+
+    private static Task<IResult> SendQuotationAsync(
+        string requestNo,
+        PurchaseQuotationService quotations,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+        => ActOnQuotationAsync(
+            quotations,
+            user,
+            http,
+            "send a quotation request",
+            q => q.SendAsync(requestNo, cancellationToken),
+            requestNo,
+            cancellationToken);
+
+    private static Task<IResult> RecordQuoteAsync(
+        string requestNo,
+        RecordQuoteRequest request,
+        PurchaseQuotationService quotations,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return ActOnQuotationAsync(
+            quotations,
+            user,
+            http,
+            "record a quote",
+            q => q.RespondAsync(requestNo, request.VendorNo, request.Lines ?? [], cancellationToken),
+            requestNo,
+            cancellationToken);
+    }
+
+    private static Task<IResult> DeclineQuotationAsync(
+        string requestNo,
+        DeclineToQuoteRequest request,
+        PurchaseQuotationService quotations,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return ActOnQuotationAsync(
+            quotations,
+            user,
+            http,
+            "record a decline",
+            q => q.DeclineAsync(requestNo, request.VendorNo, request.Reason, cancellationToken),
+            requestNo,
+            cancellationToken);
+    }
+
+    private static Task<IResult> AwardQuotationAsync(
+        string requestNo,
+        AwardQuotationRequest request,
+        PurchaseQuotationService quotations,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return ActOnQuotationAsync(
+            quotations,
+            user,
+            http,
+            "award a quotation",
+            q => q.AwardAsync(requestNo, request.Awards ?? [], cancellationToken),
+            requestNo,
+            cancellationToken);
+    }
+
+    private static Task<IResult> CancelQuotationAsync(
+        string requestNo,
+        RequisitionReasonRequest request,
+        PurchaseQuotationService quotations,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        return ActOnQuotationAsync(
+            quotations,
+            user,
+            http,
+            "abandon a quotation request",
+            q => q.CancelAsync(requestNo, request.Reason, cancellationToken),
+            requestNo,
+            cancellationToken);
+    }
+
+    private static async Task<IResult> OrderFromQuotationAsync(
+        string requestNo,
+        OrderFromQuotationRequest request,
+        PurchaseQuotationService quotations,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        // The award was a decision; the order is a commitment, and they are not the same right.
+        if (!Can(user, "Purchasing.Order.Create"))
+        {
+            return Forbidden("Purchasing.Order.Create", "raise an order from a quotation", http);
+        }
+
+        var result = await quotations
+            .OrderAsync(
+                requestNo,
+                request.VendorNo,
+                request.ExpectedReceiptDate,
+                Overrides(user),
+                cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed
+            ? Refused(result, http)
+            : Results.Ok(new { order = View(result.Value), messages = result.Messages });
+    }
+
+    private static async Task<IResult> ActOnQuotationAsync(
+        PurchaseQuotationService quotations,
+        IUserContext user,
+        HttpContext http,
+        string doing,
+        Func<PurchaseQuotationService, Task<Result<PurchaseQuotationRequest>>> work,
+        string requestNo,
+        CancellationToken cancellationToken)
+    {
+        if (!Can(user, "Purchasing.Quotation.Update"))
+        {
+            return Forbidden("Purchasing.Quotation.Update", doing, http);
+        }
+
+        var result = await work(quotations).ConfigureAwait(false);
+
+        if (result.Failed)
+        {
+            return Refused(result, http);
+        }
+
+        var comparison = await quotations.CompareAsync(requestNo, cancellationToken).ConfigureAwait(false);
+
+        return Results.Ok(ViewOf(result.Value, comparison));
+    }
+
+    private static QuotationRequestView ViewOf(
+        PurchaseQuotationRequest request,
+        IReadOnlyList<QuotationComparisonRow> comparison)
+        => new(
+            request.No,
+            request.Status.ToString(),
+            request.RequestDate,
+            request.RespondByDate,
+            request.NeededByDate,
+            request.LocationCode,
+            request.RequisitionNo,
+            request.Description,
+            [.. request.Invitations
+                .OrderBy(static i => i.VendorNo, StringComparer.OrdinalIgnoreCase)
+                .Select(static i => new QuotationInvitationView(
+                    i.VendorNo,
+                    i.VendorName,
+                    i.HasAnswered,
+                    i.DeclinedReason))],
+            comparison);
+
     private static async Task<IResult> ListRequisitionsAsync(
         PurchaseRequisitionService requisitions,
         IUserContext user,

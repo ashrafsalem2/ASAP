@@ -3,7 +3,12 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { environment } from '../../../environments/environment';
 import {
+  CreateQuotationRequest,
   CreateRequisitionRequest,
+  QuotationAnswerLine,
+  QuotationAwardRequest,
+  QuotationRequest,
+  QuotationRequestSummary,
   PurchaseReturnResult,
   Requisition,
   RequisitionOrderLine,
@@ -49,6 +54,97 @@ export class PurchasingService {
       this.http.post<PurchaseReturnResult>(
         `${this.base}/orders/${encodeURIComponent(orderNo)}/return`,
         { lines, reason, overrideReason },
+      ),
+    );
+  }
+
+  /** What vendors have been asked about, newest first. */
+  quotationRequests(status?: string): Promise<QuotationRequestSummary[]> {
+    let params = new HttpParams();
+
+    if (status) {
+      params = params.set('status', status);
+    }
+
+    return firstValueFrom(
+      this.http.get<QuotationRequestSummary[]>(`${this.base}/quotations`, { params }),
+    );
+  }
+
+  /** One request, with every quote for every line side by side. */
+  quotationRequest(requestNo: string): Promise<QuotationRequest> {
+    return firstValueFrom(
+      this.http.get<QuotationRequest>(`${this.base}/quotations/${encodeURIComponent(requestNo)}`),
+    );
+  }
+
+  /** Asks several vendors what something would cost. Commits nothing. */
+  createQuotationRequest(request: CreateQuotationRequest): Promise<QuotationRequest> {
+    return firstValueFrom(this.http.post<QuotationRequest>(`${this.base}/quotations`, request));
+  }
+
+  /** Adds vendors to ask. */
+  inviteQuotationVendors(requestNo: string, vendorNos: string[]): Promise<QuotationRequest> {
+    return this.actOnQuotation(requestNo, 'invite', { vendorNos });
+  }
+
+  /** Marks the request as gone out to the vendors. */
+  sendQuotationRequest(requestNo: string): Promise<QuotationRequest> {
+    return this.actOnQuotation(requestNo, 'send');
+  }
+
+  /** Records what one vendor said. Only from a vendor who was asked. */
+  recordQuotation(
+    requestNo: string,
+    vendorNo: string,
+    lines: QuotationAnswerLine[],
+  ): Promise<QuotationRequest> {
+    return this.actOnQuotation(requestNo, 'quote', { vendorNo, lines });
+  }
+
+  /** Records that a vendor is not quoting, and why. */
+  declineQuotation(requestNo: string, vendorNo: string, reason?: string): Promise<QuotationRequest> {
+    return this.actOnQuotation(requestNo, 'decline', { vendorNo, reason });
+  }
+
+  /**
+   * Decides which vendor wins each line.
+   *
+   * Awarding anything other than the cheapest quote is refused without a reason — not because the
+   * dearer supplier is wrong, but because that is the decision somebody asks about a year later.
+   */
+  awardQuotation(requestNo: string, awards: QuotationAwardRequest[]): Promise<QuotationRequest> {
+    return this.actOnQuotation(requestNo, 'award', { awards });
+  }
+
+  /** Abandons a request that has produced no orders. */
+  cancelQuotation(requestNo: string, reason?: string): Promise<QuotationRequest> {
+    return this.actOnQuotation(requestNo, 'cancel', { reason });
+  }
+
+  /** Turns one vendor's awarded lines into an order at the price they quoted. */
+  orderFromQuotation(
+    requestNo: string,
+    vendorNo: string,
+    expectedReceiptDate?: string,
+  ): Promise<PurchaseOrderCreated> {
+    return firstValueFrom(
+      this.http.post<PurchaseOrderCreated>(
+        `${this.base}/quotations/${encodeURIComponent(requestNo)}/order`,
+        { vendorNo, expectedReceiptDate },
+      ),
+    );
+  }
+
+  private actOnQuotation(
+    requestNo: string,
+    what: string,
+    body: Record<string, unknown> = {},
+  ): Promise<QuotationRequest> {
+    return firstValueFrom(
+      this.http.post<QuotationRequest>(
+        `${this.base}/quotations/${encodeURIComponent(requestNo)}/${what}`,
+        body,
       ),
     );
   }

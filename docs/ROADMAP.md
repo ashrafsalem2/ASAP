@@ -237,8 +237,23 @@ Everything else posts here, so it goes first.
 ## Phase 3 — Purchasing
 
 - **done** Vendors (through the Finance party ledger); purchase prices, discounts and lead times to come
-- *in progress* **Requisition, purchase order, goods receipt, vendor invoice, return and credit
-  memo done**, with the three-way match between them; request for quotation to come
+- **done** Requisition, request for quotation, purchase order, goods receipt, vendor invoice,
+  return and credit memo, with the three-way match between them
+- **done** Requests for quotation. The same question asked of several vendors at once, so the
+  answers can be put side by side. Cheapest and fastest are flagged separately because they are
+  usually different vendors -- a table showing only money makes the choice look obvious when it is
+  not, and the cheapest supplier who takes six weeks is the wrong answer for a shelf that is empty
+  now. Awarding is per line, because real buying is: the bolts go to one supplier and the nuts to
+  another. A vendor who was asked and said nothing is tracked apart from one who declined, which
+  is what you want to know before asking them again, and a quote from somebody nobody invited is
+  refused or a supplier could add themselves to a tender. The rule the module exists for: awarding
+  anything other than the cheapest quote is refused unless a reason is given -- not a judgment
+  about the dearer supplier, who is often the right choice, but a refusal to let the decision be
+  silent, because it is the one somebody asks about a year later and a blank field is the
+  difference between an answer and an investigation. The order carries the price quoted rather
+  than one typed again, which is the one place this differs from a requisition: an estimate is a
+  guess and a quote is the price. Sealed bids, and scoring on more than price and lead time, still
+  to come
 - **done** Requisitions. A requisition names a need rather than a purchase: who to buy from may
   not be known and what it will cost is a guess, so nothing posts and nothing commits the company.
   Nobody signs for their own request, because an approval you can give yourself is a checkbox

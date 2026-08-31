@@ -1030,6 +1030,89 @@ export interface SalesInvoiceResult {
   messages?: AsapMessage[];
 }
 
+/** What one vendor said about one line. */
+export interface QuotationComparisonCell {
+  vendorNo: string;
+  vendorName: string;
+  unitPrice: number;
+  lineAmount: number;
+  leadTimeDays: number | null;
+  note?: string | null;
+  isCheapest: boolean;
+  isFastest: boolean;
+  isAwarded: boolean;
+}
+
+/** One line of a request, with every answer to it. */
+export interface QuotationComparisonRow {
+  lineNo: number;
+  itemNo?: string | null;
+  description: string;
+  quantity: number;
+  awardedVendorNo?: string | null;
+  awardReason?: string | null;
+  awardedOrderNo?: string | null;
+  quotes: QuotationComparisonCell[];
+}
+
+/** A vendor who was asked. */
+export interface QuotationInvitation {
+  vendorNo: string;
+  vendorName: string;
+  hasAnswered: boolean;
+  declinedReason?: string | null;
+}
+
+/** A request for quotation, with the comparison. */
+export interface QuotationRequest {
+  no: string;
+  status: string;
+  requestDate: string;
+  respondByDate?: string | null;
+  neededByDate?: string | null;
+  locationCode?: string | null;
+  requisitionNo?: string | null;
+  description?: string | null;
+  invitations: QuotationInvitation[];
+  comparison: QuotationComparisonRow[];
+}
+
+/** A request for quotation as the list shows it. */
+export interface QuotationRequestSummary {
+  no: string;
+  status: string;
+  requestDate: string;
+  respondByDate?: string | null;
+  description?: string | null;
+  lineCount: number;
+  vendorCount: number;
+  answeredCount: number;
+}
+
+/** What a client sends to ask several vendors what something would cost. */
+export interface CreateQuotationRequest {
+  lines: { type: string; no: string; quantity: number; description?: string | null }[];
+  locationCode?: string | null;
+  respondByDate?: string | null;
+  neededByDate?: string | null;
+  description?: string | null;
+  requisitionNo?: string | null;
+}
+
+/** What one vendor says about one line. */
+export interface QuotationAnswerLine {
+  lineNo: number;
+  unitPrice: number;
+  leadTimeDays?: number | null;
+}
+
+/** Which vendor wins one line, and why. */
+export interface QuotationAwardRequest {
+  lineNo: number;
+  vendorNo: string;
+  reason?: string | null;
+}
+
 /** Where a requisition stands. */
 export type RequisitionStatus =
   | 'Draft'

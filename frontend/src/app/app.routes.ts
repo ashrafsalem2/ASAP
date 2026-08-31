@@ -209,6 +209,12 @@ export const routes: Routes = [
           import('./features/purchasing/approval-limits').then((m) => m.ApprovalLimits),
       },
       {
+        path: 'purchasing/quotations',
+        canActivate: [requirePermission('Purchasing.Quotation.Read')],
+        loadComponent: () =>
+          import('./features/purchasing/quotations').then((m) => m.Quotations),
+      },
+      {
         path: 'purchasing/requisitions',
         canActivate: [requirePermission('Purchasing.Requisition.Read')],
         loadComponent: () =>

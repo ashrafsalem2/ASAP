@@ -51,6 +51,230 @@ public sealed class PurchasingSchema : IModuleSchema
         });
 
 
+        modelBuilder.Entity<Quotations.PurchaseQuotationRequest>(builder =>
+
+
+        {
+
+
+            builder.ToTable("PurchaseQuotationRequests", SchemaName);
+
+
+
+            builder.Property(r => r.No).HasMaxLength(20).IsRequired();
+
+
+            builder.Property(r => r.LocationCode).HasMaxLength(20);
+
+
+            builder.Property(r => r.RequisitionNo).HasMaxLength(20);
+
+
+            builder.Property(r => r.Description).HasMaxLength(500);
+
+
+            builder.Property(r => r.CancellationReason).HasMaxLength(500);
+
+
+            builder.Property(r => r.Status).HasConversion<int>();
+
+
+            builder.Property(r => r.RowVersion).IsRowVersion();
+
+
+
+            builder.HasMany(r => r.Lines)
+
+
+                   .WithOne(l => l.PurchaseQuotationRequest!)
+
+
+                   .HasForeignKey(l => l.PurchaseQuotationRequestId)
+
+
+                   .OnDelete(DeleteBehavior.Cascade);
+
+
+
+            builder.HasMany(r => r.Invitations)
+
+
+                   .WithOne(l => l.PurchaseQuotationRequest!)
+
+
+                   .HasForeignKey(l => l.PurchaseQuotationRequestId)
+
+
+                   .OnDelete(DeleteBehavior.Cascade);
+
+
+
+            builder.HasMany(r => r.Responses)
+
+
+                   .WithOne(l => l.PurchaseQuotationRequest!)
+
+
+                   .HasForeignKey(l => l.PurchaseQuotationRequestId)
+
+
+                   .OnDelete(DeleteBehavior.Cascade);
+
+
+
+            builder.HasIndex(r => new { r.CompanyId, r.No })
+
+
+                   .IsUnique()
+
+
+                   .HasFilter("[IsDeleted] = 0");
+
+
+
+            builder.Ignore(r => r.IsEditable);
+
+
+            builder.Ignore(r => r.HasUnawardedLines);
+
+
+            builder.Ignore(r => r.HasUnorderedAwards);
+
+
+        });
+
+
+
+        modelBuilder.Entity<Quotations.PurchaseQuotationRequestLine>(builder =>
+
+
+        {
+
+
+            builder.ToTable("PurchaseQuotationRequestLines", SchemaName);
+
+
+
+            builder.Property(l => l.ItemNo).HasMaxLength(32);
+
+
+            builder.Property(l => l.VariantCode).HasMaxLength(32);
+
+
+            builder.Property(l => l.AccountNo).HasMaxLength(20);
+
+
+            builder.Property(l => l.Description).HasMaxLength(500).IsRequired();
+
+
+            builder.Property(l => l.LocationCode).HasMaxLength(20);
+
+
+            builder.Property(l => l.AwardedVendorNo).HasMaxLength(20);
+
+
+            builder.Property(l => l.AwardReason).HasMaxLength(500);
+
+
+            builder.Property(l => l.AwardedOrderNo).HasMaxLength(20);
+
+
+            builder.Property(l => l.Type).HasConversion<int>();
+
+
+            builder.Property(l => l.Quantity).HasColumnType(DecimalPrecisionConventions.Quantity);
+
+
+            builder.Property(l => l.AwardedUnitCost).HasColumnType(DecimalPrecisionConventions.UnitAmount);
+
+
+            builder.Property(l => l.RowVersion).IsRowVersion();
+
+
+
+            builder.HasIndex(l => new { l.PurchaseQuotationRequestId, l.LineNo }).IsUnique();
+
+
+        });
+
+
+
+        modelBuilder.Entity<Quotations.PurchaseQuotationInvitation>(builder =>
+
+
+        {
+
+
+            builder.ToTable("PurchaseQuotationInvitations", SchemaName);
+
+
+
+            builder.Property(v => v.VendorNo).HasMaxLength(20).IsRequired();
+
+
+            builder.Property(v => v.VendorName).HasMaxLength(200).IsRequired();
+
+
+            builder.Property(v => v.DeclinedReason).HasMaxLength(500);
+
+
+            builder.Property(v => v.RowVersion).IsRowVersion();
+
+
+
+            builder.HasIndex(v => new { v.PurchaseQuotationRequestId, v.VendorNo }).IsUnique();
+
+
+
+            builder.Ignore(v => v.HasAnswered);
+
+
+        });
+
+
+
+        modelBuilder.Entity<Quotations.PurchaseQuotationResponse>(builder =>
+
+
+        {
+
+
+            builder.ToTable("PurchaseQuotationResponses", SchemaName);
+
+
+
+            builder.Property(r => r.VendorNo).HasMaxLength(20).IsRequired();
+
+
+            builder.Property(r => r.Note).HasMaxLength(500);
+
+
+            builder.Property(r => r.UnitPrice).HasColumnType(DecimalPrecisionConventions.UnitAmount);
+
+
+            builder.Property(r => r.LineAmount).HasColumnType(DecimalPrecisionConventions.Money);
+
+
+            builder.Property(r => r.RowVersion).IsRowVersion();
+
+
+
+            // One answer per vendor per line. A second would make the comparison ambiguous.
+
+
+            builder.HasIndex(r => new { r.PurchaseQuotationRequestId, r.LineNo, r.VendorNo })
+
+
+                   .IsUnique()
+
+
+                   .HasFilter("[IsDeleted] = 0");
+
+
+        });
+
+
+
         modelBuilder.Entity<Requisitions.PurchaseRequisition>(builder =>
 
 

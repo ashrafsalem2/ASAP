@@ -1,0 +1,375 @@
+<div class="page">
+  <h1>{{ t('purchasing.quotations.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('purchasing.quotations.intro') }}</p>
+    <p class="panel__body hint">{{ t('purchasing.quotations.compareHint') }}</p>
+    <p class="panel__body hint">{{ t('purchasing.quotations.awardHint') }}</p>
+  </section>
+
+  @if (loading()) {
+    <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+  } @else {
+    @if (drafting()) {
+      <section class="panel">
+        <h2 class="panel__title">{{ t('purchasing.quotations.newOne') }}</h2>
+
+        <div class="panel__body form-row">
+          <label>
+            {{ t('purchasing.quotations.description') }}
+            <input type="text" [(ngModel)]="description" name="description" />
+          </label>
+          <label>
+            {{ t('purchasing.quotations.location') }}
+            <input type="text" [(ngModel)]="locationCode" name="locationCode" />
+          </label>
+          <label>
+            {{ t('purchasing.quotations.respondBy') }}
+            <input type="date" [(ngModel)]="respondBy" name="respondBy" />
+          </label>
+        </div>
+
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('purchasing.quotations.item') }}</th>
+                <th>{{ t('purchasing.quotations.description') }}</th>
+                <th class="numeric">{{ t('purchasing.quotations.quantity') }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (line of draftLines; track trackLine($index); let i = $index) {
+                <tr>
+                  <td><input type="text" [(ngModel)]="line.no" [name]="'no' + i" /></td>
+                  <td><input type="text" [(ngModel)]="line.description" [name]="'desc' + i" /></td>
+                  <td class="numeric">
+                    <input type="number" [(ngModel)]="line.quantity" [name]="'qty' + i" />
+                  </td>
+                  <td>
+                    <button type="button" class="button button--quiet" (click)="removeLine(i)">
+                      {{ t('purchasing.quotations.removeLine') }}
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div class="panel__body form-row">
+          <button type="button" class="button button--quiet" (click)="addLine()">
+            {{ t('purchasing.quotations.addLine') }}
+          </button>
+          <button
+            type="button"
+            class="button button--primary"
+            [disabled]="busy() !== null"
+            (click)="save()"
+          >
+            {{ t('purchasing.quotations.save') }}
+          </button>
+          <button type="button" class="button button--quiet" (click)="cancelDraft()">
+            {{ t('purchasing.quotations.leaveIt') }}
+          </button>
+        </div>
+      </section>
+    }
+
+    @if (selected(); as rfq) {
+      <section class="panel">
+        <div class="panel__header">
+          <h2>{{ rfq.no }}</h2>
+        </div>
+
+        <p class="panel__body">
+          <span class="badge">{{ statusLabel(rfq.status) }}</span>
+          {{ rfq.description || '' }}
+          @if (rfq.respondByDate) {
+            · {{ t('purchasing.quotations.respondBy') }} {{ rfq.respondByDate }}
+          }
+        </p>
+
+        <h3 class="panel__title">{{ t('purchasing.quotations.whoWasAsked') }}</h3>
+
+        @if (rfq.invitations.length === 0) {
+          <p class="empty">{{ t('purchasing.quotations.nobodyAsked') }}</p>
+        } @else {
+          <div class="table-scroll">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>{{ t('purchasing.quotations.vendor') }}</th>
+                  <th>{{ t('purchasing.quotations.answered') }}</th>
+                  <th>{{ t('purchasing.quotations.declineReason') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (invited of rfq.invitations; track invited.vendorNo) {
+                  <tr>
+                    <td class="code">{{ invited.vendorNo }} <span class="order__desc">{{ invited.vendorName }}</span></td>
+                    <td>
+                      {{ invited.hasAnswered
+                        ? t('purchasing.quotations.yes')
+                        : t('purchasing.quotations.stillSilent') }}
+                    </td>
+                    <td>{{ invited.declinedReason || '' }}</td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        }
+
+        @if (canWrite()) {
+          <div class="panel__body form-row">
+            <label>
+              {{ t('purchasing.quotations.inviteVendors') }}
+              <input
+                type="text"
+                [(ngModel)]="inviteVendors"
+                name="inviteVendors"
+                [placeholder]="t('purchasing.quotations.inviteVendorsPlaceholder')"
+              />
+            </label>
+            <button type="button" class="button button--quiet" [disabled]="busy() !== null" (click)="invite()">
+              {{ t('purchasing.quotations.invite') }}
+            </button>
+            @if (rfq.status === 'Draft') {
+              <button type="button" class="button" [disabled]="busy() !== null" (click)="send()">
+                {{ t('purchasing.quotations.send') }}
+              </button>
+            }
+          </div>
+        }
+
+        <h3 class="panel__title">{{ t('purchasing.quotations.comparison') }}</h3>
+
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('purchasing.quotations.line') }}</th>
+                <th class="numeric">{{ t('purchasing.quotations.quantity') }}</th>
+                <th>{{ t('purchasing.quotations.quotes') }}</th>
+                <th>{{ t('purchasing.quotations.awardedTo') }}</th>
+                @if (canWrite()) {
+                  <th>{{ t('purchasing.quotations.awardTo') }}</th>
+                  <th>{{ t('purchasing.quotations.reason') }}</th>
+                }
+              </tr>
+            </thead>
+            <tbody>
+              @for (row of rfq.comparison; track row.lineNo) {
+                <tr>
+                  <td class="code">{{ row.itemNo }} <span class="order__desc">{{ row.description }}</span></td>
+                  <td class="numeric">{{ row.quantity }}</td>
+                  <td>
+                    @if (!hasQuotes(row)) {
+                      <span class="order__desc">{{ t('purchasing.quotations.noQuotesYet') }}</span>
+                    } @else {
+                      @for (quote of row.quotes; track quote.vendorNo) {
+                        <div>
+                          <strong>{{ quote.vendorNo }}</strong>
+                          {{ i18n.total(quote.unitPrice) }}
+                          @if (quote.leadTimeDays !== null) {
+                            · {{ quote.leadTimeDays }} {{ t('purchasing.quotations.days') }}
+                          }
+                          @if (quote.isCheapest) {
+                            <span class="badge">{{ t('purchasing.quotations.cheapest') }}</span>
+                          }
+                          @if (quote.isFastest) {
+                            <span class="badge">{{ t('purchasing.quotations.fastest') }}</span>
+                          }
+                        </div>
+                      }
+                    }
+                  </td>
+                  <td>
+                    @if (row.awardedVendorNo) {
+                      <strong>{{ row.awardedVendorNo }}</strong>
+                      @if (row.awardedOrderNo) {
+                        <span class="order__desc">→ {{ row.awardedOrderNo }}</span>
+                      }
+                      @if (row.awardReason) {
+                        <div class="order__desc">{{ row.awardReason }}</div>
+                      }
+                    } @else {
+                      —
+                    }
+                  </td>
+                  @if (canWrite()) {
+                    <td>
+                      <input
+                        class="input input--compact"
+                        type="text"
+                        [ngModel]="awardVendorOf(row.lineNo)"
+                        (ngModelChange)="setAwardVendor(row.lineNo, $event)"
+                        [name]="'av' + row.lineNo"
+                      />
+                    </td>
+                    <td>
+                      <input
+                        class="input input--compact"
+                        type="text"
+                        [ngModel]="awardReasonOf(row.lineNo)"
+                        (ngModelChange)="setAwardReason(row.lineNo, $event)"
+                        [name]="'ar' + row.lineNo"
+                        [placeholder]="t('purchasing.quotations.reasonPlaceholder')"
+                      />
+                    </td>
+                  }
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        @if (canWrite()) {
+          <div class="panel__body draft__actions">
+            <button type="button" class="button button--primary" [disabled]="busy() !== null" (click)="award()">
+              {{ t('purchasing.quotations.award') }}
+            </button>
+          </div>
+
+          <h3 class="panel__title">{{ t('purchasing.quotations.recordAnswer') }}</h3>
+
+          <div class="panel__body form-row">
+            <label>
+              {{ t('purchasing.quotations.vendor') }}
+              <input type="text" [(ngModel)]="quoteVendorNo" name="quoteVendorNo" />
+            </label>
+            <label>
+              {{ t('purchasing.quotations.declineReason') }}
+              <input type="text" [(ngModel)]="declineReason" name="declineReason" />
+            </label>
+            <button type="button" class="button button--quiet" [disabled]="busy() !== null" (click)="decline()">
+              {{ t('purchasing.quotations.theyDeclined') }}
+            </button>
+          </div>
+
+          <div class="table-scroll">
+            <table class="table">
+              <thead>
+                <tr>
+                  <th>{{ t('purchasing.quotations.line') }}</th>
+                  <th class="numeric">{{ t('purchasing.quotations.theirPrice') }}</th>
+                  <th class="numeric">{{ t('purchasing.quotations.theirLeadTime') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                @for (row of rfq.comparison; track row.lineNo) {
+                  <tr>
+                    <td class="code">{{ row.itemNo }}</td>
+                    <td class="numeric">
+                      <input
+                        class="input input--number input--compact"
+                        type="number"
+                        [ngModel]="quotePriceOf(row.lineNo)"
+                        (ngModelChange)="setQuotePrice(row.lineNo, $event)"
+                        [name]="'qp' + row.lineNo"
+                      />
+                    </td>
+                    <td class="numeric">
+                      <input
+                        class="input input--number input--compact"
+                        type="number"
+                        [ngModel]="quoteLeadTimeOf(row.lineNo)"
+                        (ngModelChange)="setQuoteLeadTime(row.lineNo, $event)"
+                        [name]="'ql' + row.lineNo"
+                      />
+                    </td>
+                  </tr>
+                }
+              </tbody>
+            </table>
+          </div>
+
+          <div class="panel__body draft__actions">
+            <button type="button" class="button" [disabled]="busy() !== null" (click)="recordQuote()">
+              {{ t('purchasing.quotations.recordIt') }}
+            </button>
+          </div>
+        }
+
+        @if (canOrder()) {
+          <div class="panel__body form-row">
+            <label>
+              {{ t('purchasing.quotations.orderFrom') }}
+              <input type="text" [(ngModel)]="orderVendorNo" name="orderVendorNo" />
+            </label>
+            <button
+              type="button"
+              class="button button--primary"
+              [disabled]="busy() !== null"
+              (click)="raiseOrder()"
+            >
+              {{ t('purchasing.quotations.raiseOrder') }}
+            </button>
+          </div>
+        }
+      </section>
+    }
+
+    <section class="panel">
+      <div class="panel__body form-row">
+        <label>
+          {{ t('purchasing.quotations.status') }}
+          <select [(ngModel)]="statusFilter" name="statusFilter" (change)="refresh()">
+            <option value="">—</option>
+            <option value="Draft">{{ t('purchasing.quotations.status.Draft') }}</option>
+            <option value="Sent">{{ t('purchasing.quotations.status.Sent') }}</option>
+            <option value="Closed">{{ t('purchasing.quotations.status.Closed') }}</option>
+            <option value="Awarded">{{ t('purchasing.quotations.status.Awarded') }}</option>
+            <option value="Cancelled">{{ t('purchasing.quotations.status.Cancelled') }}</option>
+          </select>
+        </label>
+        @if (canWrite()) {
+          <button type="button" class="button" (click)="startNew()">
+            {{ t('purchasing.quotations.newOne') }}
+          </button>
+        }
+      </div>
+
+      @if (requests().length === 0) {
+        <p class="empty">{{ t('purchasing.quotations.none') }}</p>
+      } @else {
+        <div class="table-scroll">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>{{ t('purchasing.quotations.no') }}</th>
+                <th>{{ t('purchasing.quotations.status') }}</th>
+                <th>{{ t('purchasing.quotations.description') }}</th>
+                <th>{{ t('purchasing.quotations.raised') }}</th>
+                <th class="numeric">{{ t('purchasing.quotations.lines') }}</th>
+                <th class="numeric">{{ t('purchasing.quotations.asked') }}</th>
+                <th class="numeric">{{ t('purchasing.quotations.answers') }}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              @for (rfq of requests(); track rfq.no) {
+                <tr>
+                  <td class="code">{{ rfq.no }}</td>
+                  <td>{{ statusLabel(rfq.status) }}</td>
+                  <td>{{ rfq.description || '—' }}</td>
+                  <td>{{ rfq.requestDate }}</td>
+                  <td class="numeric">{{ rfq.lineCount }}</td>
+                  <td class="numeric">{{ rfq.vendorCount }}</td>
+                  <td class="numeric">{{ rfq.answeredCount }}</td>
+                  <td>
+                    <button type="button" class="button button--quiet" (click)="open(rfq)">
+                      {{ t('purchasing.quotations.open') }}
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      }
+    </section>
+  }
+</div>

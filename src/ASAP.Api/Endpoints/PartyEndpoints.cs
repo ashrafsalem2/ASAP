@@ -23,6 +23,9 @@ namespace ASAP.Api.Endpoints;
 /// <param name="Email">Contact email.</param>
 /// <param name="Phone">Contact telephone.</param>
 /// <param name="CustomerGroupCode">The kind of customer they are, where they are in a group.</param>
+/// <param name="Iban">Where a vendor is paid.</param>
+/// <param name="Bic">A vendor's bank's BIC.</param>
+/// <param name="BankName">A vendor's bank.</param>
 public sealed record PartyView(
     string No,
     string Name,
@@ -35,7 +38,10 @@ public sealed record PartyView(
     bool IsBlocked,
     string? Email,
     string? Phone,
-    string? CustomerGroupCode);
+    string? CustomerGroupCode,
+    string? Iban = null,
+    string? Bic = null,
+    string? BankName = null);
 
 /// <summary>A kind of customer, as it is reported back.</summary>
 /// <param name="Code">Its code.</param>
@@ -215,7 +221,22 @@ public static class PartyEndpoints
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
 
-        return Results.Ok(parties);
+        if (typeof(TParty) != typeof(Vendor))
+        {
+            return Results.Ok(parties);
+        }
+
+        // Bank details are a vendor's alone, so they are read separately rather than making the
+        // shared query know about them.
+        var bank = await context.Set<Vendor>()
+            .AsNoTracking()
+            .Select(static v => new { v.No, v.Iban, v.Bic, v.BankName })
+            .ToDictionaryAsync(static v => v.No, cancellationToken)
+            .ConfigureAwait(false);
+
+        return Results.Ok(parties.Select(party => bank.TryGetValue(party.No, out var details)
+            ? party with { Iban = details.Iban, Bic = details.Bic, BankName = details.BankName }
+            : party));
     }
 
     private static async Task<IResult> EntriesAsync<TEntry>(

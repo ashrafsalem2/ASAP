@@ -1030,8 +1030,8 @@ public sealed class PosReceiptService(
         if (customer is null)
         {
             found.Add(messages.Render(
-                Finance.FinanceMessages.PartyNotFound,
-                Args(("PartyNo", effectiveCustomerNo), ("PartyKind", "customer"), ("LineNo", 0))));
+                Finance.FinanceMessages.NoSuchParty,
+                Args(("PartyNo", effectiveCustomerNo), ("PartyKind", "customer"))));
 
             return null;
         }

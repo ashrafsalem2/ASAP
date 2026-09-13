@@ -18,6 +18,9 @@ import {
   PartyKind,
   PartyLedgerEntry,
   PostJournalLine,
+  PaymentFileResult,
+  PaymentRunResult,
+  PaymentRunRow,
   PostingReceipt,
   RevaluationResult,
   TrialBalance,
@@ -202,6 +205,58 @@ export class FinanceService {
   }
 
   /** The two ledgers differ only in their route segment. */
+  /** Payment runs, most recent first. */
+  paymentRuns(): Promise<PaymentRunRow[]> {
+    return firstValueFrom(this.http.get<PaymentRunRow[]>(`${this.base}/finance/payment-runs`));
+  }
+
+  /** Proposes paying everything due by a date. */
+  proposePaymentRun(request: { bankAccountCode: string; paymentDate: string; dueByDate: string }): Promise<PaymentRunResult> {
+    return firstValueFrom(this.http.post<PaymentRunResult>(`${this.base}/finance/payment-runs`, request));
+  }
+
+  /** Takes one vendor off a draft run. */
+  removePaymentRunLine(runNo: string, lineNo: number): Promise<PaymentRunResult> {
+    return firstValueFrom(
+      this.http.delete<PaymentRunResult>(`${this.base}/finance/payment-runs/${encodeURIComponent(runNo)}/lines/${lineNo}`),
+    );
+  }
+
+  /** Makes the bank file and freezes the run. */
+  exportPaymentRun(runNo: string): Promise<PaymentFileResult> {
+    return firstValueFrom(
+      this.http.post<PaymentFileResult>(`${this.base}/finance/payment-runs/${encodeURIComponent(runNo)}/export`, {}),
+    );
+  }
+
+  /** The file exactly as it was made. */
+  paymentRunFile(runNo: string): Promise<Blob> {
+    return firstValueFrom(
+      this.http.get(`${this.base}/finance/payment-runs/${encodeURIComponent(runNo)}/file`, { responseType: 'blob' }),
+    );
+  }
+
+  /** Records what was paid and settles the invoices. */
+  postPaymentRun(runNo: string): Promise<PaymentRunResult> {
+    return firstValueFrom(
+      this.http.post<PaymentRunResult>(`${this.base}/finance/payment-runs/${encodeURIComponent(runNo)}/post`, {}),
+    );
+  }
+
+  /** Abandons a run that has not posted. */
+  cancelPaymentRun(runNo: string): Promise<PaymentRunResult> {
+    return firstValueFrom(
+      this.http.post<PaymentRunResult>(`${this.base}/finance/payment-runs/${encodeURIComponent(runNo)}/cancel`, {}),
+    );
+  }
+
+  /** Records where a vendor is paid. */
+  setVendorBankDetails(vendorNo: string, request: { iban: string | null; bic: string | null; bankName: string | null }): Promise<unknown> {
+    return firstValueFrom(
+      this.http.put(`${this.base}/finance/vendors/${encodeURIComponent(vendorNo)}/bank`, request),
+    );
+  }
+
   /** What closing the day would restate, without restating it. */
   revaluationPreview(asAt: string, kind: PartyKind): Promise<RevaluationResult> {
     const params = new HttpParams().set('asAt', asAt).set('kind', kind);

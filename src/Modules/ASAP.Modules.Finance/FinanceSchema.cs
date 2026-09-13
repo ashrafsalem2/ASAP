@@ -147,6 +147,7 @@ public sealed class FinanceSchema : IModuleSchema
             builder.Property(a => a.BankName).HasMaxLength(200);
             builder.Property(a => a.AccountNo).HasMaxLength(64);
             builder.Property(a => a.Iban).HasMaxLength(34);
+            builder.Property(a => a.Bic).HasMaxLength(11);
             builder.Property(a => a.GlAccountNo).HasMaxLength(20).IsRequired();
             builder.Property(a => a.CurrencyCode).HasMaxLength(3).IsFixedLength();
             builder.Property(a => a.RowVersion).IsRowVersion();
@@ -323,6 +324,65 @@ public sealed class FinanceSchema : IModuleSchema
     {
         ConfigureParty<Customer>(modelBuilder, "Customers");
         ConfigureParty<Vendor>(modelBuilder, "Vendors");
+
+        modelBuilder.Entity<Vendor>(builder =>
+        {
+            builder.Property(v => v.Iban).HasMaxLength(34);
+            builder.Property(v => v.Bic).HasMaxLength(11);
+            builder.Property(v => v.BankName).HasMaxLength(120);
+        });
+
+        modelBuilder.Entity<Payments.PaymentRun>(builder =>
+        {
+            builder.ToTable("PaymentRuns", SchemaName);
+
+            builder.Property(r => r.No).HasMaxLength(35).IsRequired();
+            builder.Property(r => r.BankAccountCode).HasMaxLength(20).IsRequired();
+            builder.Property(r => r.CurrencyCode).HasMaxLength(3).IsRequired();
+            builder.Property(r => r.CreatedByUserName).HasMaxLength(120);
+            builder.Property(r => r.ExportedByUserName).HasMaxLength(120);
+            builder.Property(r => r.FileSha256).HasMaxLength(64);
+            builder.Property(r => r.RowVersion).IsRowVersion();
+
+            builder.HasMany(r => r.Lines)
+                   .WithOne(l => l.PaymentRun!)
+                   .HasForeignKey(l => l.PaymentRunId)
+                   .OnDelete(DeleteBehavior.Cascade);
+
+            builder.HasIndex(r => new { r.CompanyId, r.No })
+                   .IsUnique()
+                   .HasFilter("[IsDeleted] = 0");
+        });
+
+        modelBuilder.Entity<Payments.PaymentRunLine>(builder =>
+        {
+            builder.ToTable("PaymentRunLines", SchemaName);
+
+            builder.Property(l => l.VendorNo).HasMaxLength(20).IsRequired();
+            builder.Property(l => l.VendorName).HasMaxLength(200).IsRequired();
+            builder.Property(l => l.Iban).HasMaxLength(34);
+            builder.Property(l => l.Bic).HasMaxLength(11);
+            builder.Property(l => l.Reference).HasMaxLength(140).IsRequired();
+            builder.Property(l => l.Amount).HasColumnType(DecimalPrecisionConventions.Money);
+            builder.Property(l => l.RowVersion).IsRowVersion();
+
+            builder.HasMany(l => l.Invoices)
+                   .WithOne(i => i.PaymentRunLine!)
+                   .HasForeignKey(i => i.PaymentRunLineId)
+                   .OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<Payments.PaymentRunInvoice>(builder =>
+        {
+            builder.ToTable("PaymentRunInvoices", SchemaName);
+
+            builder.Property(i => i.DocumentNo).HasMaxLength(40);
+            builder.Property(i => i.Amount).HasColumnType(DecimalPrecisionConventions.Money);
+            builder.Property(i => i.RowVersion).IsRowVersion();
+
+            // What the double-payment check reads: is this invoice already on a live run.
+            builder.HasIndex(i => new { i.CompanyId, i.VendorLedgerEntryId });
+        });
 
         ConfigurePartyLedger<CustomerLedgerEntry, Customer>(modelBuilder, "CustomerLedgerEntries");
         ConfigurePartyLedger<VendorLedgerEntry, Vendor>(modelBuilder, "VendorLedgerEntries");

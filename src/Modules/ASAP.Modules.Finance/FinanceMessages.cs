@@ -59,6 +59,36 @@ public static class FinanceMessages
     /// <summary>No bank statement by that identifier.</summary>
     public static readonly MessageCode BankStatementNotFound = new("FIN.BANK.STATEMENT_NOT_FOUND");
 
+    /// <summary>The bank account a run pays from is not there or not in use.</summary>
+    public static readonly MessageCode PaymentBankAccountNotFound = new("FIN.PAYRUN.BANK_NOT_FOUND");
+
+    /// <summary>The bank account a run pays from has no valid IBAN.</summary>
+    public static readonly MessageCode PaymentBankAccountHasNoIban = new("FIN.PAYRUN.BANK_NO_IBAN");
+
+    /// <summary>Nothing is due to be paid.</summary>
+    public static readonly MessageCode NothingDueToPay = new("FIN.PAYRUN.NOTHING_DUE");
+
+    /// <summary>A vendor on a run has no IBAN a bank would accept.</summary>
+    public static readonly MessageCode VendorIbanInvalid = new("FIN.PAYRUN.VENDOR_IBAN_INVALID");
+
+    /// <summary>A vendor's bank details changed after the run was proposed.</summary>
+    public static readonly MessageCode VendorIbanChangedSinceProposal = new("FIN.PAYRUN.IBAN_CHANGED");
+
+    /// <summary>A payment run is not there.</summary>
+    public static readonly MessageCode PaymentRunNotFound = new("FIN.PAYRUN.NOT_FOUND");
+
+    /// <summary>A payment run is past the stage the action needs.</summary>
+    public static readonly MessageCode PaymentRunWrongStage = new("FIN.PAYRUN.WRONG_STAGE");
+
+    /// <summary>An invoice on an exported run has been settled some other way since.</summary>
+    public static readonly MessageCode PaymentInvoiceSettledMeanwhile = new("FIN.PAYRUN.SETTLED_MEANWHILE");
+
+    /// <summary>Invoices in another currency were left out of the run.</summary>
+    public static readonly MessageCode PaymentOtherCurrencyLeftOut = new("FIN.PAYRUN.OTHER_CURRENCY");
+
+    /// <summary>A blocked vendor's invoices were left out of the run.</summary>
+    public static readonly MessageCode PaymentBlockedVendorLeftOut = new("FIN.PAYRUN.BLOCKED_VENDOR");
+
     /// <summary>A statement that has been agreed cannot be worked on.</summary>
     public static readonly MessageCode StatementAlreadyReconciled = new("FIN.BANK.ALREADY_RECONCILED");
 
@@ -111,6 +141,12 @@ public static class FinanceMessages
 
     /// <summary>A line names a customer or vendor that does not exist.</summary>
     public static readonly MessageCode PartyNotFound = new("FIN.PARTY.NOT_FOUND");
+
+    /// <summary>A customer or vendor named outside a journal line is not there.</summary>
+    public static readonly MessageCode NoSuchParty = new("FIN.PARTY.NO_SUCH");
+
+    /// <summary>Bank details were entered with an IBAN a bank would refuse.</summary>
+    public static readonly MessageCode IbanRejected = new("FIN.PARTY.IBAN_REJECTED");
 
     /// <summary>Posting would take a customer past the credit they are allowed.</summary>
     public static readonly MessageCode CreditLimitExceeded = new("FIN.CUSTOMER.CREDIT_LIMIT_EXCEEDED");
@@ -405,6 +441,148 @@ public static class FinanceMessages
                 "تتبّع معادلات تلك الصفوف حتى تصل إلى صف يشير إلى نفسه، مباشرةً أو عبر البقية، "
                 + "ثم اجعله يشير إلى حسابات بدلًا من ذلك."),
             HelpTopic = "finance/account-schedules",
+        },
+        new()
+        {
+            Code = PaymentBankAccountNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such bank account", "لا يوجد حساب بنكي بهذا الرمز"),
+            Detail = new LocalizedText(
+                "{BankAccountCode} is not a bank account in use in this company.",
+                "{BankAccountCode} ليس حسابًا بنكيًا مستخدمًا في هذه الشركة."),
+            Resolution = new LocalizedText(
+                "Choose the account the money should leave from.",
+                "اختر الحساب الذي سيُدفع منه."),
+            HelpTopic = "finance/payment-runs",
+        },
+        new()
+        {
+            Code = PaymentBankAccountHasNoIban,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("The bank account has no IBAN", "الحساب البنكي بلا آيبان"),
+            Detail = new LocalizedText(
+                "{BankAccountCode} has no IBAN a bank would accept, and a payment file names the "
+                + "account the money leaves.",
+                "ليس لـ {BankAccountCode} آيبان مقبول لدى البنك، وملف الدفع يسمّي الحساب الذي يُدفع منه."),
+            Resolution = new LocalizedText(
+                "Enter the account's IBAN on the bank account card.",
+                "أدخل آيبان الحساب في بطاقة الحساب البنكي."),
+            HelpTopic = "finance/payment-runs",
+        },
+        new()
+        {
+            Code = NothingDueToPay,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Nothing is due", "لا شيء مستحق"),
+            Detail = new LocalizedText(
+                "No vendor invoice in {CurrencyCode} is open and due by {DueByDate:d}.",
+                "لا توجد فاتورة مورّد مفتوحة بعملة {CurrencyCode} مستحقة حتى {DueByDate:d}."),
+            Resolution = new LocalizedText(
+                "Choose a later due date, or check whether the invoices are already on another run.",
+                "اختر تاريخ استحقاق لاحقًا، أو تحقق مما إذا كانت الفواتير على دفعة أخرى."),
+            HelpTopic = "finance/payment-runs",
+        },
+        new()
+        {
+            Code = VendorIbanInvalid,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No IBAN a bank would accept", "لا آيبان يقبله البنك"),
+            Detail = new LocalizedText(
+                "{VendorNo} {VendorName} has no IBAN, or one whose check digits do not hold.",
+                "ليس لـ {VendorNo} {VendorName} آيبان، أو له آيبان لا تصح أرقام التحقق فيه."),
+            Resolution = new LocalizedText(
+                "Confirm the details with the vendor by telephone on a number you already hold, "
+                + "enter them on the vendor card, and propose the run again — or take the line off.",
+                "تأكد من البيانات مع المورّد هاتفيًا على رقم لديك مسبقًا، وأدخلها في بطاقة المورّد، "
+                + "ثم أعد اقتراح الدفعة — أو احذف السطر."),
+            HelpTopic = "finance/payment-runs",
+        },
+        new()
+        {
+            Code = VendorIbanChangedSinceProposal,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("Bank details changed after proposal", "تغيّرت البيانات البنكية بعد الاقتراح"),
+            Detail = new LocalizedText(
+                "{VendorNo} {VendorName} was proposed to be paid into {ProposedIban}, and the vendor "
+                + "card now says {CurrentIban}.",
+                "اقتُرح الدفع لـ {VendorNo} {VendorName} إلى {ProposedIban}، وبطاقة المورّد تقول الآن "
+                + "{CurrentIban}."),
+            Resolution = new LocalizedText(
+                "A change of bank details just before a payment is the commonest shape of payment "
+                + "fraud. Confirm it by telephone on a number you already hold — not one in the email "
+                + "announcing it — then take the line off and propose it again.",
+                "تغيير البيانات البنكية قبيل الدفع هو أشيع صور احتيال المدفوعات. تحقق منه هاتفيًا على "
+                + "رقم لديك مسبقًا — لا رقم ورد في الرسالة التي أعلنته — ثم احذف السطر وأعد اقتراحه."),
+            HelpTopic = "finance/payment-runs",
+        },
+        new()
+        {
+            Code = PaymentRunNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such payment run", "لا توجد دفعة بهذا الرقم"),
+            Detail = new LocalizedText(
+                "No payment run in this company is numbered {RunNo}.",
+                "لا توجد دفعة في هذه الشركة برقم {RunNo}."),
+            Resolution = new LocalizedText(
+                "Check the number against the list of runs.",
+                "راجع الرقم مقابل قائمة الدفعات."),
+            HelpTopic = "finance/payment-runs",
+        },
+        new()
+        {
+            Code = PaymentRunWrongStage,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Not at that stage", "ليست في تلك المرحلة"),
+            Detail = new LocalizedText(
+                "{RunNo} is {Status}, and that cannot be done to a run that is {Status}.",
+                "الدفعة {RunNo} حالتها {Status}، ولا يمكن فعل ذلك بدفعة حالتها {Status}."),
+            Resolution = new LocalizedText(
+                "A draft can be changed and exported. An exported run can be posted or cancelled. "
+                + "A posted run is reversed like any other posting.",
+                "المسودة تُعدَّل وتُصدَّر. والدفعة المصدَّرة تُرحَّل أو تُلغى. والدفعة المرحَّلة تُعكس "
+                + "كأي ترحيل آخر."),
+            HelpTopic = "finance/payment-runs",
+        },
+        new()
+        {
+            Code = PaymentInvoiceSettledMeanwhile,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Already settled another way", "سُوّيت بطريقة أخرى"),
+            Detail = new LocalizedText(
+                "{DocumentNo} for {VendorNo} has {RemainingAmount:N2} left to pay, and this run pays "
+                + "{Amount:N2} towards it.",
+                "بقي على {DocumentNo} للمورّد {VendorNo} {RemainingAmount:N2}، وهذه الدفعة تسدد منه "
+                + "{Amount:N2}."),
+            Resolution = new LocalizedText(
+                "Something else paid it after the file was made. Check with the bank whether this "
+                + "transfer actually went; if it did, the vendor has been paid twice and is owed a "
+                + "conversation, not a posting.",
+                "دفعها شيء آخر بعد إعداد الملف. تحقق من البنك هل نُفّذ هذا التحويل فعلًا؛ فإن نُفّذ فقد "
+                + "دُفع للمورّد مرتين والمطلوب محادثة معه لا ترحيل."),
+            HelpTopic = "finance/payment-runs",
+        },
+        new()
+        {
+            Code = PaymentOtherCurrencyLeftOut,
+            Severity = MessageSeverity.Warning,
+            Title = new LocalizedText("Other currencies left out", "استُبعدت عملات أخرى"),
+            Detail = new LocalizedText(
+                "{Count} invoice(s) due in a currency other than {CurrencyCode} were left out.",
+                "استُبعدت {Count} فاتورة مستحقة بعملة غير {CurrencyCode}."),
+            Resolution = new LocalizedText(
+                "Pay them from an account held in their currency.",
+                "ادفعها من حساب بعملتها."),
+            HelpTopic = "finance/payment-runs",
+        },
+        new()
+        {
+            Code = PaymentBlockedVendorLeftOut,
+            Severity = MessageSeverity.Warning,
+            Title = new LocalizedText("Blocked vendors left out", "استُبعد مورّدون محظورون"),
+            Detail = new LocalizedText(
+                "{VendorNo} {VendorName} is blocked, so their invoices were not proposed.",
+                "{VendorNo} {VendorName} محظور، فلم تُقترح فواتيره."),
+            HelpTopic = "finance/payment-runs",
         },
         new()
         {
@@ -704,6 +882,34 @@ public static class FinanceMessages
                 "قم بترحيل المستند الأصلي بدلاً من ذلك. وإذا كان هذا تصحيحًا فعليًا، استخدم عكس القيد الأصلي."),
             OverridePermission = "Finance.Account.Override",
             HelpTopic = "finance/chart-of-accounts",
+        },
+        new()
+        {
+            Code = NoSuchParty,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such customer or vendor", "لا يوجد عميل أو مورّد بهذا الرقم"),
+
+            // Separate from the journal-line message, which names a line number: used anywhere a
+            // party is named on its own, that one printed a line that did not exist.
+            Detail = new LocalizedText(
+                "No {PartyKind} in this company is numbered {PartyNo}.",
+                "لا يوجد {PartyKind} في هذه الشركة برقم {PartyNo}."),
+            Resolution = new LocalizedText(
+                "Check the number against the list.",
+                "راجع الرقم مقابل القائمة."),
+        },
+        new()
+        {
+            Code = IbanRejected,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("That IBAN would be refused", "هذا الآيبان سيُرفض"),
+            Detail = new LocalizedText(
+                "{Iban} is not an IBAN a bank would accept: its length or check digits do not hold.",
+                "{Iban} ليس آيبانًا يقبله البنك: طوله أو أرقام التحقق فيه غير صحيحة."),
+            Resolution = new LocalizedText(
+                "Check it character by character against the vendor's letter, not their email.",
+                "راجعه حرفًا بحرف مقابل خطاب المورّد، لا رسالته الإلكترونية."),
+            HelpTopic = "finance/payment-runs",
         },
         new()
         {

@@ -132,8 +132,8 @@ public sealed class CustomerGroupService(
         if (party is null)
         {
             return Result.Failure(messages.Render(
-                FinanceMessages.PartyNotFound,
-                Args(("PartyNo", no))));
+                FinanceMessages.NoSuchParty,
+                Args(("PartyNo", no), ("PartyKind", "customer"))));
         }
 
         if (string.IsNullOrWhiteSpace(groupCode))

@@ -1,0 +1,223 @@
+<div class="page">
+  <h1>{{ t('finance.paymentRuns.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('finance.paymentRuns.intro') }}</p>
+
+    @if (canPropose()) {
+      <div class="panel__body draft">
+        <label class="field">
+          <span class="field__label">{{ t('finance.paymentRuns.bank') }}</span>
+          <select class="select" [(ngModel)]="bankAccountCode" name="bank">
+            <option value=""></option>
+            @for (account of accounts(); track account.code) {
+              <option [value]="account.code">{{ account.code }} — {{ account.name }}</option>
+            }
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field__label">{{ t('finance.paymentRuns.dueBy') }}</span>
+          <input class="input" type="date" [(ngModel)]="dueByDate" name="dueBy" />
+        </label>
+
+        <label class="field">
+          <span class="field__label">{{ t('finance.paymentRuns.payOn') }}</span>
+          <input class="input" type="date" [(ngModel)]="paymentDate" name="payOn" />
+        </label>
+
+        <button
+          type="button"
+          class="button button--primary"
+          [disabled]="busy() || !bankAccountCode"
+          (click)="propose()"
+        >
+          {{ t('finance.paymentRuns.propose') }}
+        </button>
+      </div>
+    }
+
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else if (runs().length === 0) {
+      <p class="empty">{{ t('finance.paymentRuns.none') }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('finance.paymentRuns.no') }}</th>
+              <th>{{ t('finance.paymentRuns.payOn') }}</th>
+              <th>{{ t('finance.paymentRuns.bank') }}</th>
+              <th>{{ t('finance.paymentRuns.status') }}</th>
+              <th class="numeric">{{ t('finance.paymentRuns.vendors') }}</th>
+              <th class="numeric">{{ t('finance.paymentRuns.total') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (run of runs(); track run.no) {
+              <tr
+                class="admin__row"
+                [class.admin__row--selected]="selected()?.no === run.no"
+                (click)="select(run)"
+              >
+                <td class="code">{{ run.no }}</td>
+                <td>{{ run.paymentDate }}</td>
+                <td class="code">{{ run.bankAccountCode }}</td>
+                <td><span class="tag">{{ statusLabel(run.status) }}</span></td>
+                <td class="numeric">{{ run.lines.length }}</td>
+                <td class="numeric">{{ i18n.amount(run.totalAmount) }} {{ run.currencyCode }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+
+  @if (selected(); as run) {
+    <section class="panel">
+      <h2 class="panel__title">
+        {{ t('finance.paymentRuns.detail', { No: run.no, Status: statusLabel(run.status) }) }}
+      </h2>
+
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('finance.paymentRuns.vendor') }}</th>
+              <th>{{ t('finance.paymentRuns.iban') }}</th>
+              <th>{{ t('finance.paymentRuns.pays') }}</th>
+              <th class="numeric">{{ t('finance.paymentRuns.amount') }}</th>
+              @if (run.status === 'Draft' && canPropose()) {
+                <th></th>
+              }
+            </tr>
+          </thead>
+          <tbody>
+            @for (line of run.lines; track line.lineNo) {
+              <tr>
+                <td><span class="code">{{ line.vendorNo }}</span> {{ line.vendorName }}</td>
+                <td>
+                  @if (line.ibanValid) {
+                    <span class="code">{{ line.iban }}</span>
+                  } @else {
+                    <span class="tag tag--warning">{{ t('finance.paymentRuns.noIban') }}</span>
+                  }
+                </td>
+                <td>
+                  @for (invoice of line.invoices; track $index) {
+                    <div>
+                      <span class="code">{{ invoice.documentNo ?? '—' }}</span>
+                      {{ invoice.dueDate }} · {{ i18n.amount(invoice.amount) }}
+                    </div>
+                  }
+                </td>
+                <td class="numeric">{{ i18n.amount(line.amount) }}</td>
+                @if (run.status === 'Draft' && canPropose()) {
+                  <td>
+                    <button
+                      type="button"
+                      class="button button--quiet"
+                      [disabled]="busy()"
+                      (click)="removeLine(run, line.lineNo)"
+                    >
+                      {{ t('finance.paymentRuns.takeOff') }}
+                    </button>
+                  </td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      @if (run.fileSha256) {
+        <!-- In full, not shortened: the point is to compare it with what the bank's upload shows. -->
+        <p class="panel__body hint">
+          {{ t('finance.paymentRuns.fingerprint', {
+            By: run.exportedByUserName ?? '—',
+            Hash: run.fileSha256
+          }) }}
+        </p>
+      }
+
+      <div class="panel__body draft">
+        @if (run.status === 'Draft' && canRelease()) {
+          <button
+            type="button"
+            class="button button--primary"
+            [disabled]="busy() || hasBadIban(run)"
+            (click)="export(run)"
+          >
+            {{ t('finance.paymentRuns.export') }}
+          </button>
+        }
+
+        @if (run.status === 'Exported' && canRelease()) {
+          <button type="button" class="button" [disabled]="busy()" (click)="download(run.no)">
+            {{ t('finance.paymentRuns.downloadAgain') }}
+          </button>
+
+          <button type="button" class="button button--primary" [disabled]="busy()" (click)="post(run)">
+            {{ t('finance.paymentRuns.post') }}
+          </button>
+        }
+
+        @if ((run.status === 'Draft' || run.status === 'Exported') && canPropose()) {
+          <button type="button" class="button button--quiet" [disabled]="busy()" (click)="cancel(run)">
+            {{ t('finance.paymentRuns.cancel') }}
+          </button>
+        }
+      </div>
+
+      @if (run.status === 'Draft' && hasBadIban(run)) {
+        <p class="panel__body hint">{{ t('finance.paymentRuns.badIbanHint') }}</p>
+      }
+
+      @if (run.status === 'Exported') {
+        <p class="panel__body hint">{{ t('finance.paymentRuns.postHint') }}</p>
+      }
+    </section>
+  }
+
+  @if (canEditVendors()) {
+    <section class="panel">
+      <h2 class="panel__title">{{ t('finance.paymentRuns.bankDetails') }}</h2>
+
+      <div class="panel__body draft">
+        <label class="field">
+          <span class="field__label">{{ t('finance.paymentRuns.vendor') }}</span>
+          <select class="select" [(ngModel)]="vendorNo" name="vendor" (ngModelChange)="chooseVendor()">
+            <option value=""></option>
+            @for (vendor of vendors(); track vendor.no) {
+              <option [value]="vendor.no">{{ vendor.no }} — {{ vendor.name }}</option>
+            }
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field__label">{{ t('finance.paymentRuns.iban') }}</span>
+          <input class="input code" [(ngModel)]="vendorIban" name="iban" maxlength="42" dir="ltr" />
+        </label>
+
+        <label class="field">
+          <span class="field__label">BIC</span>
+          <input class="input code" [(ngModel)]="vendorBic" name="bic" maxlength="11" dir="ltr" />
+        </label>
+
+        <label class="field">
+          <span class="field__label">{{ t('finance.paymentRuns.bankName') }}</span>
+          <input class="input" [(ngModel)]="vendorBankName" name="bankName" maxlength="120" />
+        </label>
+
+        <button type="button" class="button button--primary" [disabled]="busy() || !vendorNo" (click)="saveBankDetails()">
+          {{ t('finance.paymentRuns.saveBank') }}
+        </button>
+      </div>
+
+      <!-- Said here, at the moment somebody is about to type new details in. -->
+      <p class="panel__body hint">{{ t('finance.paymentRuns.fraudHint') }}</p>
+    </section>
+  }
+</div>

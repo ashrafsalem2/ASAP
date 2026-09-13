@@ -118,4 +118,21 @@ public sealed class Vendor : Party
 {
     /// <inheritdoc />
     public override PartyKind Kind => PartyKind.Vendor;
+
+    /// <summary>
+    /// Where their money goes.
+    /// </summary>
+    /// <remarks>
+    /// On the vendor rather than on each payment, because it is a fact about them. Changing it is
+    /// the single most common first step of payment fraud — a convincing email announcing new bank
+    /// details — which is why a payment run copies it at proposal and refuses to export a line
+    /// whose vendor has changed it since.
+    /// </remarks>
+    public string? Iban { get; set; }
+
+    /// <summary>Their bank's BIC, where it is known. Most banks here route on the IBAN alone.</summary>
+    public string? Bic { get; set; }
+
+    /// <summary>The name of their bank, for whoever is checking the details by telephone.</summary>
+    public string? BankName { get; set; }
 }

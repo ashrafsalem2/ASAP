@@ -395,6 +395,52 @@ export interface CustomerGroupPriceList {
   priceListCode: string;
 }
 
+/** Where a payment run stands. */
+export type PaymentRunStatus = 'Draft' | 'Exported' | 'Posted' | 'Cancelled';
+
+/** One transfer to one vendor. */
+export interface PaymentRunLineRow {
+  lineNo: number;
+  vendorNo: string;
+  vendorName: string;
+  iban: string | null;
+  ibanValid: boolean;
+  reference: string;
+  amount: number;
+  invoices: { documentNo: string | null; dueDate: string | null; amount: number }[];
+}
+
+/** A batch of vendor payments. */
+export interface PaymentRunRow {
+  no: string;
+  bankAccountCode: string;
+  paymentDate: string;
+  dueByDate: string;
+  currencyCode: string;
+  status: PaymentRunStatus;
+  totalAmount: number;
+  createdByUserName: string | null;
+  exportedByUserName: string | null;
+  exportedAtUtc: string | null;
+  fileSha256: string | null;
+  transactionNo: number | null;
+  lines: PaymentRunLineRow[];
+}
+
+/** A run, and anything worth saying about it. */
+export interface PaymentRunResult {
+  run: PaymentRunRow;
+  messages?: AsapMessage[];
+}
+
+/** The file a release made. */
+export interface PaymentFileResult {
+  fileName: string;
+  sha256: string;
+  transferCount: number;
+  controlSum: number;
+}
+
 /** One open balance, and what it is worth at the closing rate. */
 export interface RevaluationRow {
   partyNo: string;
@@ -966,6 +1012,9 @@ export interface Party {
   email?: string;
   phone?: string;
   customerGroupCode?: string | null;
+  iban?: string | null;
+  bic?: string | null;
+  bankName?: string | null;
 }
 
 /** One entry on a party's account. */

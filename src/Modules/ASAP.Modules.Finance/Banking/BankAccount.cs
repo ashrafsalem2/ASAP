@@ -39,6 +39,9 @@ public sealed class BankAccount : CompanyEntity
     /// <summary>The IBAN, which is what a payment file actually carries.</summary>
     public string? Iban { get; set; }
 
+    /// <summary>The bank's BIC, where it is known.</summary>
+    public string? Bic { get; set; }
+
     /// <summary>
     /// The general ledger account this bank account is represented by.
     /// </summary>

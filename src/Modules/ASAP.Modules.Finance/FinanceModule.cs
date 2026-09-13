@@ -72,6 +72,8 @@ public sealed class FinanceModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISync
 
 
         services.AddScoped<Currencies.CurrencyRevaluationService>();
+        services.AddScoped<Payments.PaymentRunService>();
+        services.AddScoped<Parties.VendorBankDetailsService>();
         services.AddScoped<Parties.CustomerGroupService>();
 
         services.AddScoped<ASAP.Platform.Kernel.Accounting.IChartOfAccounts, Accounts.ChartOfAccountsLookup>();
@@ -272,6 +274,30 @@ public sealed class FinanceModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISync
             isSensitive: true),
 
         PermissionDescriptor.Define(
+            Id, "Payment", PermissionAction.Read,
+            new LocalizedText("View payment runs", "عرض دفعات المورّدين")),
+
+        PermissionDescriptor.Define(
+            Id, "Payment", PermissionAction.Create,
+            new LocalizedText("Propose payment runs", "اقتراح دفعات المورّدين"),
+            new LocalizedText(
+                "Work out what is due and to whom, and take lines off. Nothing leaves the bank on "
+                + "the strength of a proposal.",
+                "حصر المستحق ولمن، وحذف السطور. ولا يخرج شيء من البنك بناءً على اقتراح."),
+            implies: [$"{Id}.Payment.Read"]),
+
+        PermissionDescriptor.Define(
+            Id, "Payment", PermissionAction.Post,
+            new LocalizedText("Release and post payment runs", "إصدار دفعات المورّدين وترحيلها"),
+            new LocalizedText(
+                "Make the file the bank pays from, and record what it paid. Held apart from proposing "
+                + "so that deciding who is owed and sending them money are not the same act.",
+                "إعداد الملف الذي يدفع منه البنك، وتسجيل ما دفعه. وهي منفصلة عن الاقتراح حتى لا يكون "
+                + "تحديد المستحقين وإرسال المال إليهم فعلًا واحدًا."),
+            implies: [$"{Id}.Payment.Read"],
+            isSensitive: true),
+
+        PermissionDescriptor.Define(
             Id, "Currency", PermissionAction.Read,
             new LocalizedText("View currencies and rates", "عرض العملات وأسعار الصرف")),
 
@@ -315,6 +341,23 @@ public sealed class FinanceModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISync
     /// <inheritdoc />
     public IReadOnlyCollection<SetupDescriptor> Setups =>
     [
+        new()
+        {
+            Key = $"{Id}.PaymentRun.NumberSeries",
+            Module = Id,
+            Group = new LocalizedText("Numbering", "الترقيم"),
+            DisplayName = new LocalizedText("Payment run numbers", "ترقيم دفعات المورّدين"),
+            Description = new LocalizedText(
+                "The series payment runs are numbered from. The run number is also the file's "
+                + "message id, and banks refuse a second file carrying one they have seen.",
+                "المسلسل الذي تصدر منه أرقام الدفعات. ورقم الدفعة هو معرّف رسالة الملف أيضًا، "
+                + "والبنوك ترفض ملفًا ثانيًا يحمل معرّفًا رأته من قبل."),
+            ValueType = SetupValueType.Text,
+            Scope = SetupScope.Company,
+            DefaultValue = "PAYRUN",
+            RequiresPermission = $"{Id}.Payment.Post",
+            HelpTopic = "finance/payment-runs",
+        },
         new()
         {
             Key = $"{Id}.Currency.GainAccount",
@@ -513,6 +556,18 @@ public sealed class FinanceModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISync
             RequiresPermission = $"{Id}.Party.Read",
             Order = 33,
             HelpTopic = "finance/customer-groups",
+        },
+        new()
+        {
+            Id = "Finance.PaymentRuns",
+            Module = Id,
+            ParentId = "Finance.Root",
+            DisplayName = new LocalizedText("Payment runs", "دفعات المورّدين"),
+            Kind = NavigationKind.Page,
+            Route = "/finance/payment-runs",
+            RequiresPermission = $"{Id}.Payment.Read",
+            Order = 34,
+            HelpTopic = "finance/payment-runs",
         },
         new()
         {

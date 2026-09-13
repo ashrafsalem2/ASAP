@@ -52,7 +52,9 @@ export class SalesOrderDetail implements OnInit {
   private readonly numberEntries = { ship: new Map<number, string>(), return: new Map<number, string>() };
 
   protected readonly canShipAnything = computed(
-    () => (this.order()?.lines ?? []).some((line) => line.outstandingToShip > 0),
+    () =>
+      ['Released', 'PartiallyShipped', 'Shipped', 'Invoiced'].includes(this.order()?.status ?? '') &&
+      (this.order()?.lines ?? []).some((line) => line.outstandingToShip > 0),
   );
 
   protected readonly canInvoiceAnything = computed(

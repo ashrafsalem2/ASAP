@@ -101,6 +101,12 @@ public sealed class SalesShipmentService(
             ["Status"] = order.Status.ToString(),
         };
 
+        if (!order.IsReleasedForPosting)
+        {
+            return Result<SalesShipment>.Failure(
+                messages.Render(SalesMessages.OrderNotReleased, arguments));
+        }
+
         var going = Going(order, lines);
 
         if (going.Count == 0)

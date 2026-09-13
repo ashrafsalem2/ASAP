@@ -2,6 +2,10 @@
 
 A shipment is stock leaving; an invoice is money owed. They are separate because they happen at different moments and sometimes to different degrees.
 
+## Only against a released order
+
+An order ships, and is invoiced, only once it has been released. Release is where it is confirmed with the customer and where their credit is checked; shipping first would step round both.
+
 ## Partial shipping
 
 An order can ship in parts. Each shipment takes the stock it actually sent, and the order remembers what is outstanding. Shipping more than was ordered is refused — the difference is a decision somebody should make on the order rather than discover in the warehouse.

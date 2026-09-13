@@ -176,4 +176,26 @@ public sealed class SalesLineTests
                 .ShouldBe(7m * 19.99m, $"{percent}% off must not lose value");
         }
     }
+
+    /// <summary>Goods leave only against an order that has been released.</summary>
+    /// <param name="status">Where the order stands.</param>
+    /// <param name="accepted">Whether it may ship and invoice.</param>
+    [Theory]
+    [InlineData(SalesOrderStatus.Open, false)]
+    [InlineData(SalesOrderStatus.Cancelled, false)]
+    [InlineData(SalesOrderStatus.Released, true)]
+    [InlineData(SalesOrderStatus.PartiallyShipped, true)]
+    [InlineData(SalesOrderStatus.Shipped, true)]
+    [InlineData(SalesOrderStatus.Invoiced, true)]
+    public void Goods_leave_only_against_a_released_order(SalesOrderStatus status, bool accepted)
+        => new SalesOrder
+            {
+                TenantId = Guid.Empty,
+                CompanyId = Guid.Empty,
+                No = "SO-0001",
+                CustomerNo = "C-0001",
+                CustomerName = "Al Faisaliah Trading",
+                Status = status,
+            }
+            .IsReleasedForPosting.ShouldBe(accepted);
 }

@@ -137,6 +137,9 @@ public static class PurchasingMessages
     /// <summary>Something tried to change an order that goods have arrived against.</summary>
     public static readonly MessageCode OrderNotEditable = new("PUR.ORDER.NOT_EDITABLE");
 
+    /// <summary>Goods received or invoiced against an order that has not been released.</summary>
+    public static readonly MessageCode OrderNotReleased = new("PUR.ORDER.NOT_RELEASED");
+
     /// <summary>There is nothing left on the order to receive.</summary>
     public static readonly MessageCode NothingToReceive = new("PUR.RECEIPT.NOTHING_OUTSTANDING");
 
@@ -778,6 +781,21 @@ public static class PurchasingMessages
                 "Set a location on the order, or on line {LineNo} if this delivery goes somewhere "
                 + "of its own.",
                 "حدد موقعًا على أمر الشراء، أو على السطر {LineNo} إن كانت هذه الشحنة تذهب لموقع خاص."),
+        },
+        new()
+        {
+            Code = OrderNotReleased,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("This order has not been released", "هذا الأمر لم يُعتمد بعد"),
+            Detail = new LocalizedText(
+                "{OrderNo} is {Status}, and goods are received and invoiced only against a released order.",
+                "حالة {OrderNo} هي {Status}، ولا تُستلم البضاعة ولا تُسجَّل فواتيرها إلا على أمر معتمد."),
+            Resolution = new LocalizedText(
+                "Release the order. One waiting for approval needs somebody with the authority to approve it "
+                + "first; a rejected order cannot be received at all, so raise a new one if the goods are wanted.",
+                "اعتمد الأمر. فالأمر المنتظر للموافقة يحتاج أولًا إلى موافقة صاحب الصلاحية؛ والأمر المرفوض لا "
+                + "يُستلم عليه أبدًا، فأنشئ أمرًا جديدًا إن كانت البضاعة مطلوبة."),
+            HelpTopic = "purchasing/receipts",
         },
         new()
         {

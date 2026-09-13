@@ -101,6 +101,18 @@ public sealed class SalesOrder : CompanyEntity
 
     /// <summary>Whether anything shipped is still waiting to be invoiced.</summary>
     public bool HasOutstandingInvoice => Lines.Any(static l => l.ShippedNotInvoiced > 0);
+
+    /// <summary>Whether goods may be shipped or invoiced against it.</summary>
+    /// <remarks>
+    /// Only once it is released. Release is where the order is confirmed with the customer and
+    /// where the credit check stands; shipping an order still being prepared would send goods
+    /// nobody confirmed past the one check meant to stop them, and a cancelled order ships nothing.
+    /// </remarks>
+    public bool IsReleasedForPosting => Status
+        is SalesOrderStatus.Released
+        or SalesOrderStatus.PartiallyShipped
+        or SalesOrderStatus.Shipped
+        or SalesOrderStatus.Invoiced;
 }
 
 /// <summary>One thing being sold.</summary>

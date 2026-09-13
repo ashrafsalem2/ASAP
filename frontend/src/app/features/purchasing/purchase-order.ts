@@ -59,7 +59,9 @@ export class PurchaseOrderDetail implements OnInit {
   private readonly numberEntries = { receive: new Map<number, string>(), return: new Map<number, string>() };
 
   protected readonly canReceiveAnything = computed(
-    () => (this.order()?.lines ?? []).some((line) => line.outstandingToReceive > 0),
+    () =>
+      ['Released', 'PartiallyReceived', 'Received', 'Invoiced'].includes(this.order()?.status ?? '') &&
+      (this.order()?.lines ?? []).some((line) => line.outstandingToReceive > 0),
   );
 
   protected readonly canInvoiceAnything = computed(

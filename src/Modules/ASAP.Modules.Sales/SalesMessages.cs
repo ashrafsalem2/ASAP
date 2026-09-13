@@ -59,6 +59,9 @@ public static class SalesMessages
     /// <summary>There is nothing left on the order to ship.</summary>
     public static readonly MessageCode NothingToShip = new("SAL.SHIPMENT.NOTHING_OUTSTANDING");
 
+    /// <summary>Goods shipped or invoiced against an order that has not been released.</summary>
+    public static readonly MessageCode OrderNotReleased = new("SAL.ORDER.NOT_RELEASED");
+
     /// <summary>A shipment names more than was ordered.</summary>
     public static readonly MessageCode OverShipment = new("SAL.SHIPMENT.MORE_THAN_ORDERED");
 
@@ -340,6 +343,20 @@ public static class SalesMessages
                 "أحيانًا يكون هذا مقصودًا، كتصفية مخزون قديم أو عرض جذب. ويمر الأمر في الحالتين، "
                 + "والغرض من هذه الرسالة أن يكون قرارًا واعيًا لا خطأً لا يُكتشف إلا في تقرير هامش الربح."),
             HelpTopic = "sales/pricing",
+        },
+        new()
+        {
+            Code = OrderNotReleased,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("This order has not been released", "هذا الأمر لم يُعتمد بعد"),
+            Detail = new LocalizedText(
+                "{OrderNo} is {Status}, and goods are shipped and invoiced only against a released order.",
+                "حالة {OrderNo} هي {Status}، ولا تُشحن البضاعة ولا تُفوتر إلا على أمر معتمد."),
+            Resolution = new LocalizedText(
+                "Release the order. Release is where it is confirmed with the customer and their credit is "
+                + "checked, and shipping first would step round both.",
+                "اعتمد الأمر. فالاعتماد هو حيث يُؤكَّد مع العميل ويُفحص ائتمانه، والشحن قبله يتجاوز الأمرين."),
+            HelpTopic = "sales/shipments",
         },
         new()
         {

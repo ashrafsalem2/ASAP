@@ -145,6 +145,19 @@ public sealed class PurchaseOrder : CompanyEntity
 
     /// <summary>Whether anything received is still waiting for its invoice.</summary>
     public bool HasOutstandingInvoice => Lines.Any(static l => l.ReceivedNotInvoiced > 0);
+
+    /// <summary>Whether goods may be received, invoiced or sent back against it.</summary>
+    /// <remarks>
+    /// Only once it is released. An order still being prepared has promised the vendor nothing, one
+    /// waiting for approval has not been signed for, and a rejected or cancelled one never will be.
+    /// Receiving against any of them puts goods and a debt on the books that nobody with the
+    /// authority agreed to -- the approval limit walked round by the goods-in door.
+    /// </remarks>
+    public bool IsReleasedForPosting => Status
+        is PurchaseOrderStatus.Released
+        or PurchaseOrderStatus.PartiallyReceived
+        or PurchaseOrderStatus.Received
+        or PurchaseOrderStatus.Invoiced;
 }
 
 /// <summary>One thing being bought.</summary>

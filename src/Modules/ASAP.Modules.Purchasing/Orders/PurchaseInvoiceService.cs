@@ -119,6 +119,12 @@ public sealed class PurchaseInvoiceService(
             ["Status"] = order.Status.ToString(),
         };
 
+        if (!order.IsReleasedForPosting)
+        {
+            return Result<PurchaseInvoiceReceipt>.Failure(
+                messages.Render(PurchasingMessages.OrderNotReleased, arguments));
+        }
+
         var billed = Billed(order, lines);
 
         if (billed.Count == 0)

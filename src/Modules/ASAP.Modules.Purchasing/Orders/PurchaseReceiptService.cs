@@ -106,6 +106,12 @@ public sealed class PurchaseReceiptService(
             ["Status"] = order.Status.ToString(),
         };
 
+        if (!order.IsReleasedForPosting)
+        {
+            return Result<PurchaseReceipt>.Failure(
+                messages.Render(PurchasingMessages.OrderNotReleased, arguments));
+        }
+
         var arriving = Arriving(order, lines);
         var refusals = CheckArriving(order, arriving, heldOverridePermissions);
 

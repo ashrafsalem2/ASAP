@@ -111,6 +111,12 @@ public sealed class SalesInvoiceService(
             ["Status"] = order.Status.ToString(),
         };
 
+        if (!order.IsReleasedForPosting)
+        {
+            return Result<SalesInvoiceReceipt>.Failure(
+                messages.Render(SalesMessages.OrderNotReleased, arguments));
+        }
+
         var billed = Billed(order, lines);
 
         if (billed.Count == 0)

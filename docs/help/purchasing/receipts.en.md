@@ -2,6 +2,10 @@
 
 A receipt is stock arriving. It moves the goods and their cost, and it is the moment an estimate can become a fact.
 
+## Only against a released order
+
+Goods are received, and invoiced, only against an order that has been released. An order still being prepared has promised the vendor nothing, and one waiting for approval has not been signed for — receiving it anyway would put goods and a debt on the books that nobody with the authority agreed to. A rejected order is never received; raise a new one.
+
 ## What it posts
 
 Stock in at the order price, and an accrual: goods received and not yet invoiced. The accrual is what keeps the balance sheet honest between the lorry arriving and the invoice being keyed — the goods are yours and the money is owed, whatever the paperwork has caught up with.

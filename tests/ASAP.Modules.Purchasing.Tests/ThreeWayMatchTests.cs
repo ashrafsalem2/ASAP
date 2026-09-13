@@ -165,4 +165,23 @@ public sealed class ThreeWayMatchTests
         line.LineAmount.ShouldBe(12_000m);
         line.OutstandingToReceive.ShouldBe(1m);
     }
+
+    [Theory]
+    [InlineData(PurchaseOrderStatus.Open, false)]
+    [InlineData(PurchaseOrderStatus.PendingApproval, false)]
+    [InlineData(PurchaseOrderStatus.Rejected, false)]
+    [InlineData(PurchaseOrderStatus.Cancelled, false)]
+    [InlineData(PurchaseOrderStatus.Released, true)]
+    [InlineData(PurchaseOrderStatus.PartiallyReceived, true)]
+    [InlineData(PurchaseOrderStatus.Received, true)]
+    [InlineData(PurchaseOrderStatus.Invoiced, true)]
+    public void Goods_arrive_only_against_a_released_order(PurchaseOrderStatus status, bool accepted)
+    {
+        // An order waiting for approval used to be receivable. The approval limit was then a
+        // formality anybody at the goods-in door could step round.
+        var order = Order(Line(ordered: 1));
+        order.Status = status;
+
+        order.IsReleasedForPosting.ShouldBe(accepted);
+    }
 }

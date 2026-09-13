@@ -18,6 +18,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace ASAP.Api.Endpoints;
 
+/// <summary>How an item should be costed, as a client sends it.</summary>
+/// <param name="CostingMethod">The method.</param>
+/// <param name="Tracking">How units are told apart; required for specific costing.</param>
+public sealed record SetItemCostingRequest(CostingMethod CostingMethod, ItemTracking Tracking = ItemTracking.None);
+
 /// <summary>An item as the client sees it.</summary>
 /// <param name="No">The item number.</param>
 /// <param name="Description">What it is.</param>
@@ -29,6 +34,7 @@ namespace ASAP.Api.Endpoints;
 /// <param name="ReorderPoint">Level at which it should be reordered.</param>
 /// <param name="AllowNegativeInventory">Whether it may go below zero, or null to follow the company.</param>
 /// <param name="IsBlocked">Whether it has been withdrawn from use.</param>
+/// <param name="Tracking">How its units are told apart: None, Lot or Serial.</param>
 public sealed record ItemSummary(
     string No,
     string Description,
@@ -39,7 +45,8 @@ public sealed record ItemSummary(
     decimal QuantityOnHand,
     decimal ReorderPoint,
     bool? AllowNegativeInventory,
-    bool IsBlocked);
+    bool IsBlocked,
+    string Tracking = "None");
 
 /// <summary>What is on hand for one item at one location.</summary>
 /// <param name="ItemNo">The item.</param>
@@ -722,6 +729,14 @@ public static class InventoryEndpoints
              .WithName("SetItemHasVariants")
              .WithSummary("Turns variants on or off for an item.");
 
+        group.MapPut("/items/{itemNo}/costing", SetItemCostingAsync)
+             .WithName("SetItemCosting")
+             .WithSummary("Sets how an item is costed. Refused once anything has posted.");
+
+        group.MapGet("/tracked-units", TrackedUnitsAsync)
+             .WithName("TrackedUnits")
+             .WithSummary("Every serial and lot on hand, and what each cost.");
+
         group.MapGet("/items/{itemNo}/variant-stock", VariantStockAsync)
              .WithName("VariantStock")
              .WithSummary("What each variant is holding, by location.");
@@ -743,7 +758,8 @@ public static class InventoryEndpoints
                 i.QuantityOnHand,
                 i.ReorderPoint,
                 i.AllowNegativeInventory,
-                i.IsBlocked))
+                i.IsBlocked,
+                i.Tracking.ToString()))
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false));
 
@@ -2078,6 +2094,50 @@ public static class InventoryEndpoints
                             l.Quantity)),
                 ])),
         ];
+    }
+
+    private static async Task<IResult> SetItemCostingAsync(
+        string itemNo,
+        SetItemCostingRequest request,
+        ItemCostingService costing,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+
+        if (!Can(user, "Inventory.Item.Update"))
+        {
+            return Forbidden("Inventory.Item.Update", "change how an item is costed", http);
+        }
+
+        var result = await costing
+            .SetAsync(itemNo, request.CostingMethod, request.Tracking, cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.Failed
+            ? Refused(result, http)
+            : Results.Ok(new
+            {
+                itemNo = result.Value.No,
+                costingMethod = result.Value.CostingMethod.ToString(),
+                tracking = result.Value.Tracking.ToString(),
+            });
+    }
+
+    private static async Task<IResult> TrackedUnitsAsync(
+        ItemCostingService costing,
+        IUserContext user,
+        HttpContext http,
+        CancellationToken cancellationToken,
+        [FromQuery] string? itemNo = null)
+    {
+        if (!Can(user, "Inventory.Item.Read"))
+        {
+            return Forbidden("Inventory.Item.Read", "view serials and lots", http);
+        }
+
+        return Results.Ok(await costing.OnHandAsync(itemNo, cancellationToken).ConfigureAwait(false));
     }
 
     private static async Task<IResult> ReorderPoliciesAsync(

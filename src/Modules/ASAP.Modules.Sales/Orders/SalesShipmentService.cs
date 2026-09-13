@@ -12,7 +12,13 @@ namespace ASAP.Modules.Sales.Orders;
 /// <summary>How much of one line went out.</summary>
 /// <param name="LineNo">The order line.</param>
 /// <param name="Quantity">How much shipped. Always positive.</param>
-public readonly record struct ShipmentLineRequest(int LineNo, decimal Quantity);
+/// <param name="TrackingNos">
+/// The serial numbers, one per unit, or the lot, on a specifically costed item.
+/// </param>
+public readonly record struct ShipmentLineRequest(
+    int LineNo,
+    decimal Quantity,
+    IReadOnlyList<string>? TrackingNos = null);
 
 /// <summary>What a shipment moved.</summary>
 /// <param name="OrderNo">The order shipped against.</param>
@@ -129,6 +135,50 @@ public sealed class SalesShipmentService(
                 // Carried from the order line. Without it a variant item cannot be shipped at all.
                 VariantCode: g.Line.VariantCode))
             .ToList();
+
+        // Serial and lot numbers turn a line into the units it moves. Several numbers that do not
+        // match the quantity are refused here, where the line is still known; whether the item
+        // needs numbers at all, and by serial or lot, is posting's to decide.
+        var trackingByLine = (lines ?? [])
+            .Where(static l => l.TrackingNos is { Count: > 0 })
+            .ToDictionary(static l => l.LineNo, static l => l.TrackingNos!);
+
+        if (trackingByLine.Count > 0)
+        {
+            var units = new List<StockMovementRequest>();
+            var mismatched = new List<AsapMessage>();
+
+            foreach (var (movement, lineNo) in movements.Zip(going.Where(static g => g.Line.Type is SalesLineType.Item).Select(static g => g.Line.LineNo)))
+            {
+                var split = TrackedMovements.Split(movement, trackingByLine.GetValueOrDefault(lineNo));
+
+                if (split is null)
+                {
+                    mismatched.Add(messages.Render(
+                        Inventory.InventoryMessages.TrackingNumbersDoNotMatch,
+                        new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+                        {
+                            ["LineNo"] = lineNo,
+                            ["ItemNo"] = movement.ItemNo,
+                            ["Quantity"] = Math.Abs(movement.Quantity),
+                            ["Count"] = trackingByLine[lineNo].Count,
+                            ["Tracking"] = "serial",
+                        },
+                        MessageTarget.OnField($"Lines[{lineNo}]")));
+
+                    continue;
+                }
+
+                units.AddRange(split);
+            }
+
+            if (mismatched.Count > 0)
+            {
+                return Result<SalesShipment>.Failure(mismatched);
+            }
+
+            movements = units;
+        }
 
         var transactionNo = 0L;
         var cost = 0m;

@@ -74,6 +74,7 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
 
 
         services.AddScoped<Transfers.TransferRequestService>();
+        services.AddScoped<Items.ItemCostingService>();
         services.AddScoped<Locations.BinMovementService>();
         services.AddScoped<Items.ReorderPolicyService>();
         services.AddScoped<Reservations.StockReservationService>();
@@ -510,6 +511,18 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
             Route = "/inventory/counts",
             RequiresPermission = $"{Id}.Count.Read",
             Order = 35,
+        },
+        new()
+        {
+            Id = "Inventory.TrackedUnits",
+            Module = Id,
+            ParentId = "Inventory.Root",
+            DisplayName = new LocalizedText("Serials and lots", "الأرقام التسلسلية والدفعات"),
+            Kind = NavigationKind.Page,
+            Route = "/inventory/tracked-units",
+            RequiresPermission = $"{Id}.Item.Read",
+            Order = 39,
+            HelpTopic = "inventory/specific-costing",
         },
         new()
         {

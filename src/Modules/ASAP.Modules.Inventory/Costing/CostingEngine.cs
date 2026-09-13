@@ -112,6 +112,13 @@ public static class CostingEngine
         {
             CostingMethod.Standard => AtFixedCost(quantity, standardCost),
             CostingMethod.Average => AtAverage(quantity, layers, fallbackUnitCost),
+
+            // The caller hands over only the layers of the named serial or lot, so walking them in
+            // order is the specific cost: a serial has one layer, a lot has the receipts of that lot.
+            // Named rather than left to the default so that the method is visibly handled — it used
+            // to fall through to FIFO over every layer, and the item said "specific" while costing
+            // whatever was oldest.
+            CostingMethod.Specific => AtFifo(quantity, layers, fallbackUnitCost),
             _ => AtFifo(quantity, layers, fallbackUnitCost),
         };
     }

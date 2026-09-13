@@ -234,6 +234,30 @@ public static class InventoryMessages
     /// <summary>Something tried to change the costing method after entries had posted.</summary>
     public static readonly MessageCode CostingMethodLocked = new("INV.ITEM.COSTING_METHOD_LOCKED");
 
+    /// <summary>A tracked item's movement names no serial or lot.</summary>
+    public static readonly MessageCode TrackingNumberRequired = new("INV.TRACKING.REQUIRED");
+
+    /// <summary>A serial number moving more than one unit.</summary>
+    public static readonly MessageCode SerialMovesOneUnit = new("INV.TRACKING.SERIAL_ONE_UNIT");
+
+    /// <summary>A serial received that is already in stock.</summary>
+    public static readonly MessageCode SerialAlreadyOnHand = new("INV.TRACKING.SERIAL_ON_HAND");
+
+    /// <summary>A serial or lot issued that is not here.</summary>
+    public static readonly MessageCode TrackedUnitNotOnHand = new("INV.TRACKING.NOT_ON_HAND");
+
+    /// <summary>A serial or lot given on an item that is not tracked.</summary>
+    public static readonly MessageCode TrackingOnUntrackedItem = new("INV.TRACKING.UNTRACKED_ITEM");
+
+    /// <summary>Specific costing chosen with nothing to tell units apart.</summary>
+    public static readonly MessageCode SpecificCostingNeedsTracking = new("INV.TRACKING.SPECIFIC_NEEDS_TRACKING");
+
+    /// <summary>Tracking chosen on an item that is not specifically costed.</summary>
+    public static readonly MessageCode TrackingNeedsSpecificCosting = new("INV.TRACKING.NEEDS_SPECIFIC");
+
+    /// <summary>A document line's serial numbers do not match the quantity.</summary>
+    public static readonly MessageCode TrackingNumbersDoNotMatch = new("INV.TRACKING.COUNT_MISMATCH");
+
     /// <summary>A transfer names one location as both source and destination.</summary>
     public static readonly MessageCode TransferToSameLocation = new("INV.TRANSFER.SAME_LOCATION");
 
@@ -1402,6 +1426,123 @@ public static class InventoryMessages
             Resolution = new LocalizedText(
                 "Enter a quantity on line {LineNo}, or remove the line.",
                 "أدخل كمية في السطر {LineNo}، أو احذف السطر."),
+        },
+        new()
+        {
+            Code = TrackingNumberRequired,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Which one?", "أيّها؟"),
+            Detail = new LocalizedText(
+                "Line {LineNo}: {ItemNo} is costed by {Tracking}, and the line does not say which.",
+                "السطر {LineNo}: يُحتسب {ItemNo} بتكلفة كل {Tracking}، والسطر لا يذكر أيّها."),
+            Resolution = new LocalizedText(
+                "Enter the serial or lot number. Each unit carries its own cost, so the number is "
+                + "what decides what this line costs.",
+                "أدخل الرقم التسلسلي أو رقم الدفعة. فلكل وحدة تكلفتها، والرقم هو ما يحدد تكلفة هذا السطر."),
+            HelpTopic = "inventory/specific-costing",
+        },
+        new()
+        {
+            Code = SerialMovesOneUnit,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("A serial number is one unit", "الرقم التسلسلي وحدة واحدة"),
+            Detail = new LocalizedText(
+                "Line {LineNo} moves {Quantity:0.#####} of {ItemNo} under serial {TrackingNo}.",
+                "السطر {LineNo} ينقل {Quantity:0.#####} من {ItemNo} بالرقم التسلسلي {TrackingNo}."),
+            Resolution = new LocalizedText(
+                "Put each unit on its own line with its own serial number.",
+                "ضع كل وحدة في سطر مستقل برقمها التسلسلي."),
+            HelpTopic = "inventory/specific-costing",
+        },
+        new()
+        {
+            Code = SerialAlreadyOnHand,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("That serial is already in stock", "هذا الرقم التسلسلي في المخزون بالفعل"),
+            Detail = new LocalizedText(
+                "{ItemNo} serial {TrackingNo} is already on hand, and line {LineNo} receives it again.",
+                "الصنف {ItemNo} بالرقم التسلسلي {TrackingNo} موجود بالفعل، والسطر {LineNo} يستلمه مجددًا."),
+            Resolution = new LocalizedText(
+                "Check the number against the unit. Two units cannot share a serial; if one was sold "
+                + "and has come back, record it as a return so it carries the cost it left with.",
+                "راجع الرقم على الوحدة. فلا تشترك وحدتان في رقم تسلسلي؛ وإن بيعت وحدة ثم عادت فسجّلها "
+                + "مرتجعًا لتحمل التكلفة التي خرجت بها."),
+            HelpTopic = "inventory/specific-costing",
+        },
+        new()
+        {
+            Code = TrackedUnitNotOnHand,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("That unit is not here", "هذه الوحدة ليست هنا"),
+            Detail = new LocalizedText(
+                "Line {LineNo} takes {Quantity:0.#####} of {ItemNo} {TrackingNo}, and "
+                + "{AvailableQuantity:0.#####} of it is here.",
+                "السطر {LineNo} يأخذ {Quantity:0.#####} من {ItemNo} {TrackingNo}، والموجود منه هنا "
+                + "{AvailableQuantity:0.#####}."),
+            Resolution = new LocalizedText(
+                "Check the number, and the location. A specifically costed unit is never sold ahead of "
+                + "its receipt, whatever the company allows for other stock: there is no estimating "
+                + "what one particular unit cost.",
+                "راجع الرقم والموقع. فالوحدة ذات التكلفة المحددة لا تُباع قبل استلامها أبدًا، أيًّا كان ما "
+                + "تسمح به الشركة لغيرها من المخزون: إذ لا سبيل لتقدير تكلفة وحدة بعينها."),
+            HelpTopic = "inventory/specific-costing",
+        },
+        new()
+        {
+            Code = TrackingOnUntrackedItem,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("That item is not tracked", "هذا الصنف غير متتبَّع"),
+            Detail = new LocalizedText(
+                "Line {LineNo} names {TrackingNo} on {ItemNo}, which is not tracked by serial or lot.",
+                "السطر {LineNo} يذكر {TrackingNo} على {ItemNo}، وهو غير متتبَّع برقم تسلسلي أو دفعة."),
+            Resolution = new LocalizedText(
+                "Leave the number off. Recording a serial nothing costs by and nothing checks would be "
+                + "a number somebody later relies on.",
+                "احذف الرقم. فتسجيل رقم تسلسلي لا تُحتسب به تكلفة ولا يفحصه شيء رقمٌ سيعتمد عليه أحدهم لاحقًا."),
+            HelpTopic = "inventory/specific-costing",
+        },
+        new()
+        {
+            Code = SpecificCostingNeedsTracking,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Specific costing needs a way to tell units apart", "التكلفة المحددة تحتاج ما يميّز الوحدات"),
+            Detail = new LocalizedText(
+                "{ItemNo} would be costed specifically with no serial or lot to identify each unit.",
+                "سيُحتسب {ItemNo} بالتكلفة المحددة دون رقم تسلسلي أو دفعة يميّز كل وحدة."),
+            Resolution = new LocalizedText(
+                "Choose serial for goods that each differ, like vehicles, or lot for batches bought "
+                + "together. Without one, specific costing is FIFO under another name.",
+                "اختر الرقم التسلسلي للبضائع التي تختلف كل وحدة منها كالمركبات، أو الدفعة لما يُشترى "
+                + "معًا. وبدون أحدهما تكون التكلفة المحددة هي الوارد أولًا باسم آخر."),
+            HelpTopic = "inventory/specific-costing",
+        },
+        new()
+        {
+            Code = TrackingNeedsSpecificCosting,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Tracking goes with specific costing", "التتبع يرافق التكلفة المحددة"),
+            Detail = new LocalizedText(
+                "{ItemNo} would be tracked by {Tracking} while costed by {CurrentMethod}.",
+                "سيُتتبَّع {ItemNo} بـ {Tracking} بينما يُحتسب بطريقة {CurrentMethod}."),
+            Resolution = new LocalizedText(
+                "Cost it specifically, or leave it untracked. A serial that does not decide the cost "
+                + "is decoration, and one that does makes the item specific.",
+                "احتسبه بالتكلفة المحددة، أو اتركه بلا تتبع. فالرقم التسلسلي الذي لا يحدد التكلفة زينة، "
+                + "والذي يحددها يجعل الصنف ذا تكلفة محددة."),
+            HelpTopic = "inventory/specific-costing",
+        },
+        new()
+        {
+            Code = TrackingNumbersDoNotMatch,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("The numbers do not match the quantity", "الأرقام لا تطابق الكمية"),
+            Detail = new LocalizedText(
+                "Line {LineNo} moves {Quantity:0.#####} of {ItemNo} and names {Count} {Tracking} number(s).",
+                "السطر {LineNo} ينقل {Quantity:0.#####} من {ItemNo} ويذكر {Count} رقم {Tracking}."),
+            Resolution = new LocalizedText(
+                "A serially tracked line names one serial per unit. A lot tracked line names one lot.",
+                "السطر المتتبَّع بالرقم التسلسلي يذكر رقمًا لكل وحدة. والسطر المتتبَّع بالدفعة يذكر دفعة واحدة."),
+            HelpTopic = "inventory/specific-costing",
         },
         new()
         {

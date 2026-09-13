@@ -28,6 +28,7 @@ import {
   ReorderKind,
   ReorderPolicyRow,
   StockLocation,
+  TrackedUnitRow,
   TransferFromRequestResult,
   TransferRequestRow,
   StockMovement,
@@ -51,6 +52,20 @@ export class InventoryService {
   /** The items in the active company. */
   items(): Promise<Item[]> {
     return firstValueFrom(this.http.get<Item[]>(`${this.base}/items`));
+  }
+
+  /** Every serial and lot on hand, and what each cost. */
+  trackedUnits(itemNo?: string): Promise<TrackedUnitRow[]> {
+    const query = itemNo ? `?itemNo=${encodeURIComponent(itemNo)}` : '';
+
+    return firstValueFrom(this.http.get<TrackedUnitRow[]>(`${this.base}/tracked-units${query}`));
+  }
+
+  /** Sets how an item is costed. Refused once anything has posted. */
+  setItemCosting(itemNo: string, costingMethod: string, tracking: string): Promise<unknown> {
+    return firstValueFrom(
+      this.http.put(`${this.base}/items/${encodeURIComponent(itemNo)}/costing`, { costingMethod, tracking }),
+    );
   }
 
   /** Stock counts, most recent first. */

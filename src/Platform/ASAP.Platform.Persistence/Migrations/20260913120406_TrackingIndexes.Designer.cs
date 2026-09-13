@@ -4,6 +4,7 @@ using ASAP.Platform.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ASAP.Platform.Persistence.Migrations
 {
     [DbContext(typeof(AsapDbContext))]
-    partial class AsapDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260913120406_TrackingIndexes")]
+    partial class TrackingIndexes
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3564,6 +3567,12 @@ namespace ASAP.Platform.Persistence.Migrations
                         .HasColumnType("bit");
 
                     b.Property<bool>("IsDeleted")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsLotTracked")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsSerialTracked")
                         .HasColumnType("bit");
 
                     b.Property<int>("Kind")

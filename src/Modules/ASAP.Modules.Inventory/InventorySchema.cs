@@ -583,6 +583,10 @@ public sealed partial class InventorySchema : IModuleSchema
             builder.Property(e => e.SerialNo).HasMaxLength(64);
             builder.Property(e => e.LotNo).HasMaxLength(64);
 
+            // Every movement of a tracked item asks what of this serial or lot is on hand.
+            builder.HasIndex(e => new { e.CompanyId, e.ItemId, e.SerialNo }).HasFilter("[SerialNo] IS NOT NULL");
+            builder.HasIndex(e => new { e.CompanyId, e.ItemId, e.LotNo }).HasFilter("[LotNo] IS NOT NULL");
+
             builder.Property(e => e.Quantity).HasColumnType(DecimalPrecisionConventions.Quantity);
             builder.Property(e => e.RemainingQuantity).HasColumnType(DecimalPrecisionConventions.Quantity);
 

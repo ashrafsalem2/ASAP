@@ -65,6 +65,11 @@ export const routes: Routes = [
           import('./features/inventory/stock-analysis').then((m) => m.StockAnalysis),
       },
       {
+        path: 'inventory/tracked-units',
+        canActivate: [requirePermission('Inventory.Item.Read')],
+        loadComponent: () => import('./features/inventory/tracked-units').then((m) => m.TrackedUnits),
+      },
+      {
         path: 'inventory/transfer-requests',
         canActivate: [requirePermission('Inventory.Transfer.Read')],
         loadComponent: () =>

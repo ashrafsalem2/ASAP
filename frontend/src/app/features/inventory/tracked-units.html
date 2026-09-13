@@ -1,0 +1,114 @@
+<div class="page">
+  <h1>{{ t('inventory.trackedUnits.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('inventory.trackedUnits.intro') }}</p>
+
+    <div class="panel__body draft">
+      <label class="field">
+        <span class="field__label">{{ t('inventory.trackedUnits.item') }}</span>
+        <select class="select" [(ngModel)]="filterItemNo" name="filter" (ngModelChange)="filter()">
+          <option value="">{{ t('inventory.trackedUnits.allItems') }}</option>
+          @for (item of items(); track item.no) {
+            @if (item.tracking !== 'None') {
+              <option [value]="item.no">{{ item.no }} — {{ item.description }}</option>
+            }
+          }
+        </select>
+      </label>
+    </div>
+
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else if (units().length === 0) {
+      <p class="empty">{{ t('inventory.trackedUnits.none') }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('inventory.trackedUnits.item') }}</th>
+              <th>{{ t('inventory.trackedUnits.number') }}</th>
+              <th>{{ t('inventory.trackedUnits.location') }}</th>
+              <th>{{ t('inventory.trackedUnits.received') }}</th>
+              <th class="numeric">{{ t('inventory.trackedUnits.onHand') }}</th>
+              <th class="numeric">{{ t('inventory.trackedUnits.unitCost') }}</th>
+              <th class="numeric">{{ t('inventory.trackedUnits.value') }}</th>
+              <th>{{ t('inventory.trackedUnits.document') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (unit of units(); track unit.itemNo + unit.trackingNo + unit.locationCode) {
+              <tr>
+                <td class="code">{{ unit.itemNo }}</td>
+                <td class="code">{{ unit.trackingNo }}</td>
+                <td class="code">{{ unit.locationCode }}</td>
+                <td>{{ unit.receivedOn }}</td>
+                <td class="numeric">{{ unit.quantityOnHand }}</td>
+                <td class="numeric">{{ i18n.amount(unit.unitCost) }}</td>
+                <td class="numeric">{{ i18n.amount(unit.value) }}</td>
+                <td class="code">{{ unit.documentNo ?? '—' }}</td>
+              </tr>
+            }
+          </tbody>
+          <tfoot>
+            <tr>
+              <td colspan="6">{{ t('inventory.trackedUnits.total') }}</td>
+              <td class="numeric"><strong>{{ i18n.amount(totalValue()) }}</strong></td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    }
+  </section>
+
+  @if (canWrite()) {
+    <section class="panel">
+      <h2 class="panel__title">{{ t('inventory.trackedUnits.costingTitle') }}</h2>
+
+      <div class="panel__body draft">
+        <label class="field">
+          <span class="field__label">{{ t('inventory.trackedUnits.item') }}</span>
+          <select class="select" [(ngModel)]="costingItemNo" name="costingItem" (ngModelChange)="chooseItem()">
+            <option value=""></option>
+            @for (item of items(); track item.no) {
+              <option [value]="item.no">{{ item.no }} — {{ item.description }}</option>
+            }
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field__label">{{ t('inventory.trackedUnits.method') }}</span>
+          <select class="select" [(ngModel)]="costingMethod" name="method" (ngModelChange)="methodChanged()">
+            <option value="Fifo">{{ t('inventory.trackedUnits.fifo') }}</option>
+            <option value="Average">{{ t('inventory.trackedUnits.average') }}</option>
+            <option value="Standard">{{ t('inventory.trackedUnits.standard') }}</option>
+            <option value="Specific">{{ t('inventory.trackedUnits.specific') }}</option>
+          </select>
+        </label>
+
+        @if (costingMethod === 'Specific') {
+          <label class="field">
+            <span class="field__label">{{ t('inventory.trackedUnits.tracking') }}</span>
+            <select class="select" [(ngModel)]="tracking" name="tracking">
+              <option value="Serial">{{ t('inventory.trackedUnits.serial') }}</option>
+              <option value="Lot">{{ t('inventory.trackedUnits.lot') }}</option>
+            </select>
+          </label>
+        }
+
+        <button
+          type="button"
+          class="button button--primary"
+          [disabled]="busy() || !costingItemNo"
+          (click)="saveCosting()"
+        >
+          {{ t('inventory.trackedUnits.saveCosting') }}
+        </button>
+      </div>
+
+      <p class="panel__body hint">{{ t('inventory.trackedUnits.costingHint') }}</p>
+    </section>
+  }
+</div>

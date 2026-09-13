@@ -161,9 +161,24 @@ export interface Item {
 
   /** Withdrawn from use. Still valued and still reportable; simply not sellable. */
   isBlocked: boolean;
+
+  /** How a specifically costed item's units are told apart. */
+  tracking?: 'None' | 'Lot' | 'Serial';
 }
 
-/** A place stock is held. */
+/** One serial or lot on hand, and what it cost. */
+export interface TrackedUnitRow {
+  itemNo: string;
+  trackingNo: string;
+  locationCode: string;
+  variantCode: string | null;
+  receivedOn: string;
+  quantityOnHand: number;
+  unitCost: number;
+  value: number;
+  documentNo: string | null;
+}
+
 /** How much to order when stock runs down. */
 export type ReorderKind = 'FixedQuantity' | 'UpToMaximum';
 
@@ -201,6 +216,7 @@ export interface ReplenishmentRow {
   lastDirectCost: number;
 }
 
+/** A place stock is held. */
 export interface StockLocation {
   code: string;
   name: string;

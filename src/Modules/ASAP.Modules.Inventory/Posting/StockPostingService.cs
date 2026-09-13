@@ -55,6 +55,11 @@ namespace ASAP.Modules.Inventory.Posting;
 /// a variant splits the stock and the cost layers, so a movement that did not say which one would
 /// have to be guessed at, and a guess here costs a blue shirt against a red receipt.
 /// </param>
+/// <param name="TrackingNo">
+/// The serial or lot, on a specifically costed item. Required there, because the unit is what
+/// decides the cost: a car sold without saying which car costs whichever one the database found
+/// first, and the margin on both is wrong.
+/// </param>
 public sealed record StockMovementRequest(
     string ItemNo,
     string LocationCode,
@@ -67,7 +72,8 @@ public sealed record StockMovementRequest(
     string? ReasonCode = null,
     string? Note = null,
     string? VariantCode = null,
-    string? AppliesToDocumentNo = null);
+    string? AppliesToDocumentNo = null,
+    string? TrackingNo = null);
 
 /// <summary>What a stock posting produced.</summary>
 /// <param name="TransactionNo">The number grouping every entry written.</param>
@@ -298,6 +304,8 @@ public sealed partial class StockPostingService(
             TransactionNo = transactionNo,
             SourceCode = sourceCode,
             BranchId = tenantContext.BranchId,
+            SerialNo = item.Tracking is ItemTracking.Serial ? Tracking(request.TrackingNo) : null,
+            LotNo = item.Tracking is ItemTracking.Lot ? Tracking(request.TrackingNo) : null,
         };
 
         var result = request.Quantity > 0
@@ -409,6 +417,20 @@ public sealed partial class StockPostingService(
             .ThenBy(e => e.Id)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);
+
+        // A specifically costed unit costs what that unit cost, and nothing else. The layers are
+        // narrowed to the named serial or lot before costing sees them, so the engine's ordinary
+        // walk over them is the specific cost. Resolution has already refused a unit that is not
+        // here, so there is no shortfall to estimate: an estimate of one particular car's cost is
+        // not a figure anybody could stand behind.
+        if (item.Tracking is not ItemTracking.None)
+        {
+            var tracking = Tracking(request.TrackingNo);
+
+            openLayers = item.Tracking is ItemTracking.Serial
+                ? [.. openLayers.Where(l => l.SerialNo == tracking)]
+                : [.. openLayers.Where(l => l.LotNo == tracking)];
+        }
 
         // Goods going back to the vendor come off the delivery they arrived on, not off the oldest
         // shelf. Without this a return of goods bought at twenty relieves an older layer at ten,
@@ -680,6 +702,11 @@ public sealed partial class StockPostingService(
         var assumed = new List<AsapMessage>();
         var movements = new List<MovementView>();
 
+        // Serials and lots already moved by earlier lines of this same posting. Without it two
+        // lines could receive one serial, or two lines sell the last unit of one lot, and each
+        // would pass on its own against a ledger that has not seen the other yet.
+        var trackedInBatch = new Dictionary<(Guid ItemId, string TrackingNo), decimal>();
+
         for (var index = 0; index < requests.Count; index++)
         {
             var request = requests[index];
@@ -755,6 +782,22 @@ public sealed partial class StockPostingService(
                 continue;
             }
 
+            var trackingRefusal = await CheckTrackingAsync(
+                    request,
+                    item,
+                    location.Id,
+                    variantResult.VariantId,
+                    trackedInBatch,
+                    index + 1,
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            if (trackingRefusal is not null)
+            {
+                missing.Add(trackingRefusal);
+                continue;
+            }
+
             var onHand = await OnHandAsync(item.Id, variantResult.VariantId, location.Id, cancellationToken)
                 .ConfigureAwait(false);
 
@@ -807,6 +850,115 @@ public sealed partial class StockPostingService(
         return missing.Count > 0
             ? Result<List<MovementView>>.Failure(missing)
             : Result<List<MovementView>>.Success(movements, assumed);
+    }
+
+    /// <summary>A tracking number as it is stored: trimmed, upper case, or null.</summary>
+    private static string? Tracking(string? value)
+        => string.IsNullOrWhiteSpace(value) ? null : value.Trim().ToUpperInvariant();
+
+    /// <summary>
+    /// Whether a line on a tracked item names a unit it may move.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Four refusals, and no softening of any of them, because each one is a cost that would
+    /// otherwise be wrong for a specific, identifiable thing. No number: which car? A serial moving
+    /// more than one: a serial is one unit. A serial received that is already here: two cars
+    /// cannot have one chassis number. A unit sold that is not here: there is no estimate of what
+    /// one particular car cost, so specific costing never runs negative, whatever the company
+    /// allows for everything else.
+    /// </para>
+    /// <para>
+    /// A tracking number on an item that is not tracked is refused too. Accepting it would record
+    /// a serial nothing costs by and nothing checks, and somebody would later rely on it.
+    /// </para>
+    /// </remarks>
+    private async Task<AsapMessage?> CheckTrackingAsync(
+        StockMovementRequest request,
+        Item item,
+        Guid locationId,
+        Guid? variantId,
+        Dictionary<(Guid ItemId, string TrackingNo), decimal> inBatch,
+        int lineNo,
+        CancellationToken cancellationToken)
+    {
+        var tracking = Tracking(request.TrackingNo);
+        var target = MessageTarget.OnField($"Lines[{lineNo}]");
+
+        var arguments = Args(
+            ("LineNo", lineNo),
+            ("ItemNo", item.No),
+            ("TrackingNo", tracking),
+            ("Tracking", item.Tracking.ToString().ToLowerInvariant()),
+            ("Quantity", Math.Abs(request.Quantity)));
+
+        if (item.Tracking is ItemTracking.None)
+        {
+            return tracking is null
+                ? null
+                : messages.Render(InventoryMessages.TrackingOnUntrackedItem, arguments, target);
+        }
+
+        if (tracking is null)
+        {
+            return messages.Render(InventoryMessages.TrackingNumberRequired, arguments, target);
+        }
+
+        if (item.Tracking is ItemTracking.Serial && Math.Abs(request.Quantity) != 1m)
+        {
+            return messages.Render(InventoryMessages.SerialMovesOneUnit, arguments, target);
+        }
+
+        var key = (item.Id, tracking);
+        var movedAlready = inBatch.GetValueOrDefault(key);
+
+        // What of this unit is on hand anywhere for a serial, here for a lot. A serial is one
+        // physical thing, so a second receipt of it is wrong wherever the first one is standing.
+        var onHandQuery = context.Set<ItemLedgerEntry>()
+            .AsNoTracking()
+            .Where(e => e.ItemId == item.Id && e.VariantId == variantId);
+
+        onHandQuery = item.Tracking is ItemTracking.Serial
+            ? onHandQuery.Where(e => e.SerialNo == tracking)
+            : onHandQuery.Where(e => e.LotNo == tracking && e.LocationId == locationId);
+
+        var onHand = await onHandQuery
+            .SumAsync(static e => e.RemainingQuantity, cancellationToken)
+            .ConfigureAwait(false);
+
+        onHand += movedAlready;
+
+        if (request.Quantity > 0m)
+        {
+            if (item.Tracking is ItemTracking.Serial && onHand > 0m)
+            {
+                return messages.Render(InventoryMessages.SerialAlreadyOnHand, arguments, target);
+            }
+        }
+        else
+        {
+            var here = item.Tracking is ItemTracking.Serial
+                ? await context.Set<ItemLedgerEntry>()
+                      .AsNoTracking()
+                      .Where(e => e.ItemId == item.Id
+                                  && e.VariantId == variantId
+                                  && e.SerialNo == tracking
+                                  && e.LocationId == locationId)
+                      .SumAsync(static e => e.RemainingQuantity, cancellationToken)
+                      .ConfigureAwait(false)
+                  + movedAlready
+                : onHand;
+
+            if (here < Math.Abs(request.Quantity))
+            {
+                arguments["AvailableQuantity"] = Math.Max(0m, here);
+                return messages.Render(InventoryMessages.TrackedUnitNotOnHand, arguments, target);
+            }
+        }
+
+        inBatch[key] = movedAlready + request.Quantity;
+
+        return null;
     }
 
     /// <summary>What a line's variant came to, or why the line cannot stand.</summary>

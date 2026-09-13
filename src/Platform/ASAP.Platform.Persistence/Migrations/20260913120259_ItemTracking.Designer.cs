@@ -4,6 +4,7 @@ using ASAP.Platform.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ASAP.Platform.Persistence.Migrations
 {
     [DbContext(typeof(AsapDbContext))]
-    partial class AsapDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260913120259_ItemTracking")]
+    partial class ItemTracking
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -3566,6 +3569,12 @@ namespace ASAP.Platform.Persistence.Migrations
                     b.Property<bool>("IsDeleted")
                         .HasColumnType("bit");
 
+                    b.Property<bool>("IsLotTracked")
+                        .HasColumnType("bit");
+
+                    b.Property<bool>("IsSerialTracked")
+                        .HasColumnType("bit");
+
                     b.Property<int>("Kind")
                         .HasColumnType("int");
 
@@ -4190,12 +4199,6 @@ namespace ASAP.Platform.Persistence.Migrations
                         .HasFilter("[WentNegative] = 1");
 
                     b.HasIndex("CompanyId", "TransactionNo");
-
-                    b.HasIndex("CompanyId", "ItemId", "LotNo")
-                        .HasFilter("[LotNo] IS NOT NULL");
-
-                    b.HasIndex("CompanyId", "ItemId", "SerialNo")
-                        .HasFilter("[SerialNo] IS NOT NULL");
 
                     b.HasIndex("CompanyId", "ReasonCode", "PostingDate");
 

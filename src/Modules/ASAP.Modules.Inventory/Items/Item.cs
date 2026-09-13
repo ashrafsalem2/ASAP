@@ -38,6 +38,23 @@ public enum CostingMethod
     Specific = 3,
 }
 
+/// <summary>How the individual units of a specifically costed item are told apart.</summary>
+public enum ItemTracking
+{
+    /// <summary>Not tracked. Every item that is not specifically costed.</summary>
+    None = 0,
+
+    /// <summary>
+    /// By lot: a batch received together, any number of units, one cost.
+    /// </summary>
+    Lot = 1,
+
+    /// <summary>
+    /// By serial: every unit its own number and its own cost. One unit per number, always.
+    /// </summary>
+    Serial = 2,
+}
+
 /// <summary>Whether an item is stocked, or is a service with no stock at all.</summary>
 public enum ItemKind
 {
@@ -101,6 +118,17 @@ public sealed class Item : CompanyEntity
     public CostingMethod CostingMethod { get; set; } = CostingMethod.Fifo;
 
     /// <summary>
+    /// How a specifically costed item's units are told apart.
+    /// </summary>
+    /// <remarks>
+    /// Set exactly when the item is costed specifically, and never otherwise. Specific costing
+    /// with nothing to identify the unit is FIFO wearing a different name — which is what choosing
+    /// "specific" used to do, silently — and a lot number on a FIFO item would mean either ignoring
+    /// it when costing, which makes it decoration, or honouring it, which makes the item specific.
+    /// </remarks>
+    public ItemTracking Tracking { get; set; } = ItemTracking.None;
+
+    /// <summary>
     /// The fixed cost used when <see cref="CostingMethod"/> is
     /// <see cref="Inventory.Items.CostingMethod.Standard"/>.
     /// </summary>
@@ -147,12 +175,6 @@ public sealed class Item : CompanyEntity
     /// system, and unwilling to do the same for a serialised appliance.
     /// </remarks>
     public bool? AllowNegativeInventory { get; set; }
-
-    /// <summary>Whether the item is tracked by serial number.</summary>
-    public bool IsSerialTracked { get; set; }
-
-    /// <summary>Whether the item is tracked by lot or batch.</summary>
-    public bool IsLotTracked { get; set; }
 
     /// <summary>True once anything has posted, which locks the costing method.</summary>
     public bool HasLedgerEntries { get; set; }

@@ -76,6 +76,7 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
         services.AddScoped<Transfers.TransferRequestService>();
         services.AddScoped<Items.ItemCostingService>();
         services.AddScoped<Locations.BinMovementService>();
+        services.AddScoped<Locations.BinPicker>();
         services.AddScoped<Items.ReorderPolicyService>();
         services.AddScoped<Reservations.StockReservationService>();
         services.AddScoped<Reporting.InventoryReportService>();

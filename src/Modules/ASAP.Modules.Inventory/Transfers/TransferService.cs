@@ -51,6 +51,7 @@ public readonly record struct TransferLineRequest(string ItemNo, decimal Quantit
 /// </remarks>
 /// <param name="context">The unit of work.</param>
 /// <param name="posting">Moves the stock.</param>
+/// <param name="bins">Picks the shelves goods leave a bin-tracked source from.</param>
 /// <param name="messages">Renders refusals.</param>
 /// <param name="numbers">Issues the transfer number.</param>
 /// <param name="tenantContext">Supplies the company the transfer belongs to.</param>
@@ -59,6 +60,7 @@ public readonly record struct TransferLineRequest(string ItemNo, decimal Quantit
 public sealed class TransferService(
     AsapDbContext context,
     StockPostingService posting,
+    Locations.BinPicker bins,
     IMessageCatalog messages,
     INumberSeriesService numbers,
     ITenantContext tenantContext,
@@ -325,10 +327,12 @@ public sealed class TransferService(
             return Result<TransferReceipt>.FailureFrom(leaving);
         }
 
-        // Out of the source and into transit, unit by unit, as one posting, so the goods are never
-        // in neither place nor both. Each arrival follows the departure it matches, which is how
-        // posting carries the cost that left across to the place it arrives.
-        var movements = leaving.Value
+        var picked = await bins.PickAsync(leaving.Value, cancellationToken).ConfigureAwait(false);
+
+        // Out of the source and into transit, unit by unit and shelf by shelf, as one posting, so
+        // the goods are never in neither place nor both. Each arrival follows the departure it
+        // matches, which is how posting carries the cost that left across to where it arrives.
+        var movements = picked.Value
             .SelectMany(unit => new[]
             {
                 unit,
@@ -337,6 +341,7 @@ public sealed class TransferService(
                     LocationCode = inTransit.Code,
                     Quantity = -unit.Quantity,
                     EntryType = ItemLedgerEntryType.TransferIn,
+                    BinCode = null,
                 },
             })
             .ToList();
@@ -401,7 +406,7 @@ public sealed class TransferService(
 
         return Result<TransferReceipt>.Success(
             new TransferReceipt(transfer.No, result.Value.TransactionNo, lines.Count, transfer.Status),
-            result.Messages);
+            [.. picked.Messages, .. result.Messages]);
     }
 
     /// <summary>

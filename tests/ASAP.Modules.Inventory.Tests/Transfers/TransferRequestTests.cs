@@ -336,6 +336,7 @@ public sealed class TransferRequestTests : IDisposable
         var transfers = new TransferService(
             context,
             posting,
+            new BinPicker(context, catalog),
             catalog,
             _numbers,
             _tenancy,

@@ -258,6 +258,9 @@ public static class InventoryMessages
     /// <summary>A document line's serial numbers do not match the quantity.</summary>
     public static readonly MessageCode TrackingNumbersDoNotMatch = new("INV.TRACKING.COUNT_MISMATCH");
 
+    /// <summary>Which bins a shipment or transfer was picked from, where it did not say.</summary>
+    public static readonly MessageCode BinsPicked = new("INV.BIN.PICKED");
+
     /// <summary>A return names a serial or lot that did not move on the document it returns against.</summary>
     public static readonly MessageCode TrackedUnitNotOnDocument = new("INV.TRACKING.NOT_ON_DOCUMENT");
 
@@ -1539,6 +1542,21 @@ public static class InventoryMessages
                 "احتسبه بالتكلفة المحددة، أو اتركه بلا تتبع. فالرقم التسلسلي الذي لا يحدد التكلفة زينة، "
                 + "والذي يحددها يجعل الصنف ذا تكلفة محددة."),
             HelpTopic = "inventory/specific-costing",
+        },
+        new()
+        {
+            Code = BinsPicked,
+            Severity = MessageSeverity.Information,
+            Title = new LocalizedText("Picked from the bins", "صُرف من الأرفف"),
+            Detail = new LocalizedText(
+                "Line {LineNo}: {Quantity:0.#####} of {ItemNo} taken at {Location} from {Bins}.",
+                "السطر {LineNo}: أُخذ {Quantity:0.#####} من {ItemNo} في {Location} من {Bins}."),
+            Resolution = new LocalizedText(
+                "Nothing to do if that is where the goods came off. Otherwise name the bin on the line, "
+                + "or move the stock between bins so the shelves match what the picker found.",
+                "لا شيء إن كانت البضاعة أُخذت من هناك. وإلا فاذكر الرف على السطر، أو انقل المخزون بين "
+                + "الأرفف لتطابق ما وجده العامل."),
+            HelpTopic = "inventory/bins",
         },
         new()
         {

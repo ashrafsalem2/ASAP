@@ -134,6 +134,7 @@ public sealed class TransferLifecycleTests : IDisposable
         => new(
             context,
             Posting(context),
+            new BinPicker(context, new MessageCatalog([.. PlatformMessages.All, .. InventoryMessages.All])),
             new MessageCatalog([.. PlatformMessages.All, .. InventoryMessages.All]),
             new CountingSeries(),
             _tenancy,

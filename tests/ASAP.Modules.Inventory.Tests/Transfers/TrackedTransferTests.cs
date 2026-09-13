@@ -353,6 +353,7 @@ public sealed class TrackedTransferTests : IDisposable
         => new(
             context,
             Posting(context),
+            new BinPicker(context, Catalog()),
             Catalog(),
             _series,
             _tenancy,

@@ -36,6 +36,21 @@ came off is how a bin ends up holding stock nobody can find.
 At most one receiving bin per location, because "where do things go when nobody says" has to have
 one answer.
 
+## Shipments and transfers pick their own shelves
+
+A sales shipment or a transfer leaving a location with bins does not have to name one. It is picked
+the way a picker would be sent: from the bins that **actually hold the item**, in pick order,
+splitting the line across shelves where one does not cover it. A named serial comes off the shelf
+it stands on. Nothing is guessed — every bin named holds what is taken from it — and the posting
+says where the goods came off, for example "35 of ITEM-1003 taken from B-02 (30), C-04 (5)".
+
+Where the shelves together hold less than the line takes, the shortfall stays on the last shelf
+picked and the company's negative-stock rules decide, as for any shortfall. Where no shelf holds any,
+it is taken from the receiving bin, where the goods that settle it will arrive.
+
+A line that names its bin is posted exactly as named. Stock adjustments and counts still name
+their bin: they are about a particular shelf by definition.
+
 ## The shelf is short, the location is not
 
 This is the message bins exist to produce. Five were picked from `A-01`, which has two. The
@@ -74,11 +89,7 @@ in every code twice.
 
 ## What is not here yet
 
-**Put-away and pick suggestions.** The system knows the pick order and what is on each shelf, so
-it could propose the walk. It does not yet; somebody still names the bin.
+**Put-away suggestions.** Arrivals land on the receiving bin; nothing yet proposes which shelf to
+put them away on.
 
 **Bin capacity.** Nothing stops a shelf being told it holds more than it physically can.
-
-**Bin-to-bin movement as its own document.** Moving stock between shelves is possible as two
-adjustments today, which posts a value entry of nought and works, but a movement that never leaves
-the location deserves to say so on its own.

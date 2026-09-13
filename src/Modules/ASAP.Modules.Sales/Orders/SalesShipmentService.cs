@@ -15,10 +15,15 @@ namespace ASAP.Modules.Sales.Orders;
 /// <param name="TrackingNos">
 /// The serial numbers, one per unit, or the lot, on a specifically costed item.
 /// </param>
+/// <param name="BinCode">
+/// The shelf it comes off, at a location that tracks bins. Left out, the bins holding the item are
+/// picked in pick order.
+/// </param>
 public readonly record struct ShipmentLineRequest(
     int LineNo,
     decimal Quantity,
-    IReadOnlyList<string>? TrackingNos = null);
+    IReadOnlyList<string>? TrackingNos = null,
+    string? BinCode = null);
 
 /// <summary>What a shipment moved.</summary>
 /// <param name="OrderNo">The order shipped against.</param>
@@ -55,6 +60,7 @@ public readonly record struct SalesShipment(
 /// <param name="context">The unit of work.</param>
 /// <param name="orders">Loads the order.</param>
 /// <param name="posting">Moves and values the stock.</param>
+/// <param name="bins">Picks the shelves goods leave a bin-tracked location from.</param>
 /// <param name="messages">Renders refusals.</param>
 /// <param name="overrides">Records every protection this shipment pushed past.</param>
 /// <param name="setup">Supplies the negative-stock policy.</param>
@@ -64,6 +70,7 @@ public sealed class SalesShipmentService(
     AsapDbContext context,
     SalesOrderService orders,
     StockPostingService posting,
+    Inventory.Locations.BinPicker bins,
     IMessageCatalog messages,
     OverrideAuditor overrides,
     ISetupService setup,
@@ -140,6 +147,9 @@ public sealed class SalesShipmentService(
 
                 // Carried from the order line. Without it a variant item cannot be shipped at all.
                 VariantCode: g.Line.VariantCode,
+
+                // Where the line named a shelf. Otherwise a bin-tracked location is picked below.
+                BinCode: lines?.FirstOrDefault(r => r.LineNo == g.Line.LineNo).BinCode,
                 LineNo: g.Line.LineNo))
             .ToList();
 
@@ -154,7 +164,10 @@ public sealed class SalesShipmentService(
             return Result<SalesShipment>.FailureFrom(units);
         }
 
-        movements = units.Value;
+        var picked = await bins.PickAsync(units.Value, cancellationToken).ConfigureAwait(false);
+
+        movements = picked.Value;
+        found.AddRange(picked.Messages);
 
         var transactionNo = 0L;
         var cost = 0m;

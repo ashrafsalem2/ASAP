@@ -18,7 +18,14 @@ namespace ASAP.Modules.Purchasing.Orders;
 /// <summary>How much of one line is going back to the vendor.</summary>
 /// <param name="LineNo">The order line.</param>
 /// <param name="Quantity">How much is going back. Always positive.</param>
-public readonly record struct PurchaseReturnLineRequest(int LineNo, decimal Quantity);
+/// <param name="TrackingNos">
+/// The serials going back, one per unit, or the one lot, on a specifically costed item. Each must
+/// have arrived on this order and still be here, and leaves at the cost it arrived at.
+/// </param>
+public readonly record struct PurchaseReturnLineRequest(
+    int LineNo,
+    decimal Quantity,
+    IReadOnlyList<string>? TrackingNos = null);
 
 /// <summary>What a purchase return posted.</summary>
 /// <param name="OrderNo">The order the goods came in on.</param>
@@ -160,7 +167,7 @@ public sealed class PurchaseReturnService(
                 messages.Render(PurchasingMessages.NoAccrualAccount, arguments));
         }
 
-        var stock = await SendBackAsync(order, going, accrualAccount, reason, heldOverridePermissions, overrideReason, cancellationToken)
+        var stock = await SendBackAsync(order, going, lines, accrualAccount, reason, heldOverridePermissions, overrideReason, cancellationToken)
             .ConfigureAwait(false);
 
         if (stock.Failed)
@@ -236,6 +243,7 @@ public sealed class PurchaseReturnService(
     private async Task<Result<long>> SendBackAsync(
         PurchaseOrder order,
         List<(PurchaseOrderLine Line, decimal Quantity)> going,
+        IReadOnlyList<PurchaseReturnLineRequest>? lines,
         string accrualAccount,
         string? reason,
         IReadOnlySet<string>? heldOverridePermissions,
@@ -267,7 +275,8 @@ public sealed class PurchaseReturnService(
                 Note: reason,
                 BinCode: bins.GetValueOrDefault((g.Line.ItemNo!, g.Line.VariantCode ?? string.Empty)),
                 VariantCode: g.Line.VariantCode,
-                AppliesToDocumentNo: order.No))
+                AppliesToDocumentNo: order.No,
+                LineNo: g.Line.LineNo))
             .ToList();
 
         if (movements.Count == 0)
@@ -275,6 +284,19 @@ public sealed class PurchaseReturnService(
             // Every line was a charge. Nothing moves, and the credit memo still stands.
             return Result<long>.Success(0L);
         }
+
+        // Which car goes back is named, and it leaves at what that car cost.
+        var units = TrackedMovements.SplitLines(
+            movements,
+            TrackedMovements.ByLine(lines, static l => l.LineNo, static l => l.TrackingNos),
+            messages);
+
+        if (units.Failed)
+        {
+            return Result<long>.FailureFrom(units);
+        }
+
+        movements = units.Value;
 
         var allowsNegative = await setup
             .GetAsync<bool>(

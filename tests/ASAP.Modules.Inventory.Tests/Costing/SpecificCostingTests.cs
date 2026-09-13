@@ -219,6 +219,104 @@ public sealed class SpecificCostingTests : IDisposable
         (await PostAsync(Issue("CAR", 1m, "VIN-1"))).Succeeded.ShouldBeTrue();
     }
 
+    /// <summary>
+    /// One of two cars sold together comes back at what that car left at, not at their average.
+    /// </summary>
+    [Fact]
+    public async Task A_returned_car_comes_back_at_its_own_cost()
+    {
+        await PostAsync(Receive("CAR", 1m, 80_000m, "VIN-A"));
+        await PostAsync(Receive("CAR", 1m, 95_000m, "VIN-B"));
+
+        await using (var context = NewContext())
+        {
+            (await Posting(context).PostAsync(
+                    [Issue("CAR", 1m, "VIN-A"), Issue("CAR", 1m, "VIN-B")],
+                    Day,
+                    "TEST",
+                    "SALE-2",
+                    companyAllowsNegative: true))
+                .Succeeded.ShouldBeTrue();
+        }
+
+        var back = await PostAsync(Returned("VIN-B", "SALE-2"));
+
+        back.Succeeded.ShouldBeTrue();
+        back.Value.CostAmount.ShouldBe(95_000m, "the average of the two would say eighty-seven and a half");
+    }
+
+    /// <summary>A car that did not leave on a sale cannot come back against it.</summary>
+    [Fact]
+    public async Task A_car_cannot_come_back_against_a_sale_it_was_not_on()
+    {
+        await PostAsync(Receive("CAR", 1m, 80_000m, "VIN-A"));
+        await PostAsync(Receive("CAR", 1m, 95_000m, "VIN-B"));
+        await PostAsync(Issue("CAR", 1m, "VIN-A"), "SALE-1");
+        await PostAsync(Issue("CAR", 1m, "VIN-B"), "SALE-2");
+
+        var back = await PostAsync(Returned("VIN-B", "SALE-1"));
+
+        back.Failed.ShouldBeTrue();
+        back.Messages.ShouldContain(m => m.Code == InventoryMessages.TrackedUnitNotOnDocument);
+    }
+
+    /// <summary>A car goes back to the vendor it came from only if it came in on that order.</summary>
+    [Fact]
+    public async Task A_car_goes_back_only_against_the_order_it_arrived_on()
+    {
+        await PostAsync(Receive("CAR", 1m, 80_000m, "VIN-A"), "PO-1");
+        await PostAsync(Receive("CAR", 1m, 95_000m, "VIN-B"), "PO-2");
+
+        var wrongOrder = await PostAsync(
+            new StockMovementRequest("CAR", "SHOW", -1m, 0m, ItemLedgerEntryType.PurchaseReturn, AppliesToDocumentNo: "PO-1", TrackingNo: "VIN-B"));
+
+        wrongOrder.Failed.ShouldBeTrue();
+        wrongOrder.Messages.ShouldContain(m => m.Code == InventoryMessages.TrackedUnitNotOnDocument);
+
+        var rightOrder = await PostAsync(
+            new StockMovementRequest("CAR", "SHOW", -1m, 0m, ItemLedgerEntryType.PurchaseReturn, AppliesToDocumentNo: "PO-2", TrackingNo: "VIN-B"));
+
+        rightOrder.Succeeded.ShouldBeTrue();
+        rightOrder.Value.CostAmount.ShouldBe(-95_000m);
+    }
+
+    /// <summary>
+    /// A car goes back against the line it arrived on, not another line of the same order.
+    /// </summary>
+    /// <remarks>
+    /// Two lines of one order at different prices. Sending the dearer car back against the cheaper
+    /// line relieves ninety-five thousand of stock against eighty thousand of accrual.
+    /// </remarks>
+    [Fact]
+    public async Task A_car_goes_back_against_the_line_it_arrived_on()
+    {
+        await PostAsync(Receive("CAR", 1m, 80_000m, "VIN-A") with { LineNo = 10 }, "PO-1");
+        await PostAsync(Receive("CAR", 1m, 95_000m, "VIN-B") with { LineNo = 20 }, "PO-1");
+
+        var wrongLine = await PostAsync(
+            new StockMovementRequest("CAR", "SHOW", -1m, 0m, ItemLedgerEntryType.PurchaseReturn, AppliesToDocumentNo: "PO-1", TrackingNo: "VIN-B", LineNo: 10));
+
+        wrongLine.Failed.ShouldBeTrue();
+        wrongLine.Messages.ShouldContain(m => m.Code == InventoryMessages.TrackedUnitNotOnDocument);
+
+        var rightLine = await PostAsync(
+            new StockMovementRequest("CAR", "SHOW", -1m, 0m, ItemLedgerEntryType.PurchaseReturn, AppliesToDocumentNo: "PO-1", TrackingNo: "VIN-B", LineNo: 20));
+
+        rightLine.Succeeded.ShouldBeTrue();
+    }
+
+    /// <summary>A refusal names the document's own line where the caller said which it was.</summary>
+    [Fact]
+    public async Task A_refusal_names_the_document_line()
+    {
+        var unnamed = await PostAsync(Receive("CAR", 1m, 80_000m, null) with { LineNo = 30 });
+
+        unnamed.Messages.Single().Arguments["LineNo"].ShouldBe(30);
+    }
+
+    private static StockMovementRequest Returned(string serial, string saleNo)
+        => new("CAR", "SHOW", 1m, 0m, ItemLedgerEntryType.SalesReturn, AppliesToDocumentNo: saleNo, TrackingNo: serial);
+
     /// <summary>Closes every context this test opened.</summary>
     public void Dispose()
     {

@@ -4,6 +4,7 @@ using ASAP.Platform.Persistence;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using Microsoft.EntityFrameworkCore.Metadata;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 #nullable disable
@@ -11,9 +12,11 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 namespace ASAP.Platform.Persistence.Migrations
 {
     [DbContext(typeof(AsapDbContext))]
-    partial class AsapDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260913131724_TransferLineUnits")]
+    partial class TransferLineUnits
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder
@@ -4101,9 +4104,6 @@ namespace ASAP.Platform.Persistence.Migrations
 
                     b.Property<Guid?>("DimensionSetId")
                         .HasColumnType("uniqueidentifier");
-
-                    b.Property<int?>("DocumentLineNo")
-                        .HasColumnType("int");
 
                     b.Property<string>("DocumentNo")
                         .HasMaxLength(64)

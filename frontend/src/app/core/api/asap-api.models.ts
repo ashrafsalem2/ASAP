@@ -1107,6 +1107,17 @@ export interface TransferLine {
 
   /** Sent but not yet arrived: what the in-transit location is holding for this line. */
   inTransit: number;
+
+  /** The serials or lots that left on this line, on a specifically costed item. */
+  units?: TransferUnit[];
+}
+
+/** One serial or lot travelling on a transfer line. */
+export interface TransferUnit {
+  trackingNo: string;
+  quantityShipped: number;
+  quantityReceived: number;
+  inTransit: number;
 }
 
 /** A movement of stock from one location to another. */

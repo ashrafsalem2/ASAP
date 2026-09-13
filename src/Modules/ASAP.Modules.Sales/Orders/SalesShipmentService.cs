@@ -133,52 +133,22 @@ public sealed class SalesShipmentService(
                 SalesAmount: g.Quantity * g.Line.NetUnitPrice,
 
                 // Carried from the order line. Without it a variant item cannot be shipped at all.
-                VariantCode: g.Line.VariantCode))
+                VariantCode: g.Line.VariantCode,
+                LineNo: g.Line.LineNo))
             .ToList();
 
-        // Serial and lot numbers turn a line into the units it moves. Several numbers that do not
-        // match the quantity are refused here, where the line is still known; whether the item
-        // needs numbers at all, and by serial or lot, is posting's to decide.
-        var trackingByLine = (lines ?? [])
-            .Where(static l => l.TrackingNos is { Count: > 0 })
-            .ToDictionary(static l => l.LineNo, static l => l.TrackingNos!);
+        // Serial and lot numbers turn a line into the units it moves.
+        var units = TrackedMovements.SplitLines(
+            movements,
+            TrackedMovements.ByLine(lines, static l => l.LineNo, static l => l.TrackingNos),
+            messages);
 
-        if (trackingByLine.Count > 0)
+        if (units.Failed)
         {
-            var units = new List<StockMovementRequest>();
-            var mismatched = new List<AsapMessage>();
-
-            foreach (var (movement, lineNo) in movements.Zip(going.Where(static g => g.Line.Type is SalesLineType.Item).Select(static g => g.Line.LineNo)))
-            {
-                var split = TrackedMovements.Split(movement, trackingByLine.GetValueOrDefault(lineNo));
-
-                if (split is null)
-                {
-                    mismatched.Add(messages.Render(
-                        Inventory.InventoryMessages.TrackingNumbersDoNotMatch,
-                        new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
-                        {
-                            ["LineNo"] = lineNo,
-                            ["ItemNo"] = movement.ItemNo,
-                            ["Quantity"] = Math.Abs(movement.Quantity),
-                            ["Count"] = trackingByLine[lineNo].Count,
-                            ["Tracking"] = "serial",
-                        },
-                        MessageTarget.OnField($"Lines[{lineNo}]")));
-
-                    continue;
-                }
-
-                units.AddRange(split);
-            }
-
-            if (mismatched.Count > 0)
-            {
-                return Result<SalesShipment>.Failure(mismatched);
-            }
-
-            movements = units;
+            return Result<SalesShipment>.FailureFrom(units);
         }
+
+        movements = units.Value;
 
         var transactionNo = 0L;
         var cost = 0m;

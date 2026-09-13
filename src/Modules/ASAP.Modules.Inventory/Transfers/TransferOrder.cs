@@ -139,9 +139,41 @@ public sealed class TransferOrderLine : CompanyEntity
     /// </remarks>
     public decimal QuantityReceived { get; set; }
 
+    /// <summary>
+    /// The serials or lots that left on this line, on a specifically costed item.
+    /// </summary>
+    /// <remarks>
+    /// Recorded when the line ships so the receiving branch does not have to name them again. The
+    /// units in transit are exactly the units that left, and receiving takes those out of transit
+    /// rather than asking somebody at the other end to read chassis numbers off a lorry.
+    /// </remarks>
+    public ICollection<TransferOrderLineUnit> Units { get; set; } = [];
+
     /// <summary>What is still at the source waiting to go.</summary>
     public decimal OutstandingToShip => Quantity - QuantityShipped;
 
     /// <summary>What has left but not arrived.</summary>
+    public decimal InTransit => QuantityShipped - QuantityReceived;
+}
+
+/// <summary>One serial or lot travelling on a transfer line.</summary>
+public sealed class TransferOrderLineUnit : CompanyEntity
+{
+    /// <summary>The line it travels on.</summary>
+    public Guid TransferOrderLineId { get; set; }
+
+    /// <summary>Navigation to the line.</summary>
+    public TransferOrderLine? Line { get; set; }
+
+    /// <summary>The serial or lot, as stored: trimmed and upper case.</summary>
+    public required string TrackingNo { get; set; }
+
+    /// <summary>How much of it left the source. One, for a serial.</summary>
+    public decimal QuantityShipped { get; set; }
+
+    /// <summary>How much of it has arrived.</summary>
+    public decimal QuantityReceived { get; set; }
+
+    /// <summary>How much of it is still travelling.</summary>
     public decimal InTransit => QuantityShipped - QuantityReceived;
 }

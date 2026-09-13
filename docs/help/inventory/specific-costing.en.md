@@ -35,11 +35,23 @@ A shipment or an issue names the unit leaving, and it costs exactly what that un
 
 **A specifically costed unit is never sold ahead of its receipt**, whatever the company allows for other stock. Selling goods that are not there yet is normally allowed and valued at an estimate until the receipt settles it. There is no honest estimate of what one particular car cost, so for these items the unit has to be here, at this location.
 
+## Returns
+
+A return names the unit coming back, and it has to be a unit that moved on that order: the car a customer brings back is the car they bought, and a car that goes back to the vendor is one that arrived on that purchase order. It comes back at the cost that car left at, not at the average of everything the order sold.
+
+## Transfers
+
+A transfer names the units when it ships and remembers them. Receiving takes those same units out of transit at their own cost; see **Stock transfers**.
+
+## Entering the numbers
+
+Shipment, receipt, return and transfer screens have a **Serials or lot** column on each line. Separate serials with commas, spaces or new lines — a scanner's one number per line works. Several serials with no quantity keyed are that many units.
+
 ## Seeing what is on hand
 
 **Serials and lots** lists every tracked unit still in stock: where it is, when it arrived, what it cost and what it is worth in the books. A lot shows what is left of it.
 
 ## Not yet supported
 
-- **Till sales, transfers and return documents** cannot yet name a serial or lot. Tracked items are refused there, with a message saying the number is missing, rather than being moved at the wrong unit's cost. Sell tracked items through a sales order, and receive them on a purchase order.
-- Moving a tracked unit to another location is therefore not possible yet. Do not do it with a pair of stock adjustments: that writes one off and writes one on through the variance accounts, which is not what happened.
+- **Till sales** cannot yet name a serial or lot. Tracked items are refused at the till, with a message saying the number is missing, rather than being sold at the wrong unit's cost. Sell tracked items through a sales order.
+- Do not move a tracked unit with a pair of stock adjustments: that writes one off and writes one on through the variance accounts, which is not what happened. Use a transfer.

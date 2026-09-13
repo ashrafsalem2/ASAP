@@ -31,6 +31,9 @@ export interface PurchaseLineQuantity {
 
   /** The price on the invoice, when it differs from the price ordered. */
   directUnitCost?: number;
+
+  /** The serials, one per unit, or the lot, on a specifically costed item. */
+  trackingNos?: string[];
 }
 
 /** Talks to the Purchasing endpoints. */

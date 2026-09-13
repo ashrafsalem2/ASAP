@@ -8,6 +8,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslationKey } from '../../core/i18n/translations';
 import { MessageService } from '../../core/messages/message.service';
+import { parseTrackingNumbers, quantityForNumbers } from '../../core/inventory/tracking-numbers';
 
 /**
  * One sales order, and the two steps that post against it.
@@ -46,6 +47,9 @@ export class SalesOrderDetail implements OnInit {
   private readonly shipmentEntries = new Map<number, number | null>();
   private readonly invoiceEntries = new Map<number, number | null>();
   private readonly returnEntries = new Map<number, number | null>();
+
+  /** Serials or lots keyed against each line, by panel, kept apart from the quantities. */
+  private readonly numberEntries = { ship: new Map<number, string>(), return: new Map<number, string>() };
 
   protected readonly canShipAnything = computed(
     () => (this.order()?.lines ?? []).some((line) => line.outstandingToShip > 0),
@@ -122,6 +126,14 @@ export class SalesOrderDetail implements OnInit {
     this.returnEntries.set(line.lineNo, value);
   }
 
+  protected numbersOf(kind: 'ship' | 'return', line: SalesOrderLine): string {
+    return this.numberEntries[kind].get(line.lineNo) ?? '';
+  }
+
+  protected setNumbers(kind: 'ship' | 'return', line: SalesOrderLine, value: string): void {
+    this.numberEntries[kind].set(line.lineNo, value);
+  }
+
   protected invoiceQuantityOf(line: SalesOrderLine): number | null {
     return this.invoiceEntries.get(line.lineNo) ?? null;
   }
@@ -163,7 +175,7 @@ export class SalesOrderDetail implements OnInit {
         this.orderNo,
 
         // Nothing keyed means everything outstanding, which is the ordinary case.
-        this.linesFrom(this.shipmentEntries),
+        this.linesFrom(this.shipmentEntries, this.numberEntries.ship, (line) => line.outstandingToShip),
         this.overrideReason.trim() || undefined,
       );
 
@@ -177,6 +189,7 @@ export class SalesOrderDetail implements OnInit {
       );
 
       this.shipmentEntries.clear();
+      this.numberEntries.ship.clear();
       this.overrideReason = '';
 
       await this.load();
@@ -240,7 +253,7 @@ export class SalesOrderDetail implements OnInit {
     try {
       const result = await this.sales.takeBack(
         this.orderNo,
-        this.linesFrom(this.returnEntries),
+        this.linesFrom(this.returnEntries, this.numberEntries.return, (line) => line.returnableQuantity),
         this.returnReason.trim() || undefined,
         this.overrideReason.trim() || undefined,
       );
@@ -255,6 +268,7 @@ export class SalesOrderDetail implements OnInit {
       );
 
       this.returnEntries.clear();
+      this.numberEntries.return.clear();
       this.returnReason = '';
       this.overrideReason = '';
 
@@ -284,18 +298,30 @@ export class SalesOrderDetail implements OnInit {
    *
    * Undefined means "everything outstanding" to the server, which is what somebody who typed
    * nothing meant. Sending an empty list instead would mean the opposite.
+   *
+   * Serials keyed without a quantity still make a line: three chassis numbers are three cars, and
+   * making somebody also type "3" is asking for the two to disagree.
    */
-  private linesFrom(entries: Map<number, number | null>): SalesLineQuantity[] | undefined {
+  private linesFrom(
+    entries: Map<number, number | null>,
+    numbers?: Map<number, string>,
+    outstanding?: (line: SalesOrderLine) => number,
+  ): SalesLineQuantity[] | undefined {
     const lines: SalesLineQuantity[] = [];
 
     for (const line of this.order()?.lines ?? []) {
       const keyed = entries.get(line.lineNo) ?? null;
+      const trackingNos = parseTrackingNumbers(numbers?.get(line.lineNo));
 
-      if ((keyed ?? 0) <= 0) {
+      if ((keyed ?? 0) <= 0 && trackingNos.length === 0) {
         continue;
       }
 
-      lines.push({ lineNo: line.lineNo, quantity: keyed as number });
+      lines.push({
+        lineNo: line.lineNo,
+        quantity: quantityForNumbers(keyed, trackingNos, outstanding?.(line) ?? 0),
+        trackingNos: trackingNos.length > 0 ? trackingNos : undefined,
+      });
     }
 
     // Every line left blank on a screen where some were keyed still means "not this one", so the

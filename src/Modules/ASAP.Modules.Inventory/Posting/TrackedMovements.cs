@@ -1,3 +1,6 @@
+using ASAP.Platform.Kernel.Messaging;
+using ASAP.Platform.Kernel.Results;
+
 namespace ASAP.Modules.Inventory.Posting;
 
 /// <summary>
@@ -77,5 +80,85 @@ public static class TrackedMovements
         }
 
         return split;
+    }
+
+    /// <summary>
+    /// Turns every movement on a document into the units it moves, by the line each came from.
+    /// </summary>
+    /// <param name="movements">The document's movements, each carrying its line number.</param>
+    /// <param name="trackingByLine">The serials or lot keyed for each line. Lines not named move as they are.</param>
+    /// <param name="messages">Renders a refusal.</param>
+    /// <returns>The movements unit by unit, or a refusal for every line whose numbers do not match its quantity.</returns>
+    /// <remarks>
+    /// Several numbers that do not match the quantity are refused here, where the line is still
+    /// known. Whether the item needs numbers at all, and by serial or lot, is posting's to decide.
+    /// </remarks>
+    public static Result<List<StockMovementRequest>> SplitLines(
+        IReadOnlyList<StockMovementRequest> movements,
+        IReadOnlyDictionary<int, IReadOnlyList<string>> trackingByLine,
+        IMessageCatalog messages)
+    {
+        ArgumentNullException.ThrowIfNull(movements);
+        ArgumentNullException.ThrowIfNull(trackingByLine);
+        ArgumentNullException.ThrowIfNull(messages);
+
+        var units = new List<StockMovementRequest>(movements.Count);
+        var mismatched = new List<AsapMessage>();
+
+        foreach (var movement in movements)
+        {
+            var numbers = movement.LineNo is { } lineNo ? trackingByLine.GetValueOrDefault(lineNo) : null;
+            var split = Split(movement, numbers);
+
+            if (split is null)
+            {
+                mismatched.Add(messages.Render(
+                    InventoryMessages.TrackingNumbersDoNotMatch,
+                    new Dictionary<string, object?>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        ["LineNo"] = movement.LineNo,
+                        ["ItemNo"] = movement.ItemNo,
+                        ["Quantity"] = Math.Abs(movement.Quantity),
+                        ["Count"] = numbers!.Count(static n => !string.IsNullOrWhiteSpace(n)),
+                        ["Tracking"] = "serial",
+                    },
+                    MessageTarget.OnField($"Lines[{movement.LineNo}]")));
+
+                continue;
+            }
+
+            units.AddRange(split);
+        }
+
+        return mismatched.Count > 0
+            ? Result<List<StockMovementRequest>>.Failure(mismatched)
+            : Result<List<StockMovementRequest>>.Success(units);
+    }
+
+    /// <summary>The numbers keyed on each line of a request, by line number, leaving out lines that named none.</summary>
+    /// <typeparam name="T">The kind of line.</typeparam>
+    /// <param name="lines">What the caller sent.</param>
+    /// <param name="lineNo">Reads a line's number.</param>
+    /// <param name="trackingNos">Reads the numbers keyed on it.</param>
+    /// <returns>The numbers by line.</returns>
+    public static Dictionary<int, IReadOnlyList<string>> ByLine<T>(
+        IEnumerable<T>? lines,
+        Func<T, int> lineNo,
+        Func<T, IReadOnlyList<string>?> trackingNos)
+    {
+        ArgumentNullException.ThrowIfNull(lineNo);
+        ArgumentNullException.ThrowIfNull(trackingNos);
+
+        var byLine = new Dictionary<int, IReadOnlyList<string>>();
+
+        foreach (var line in lines ?? [])
+        {
+            if (trackingNos(line) is { Count: > 0 } numbers)
+            {
+                byLine[lineNo(line)] = numbers;
+            }
+        }
+
+        return byLine;
     }
 }

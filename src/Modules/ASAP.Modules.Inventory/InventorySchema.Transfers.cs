@@ -51,8 +51,30 @@ public sealed partial class InventorySchema
 
             builder.HasIndex(l => new { l.TransferOrderId, l.LineNo }).IsUnique();
 
+            builder.HasMany(l => l.Units)
+                   .WithOne(u => u.Line!)
+                   .HasForeignKey(u => u.TransferOrderLineId)
+                   .OnDelete(DeleteBehavior.Cascade);
+
             builder.Ignore(l => l.OutstandingToShip);
             builder.Ignore(l => l.InTransit);
+        });
+
+        modelBuilder.Entity<TransferOrderLineUnit>(builder =>
+        {
+            builder.ToTable("TransferOrderLineUnits", SchemaName);
+
+            builder.Property(u => u.TrackingNo).HasMaxLength(64).IsRequired();
+            builder.Property(u => u.QuantityShipped).HasColumnType(DecimalPrecisionConventions.Quantity);
+            builder.Property(u => u.QuantityReceived).HasColumnType(DecimalPrecisionConventions.Quantity);
+            builder.Property(u => u.RowVersion).IsRowVersion();
+
+            // A serial travels on a line once. A lot shipped twice on one line is one row that grows.
+            builder.HasIndex(u => new { u.TransferOrderLineId, u.TrackingNo })
+                   .IsUnique()
+                   .HasFilter("[IsDeleted] = 0");
+
+            builder.Ignore(u => u.InTransit);
         });
     }
 }

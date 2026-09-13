@@ -139,6 +139,17 @@ public sealed class ItemLedgerEntry : LedgerEntity
     /// <summary>The document that caused it, for example <c>INV-2026-00042</c>.</summary>
     public string? DocumentNo { get; set; }
 
+    /// <summary>
+    /// The line of that document it came from, where the posting said.
+    /// </summary>
+    /// <remarks>
+    /// What lets a return be held to the line it returns. Two lines of one order can carry the same
+    /// item at different prices, and a unit sent back against the wrong one relieves one price of
+    /// stock against the other price of accrual. Empty on entries written before it was recorded,
+    /// which are checked against the document alone.
+    /// </remarks>
+    public int? DocumentLineNo { get; set; }
+
     /// <summary>The transaction grouping every entry written by one posting.</summary>
     public long TransactionNo { get; set; }
 

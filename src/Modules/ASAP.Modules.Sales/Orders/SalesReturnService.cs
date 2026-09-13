@@ -18,7 +18,14 @@ namespace ASAP.Modules.Sales.Orders;
 /// <summary>How much of one line is coming back.</summary>
 /// <param name="LineNo">The order line.</param>
 /// <param name="Quantity">How much came back. Always positive.</param>
-public readonly record struct SalesReturnLineRequest(int LineNo, decimal Quantity);
+/// <param name="TrackingNos">
+/// The serials coming back, one per unit, or the one lot, on a specifically costed item. Each must
+/// have left on this order, and comes back at the cost it left at.
+/// </param>
+public readonly record struct SalesReturnLineRequest(
+    int LineNo,
+    decimal Quantity,
+    IReadOnlyList<string>? TrackingNos = null);
 
 /// <summary>What a return posted.</summary>
 /// <param name="OrderNo">The order the goods came back on.</param>
@@ -159,7 +166,7 @@ public sealed class SalesReturnService(
             return Result<SalesReturnReceipt>.FailureFrom(numbered);
         }
 
-        var stock = await ReceiveAsync(order, coming, reason, cancellationToken).ConfigureAwait(false);
+        var stock = await ReceiveAsync(order, coming, lines, reason, cancellationToken).ConfigureAwait(false);
 
         if (stock.Failed)
         {
@@ -238,6 +245,7 @@ public sealed class SalesReturnService(
     private async Task<Result<StockReceived>> ReceiveAsync(
         SalesOrder order,
         List<(SalesOrderLine Line, decimal Quantity)> coming,
+        IReadOnlyList<SalesReturnLineRequest>? lines,
         string? reason,
         CancellationToken cancellationToken)
     {
@@ -262,7 +270,8 @@ public sealed class SalesReturnService(
                 SalesAmount: -(c.Quantity * c.Line.NetUnitPrice),
                 Note: reason,
                 VariantCode: c.Line.VariantCode,
-                AppliesToDocumentNo: order.No))
+                AppliesToDocumentNo: order.No,
+                LineNo: c.Line.LineNo))
             .ToList();
 
         if (movements.Count == 0)
@@ -270,6 +279,19 @@ public sealed class SalesReturnService(
             // Every line was a charge. Nothing moves, and the credit memo still stands.
             return Result<StockReceived>.Success(new StockReceived(0L, 0m));
         }
+
+        // The car that comes back is named, and costed at what that car left at.
+        var units = TrackedMovements.SplitLines(
+            movements,
+            TrackedMovements.ByLine(lines, static l => l.LineNo, static l => l.TrackingNos),
+            messages);
+
+        if (units.Failed)
+        {
+            return Result<StockReceived>.FailureFrom(units);
+        }
+
+        movements = units.Value;
 
         var posted = await posting
             .PostAsync(

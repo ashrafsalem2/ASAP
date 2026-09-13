@@ -96,6 +96,7 @@
                 <th>{{ t('purchasing.orders.item') }}</th>
                 <th class="numeric">{{ t('purchasing.orders.toReceive') }}</th>
                 <th class="numeric">{{ t('purchasing.receipt.arrived') }}</th>
+                <th>{{ t('inventory.tracking.numbers') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -113,6 +114,15 @@
                         [placeholder]="quantity(line.outstandingToReceive)"
                         [ngModel]="receiptOf(line)"
                         (ngModelChange)="setReceipt(line, $event)"
+                      />
+                    </td>
+                    <td>
+                      <input
+                        class="input input--compact tracking-numbers"
+                        [placeholder]="t('inventory.tracking.placeholder')"
+                        [attr.aria-label]="t('inventory.tracking.numbers')"
+                        [ngModel]="numbersOf('receive', line)"
+                        (ngModelChange)="setNumbers('receive', line, $event)"
                       />
                     </td>
                   </tr>
@@ -239,6 +249,7 @@
                 <th class="numeric">{{ t('purchasing.return.alreadyBack') }}</th>
                 <th class="numeric">{{ t('purchasing.return.invoiced') }}</th>
                 <th class="numeric">{{ t('purchasing.return.sendingBack') }}</th>
+                <th>{{ t('inventory.tracking.numbers') }}</th>
               </tr>
             </thead>
             <tbody>
@@ -260,6 +271,15 @@
                         [placeholder]="quantity(line.returnableQuantity)"
                         [ngModel]="returnQuantityOf(line)"
                         (ngModelChange)="setReturnQuantity(line, $event)"
+                      />
+                    </td>
+                    <td>
+                      <input
+                        class="input input--compact tracking-numbers"
+                        [placeholder]="t('inventory.tracking.placeholder')"
+                        [attr.aria-label]="t('inventory.tracking.numbers')"
+                        [ngModel]="numbersOf('return', line)"
+                        (ngModelChange)="setNumbers('return', line, $event)"
                       />
                     </td>
                   </tr>

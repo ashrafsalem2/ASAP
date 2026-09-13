@@ -24,6 +24,11 @@ public readonly record struct TransferReceipt(
     int LineCount,
     TransferStatus Status);
 
+/// <summary>One line asked for on a new transfer.</summary>
+/// <param name="ItemNo">The item to move.</param>
+/// <param name="Quantity">How much to move. Always positive; the direction is the transfer's.</param>
+public readonly record struct TransferLineRequest(string ItemNo, decimal Quantity);
+
 /// <summary>
 /// Ships and receives transfers.
 /// </summary>
@@ -38,12 +43,12 @@ public readonly record struct TransferReceipt(
 /// The value never leaves inventory, so neither half posts anything to the general ledger. What
 /// moves is where the goods are, not what the company owns.
 /// </para>
+/// <para>
+/// A specifically costed item names its units when it ships, and the transfer remembers them.
+/// Receiving takes those same units out of transit, so a car arrives at the cost of the car that
+/// left and the branch at the other end does not have to know its chassis number to receive it.
+/// </para>
 /// </remarks>
-/// <summary>One line asked for on a new transfer.</summary>
-/// <param name="ItemNo">The item to move.</param>
-/// <param name="Quantity">How much to move. Always positive; the direction is the transfer's.</param>
-public readonly record struct TransferLineRequest(string ItemNo, decimal Quantity);
-
 /// <param name="context">The unit of work.</param>
 /// <param name="posting">Moves the stock.</param>
 /// <param name="messages">Renders refusals.</param>
@@ -260,11 +265,17 @@ public sealed class TransferService(
     /// <param name="transferNo">The transfer to ship.</param>
     /// <param name="companyAllowsNegative">Whether the company permits stock below zero.</param>
     /// <param name="heldOverridePermissions">Override permissions the caller holds.</param>
+    /// <param name="trackingNos">
+    /// The serials or lot leaving on each line, by line number, on a specifically costed item. A
+    /// serial line names one number per unit; a lot line names its lot.
+    /// </param>
     /// <param name="cancellationToken">Cancels the work.</param>
+    /// <returns>What moved, or every reason it could not.</returns>
     public async Task<Result<TransferReceipt>> ShipAsync(
         string transferNo,
         bool companyAllowsNegative,
         IReadOnlySet<string>? heldOverridePermissions = null,
+        IReadOnlyDictionary<int, IReadOnlyList<string>>? trackingNos = null,
         CancellationToken cancellationToken = default)
     {
         var transfer = await LoadAsync(transferNo, cancellationToken).ConfigureAwait(false);
@@ -299,21 +310,34 @@ public sealed class TransferService(
                 Arguments(transfer)));
         }
 
-        // Out of the source and into transit, as one posting, so the goods are never in neither
-        // place nor both.
-        var movements = lines
-            .SelectMany(line => new[]
+        var leaving = TrackedMovements.SplitLines(
+            [.. lines.Select(line => new StockMovementRequest(
+                line.ItemNo,
+                transfer.FromLocationCode,
+                -line.OutstandingToShip,
+                EntryType: ItemLedgerEntryType.TransferOut,
+                LineNo: line.LineNo))],
+            trackingNos ?? new Dictionary<int, IReadOnlyList<string>>(),
+            messages);
+
+        if (leaving.Failed)
+        {
+            return Result<TransferReceipt>.FailureFrom(leaving);
+        }
+
+        // Out of the source and into transit, unit by unit, as one posting, so the goods are never
+        // in neither place nor both. Each arrival follows the departure it matches, which is how
+        // posting carries the cost that left across to the place it arrives.
+        var movements = leaving.Value
+            .SelectMany(unit => new[]
             {
-                new StockMovementRequest(
-                    line.ItemNo,
-                    transfer.FromLocationCode,
-                    -line.OutstandingToShip,
-                    EntryType: ItemLedgerEntryType.TransferOut),
-                new StockMovementRequest(
-                    line.ItemNo,
-                    inTransit.Code,
-                    line.OutstandingToShip,
-                    EntryType: ItemLedgerEntryType.TransferIn),
+                unit,
+                unit with
+                {
+                    LocationCode = inTransit.Code,
+                    Quantity = -unit.Quantity,
+                    EntryType = ItemLedgerEntryType.TransferIn,
+                },
             })
             .ToList();
 
@@ -336,6 +360,31 @@ public sealed class TransferService(
         foreach (var line in lines)
         {
             line.QuantityShipped += line.OutstandingToShip;
+        }
+
+        foreach (var unit in leaving.Value.Where(static u => u.TrackingNo is not null))
+        {
+            var line = lines.First(l => l.LineNo == unit.LineNo);
+            var trackingNo = unit.TrackingNo!.Trim().ToUpperInvariant();
+            var travelling = line.Units.FirstOrDefault(u => u.TrackingNo == trackingNo);
+
+            if (travelling is null)
+            {
+                travelling = new TransferOrderLineUnit
+                {
+                    TenantId = line.TenantId,
+                    CompanyId = line.CompanyId,
+                    TransferOrderLineId = line.Id,
+                    TrackingNo = trackingNo,
+                };
+
+                // Added to the set as well as the line. Found only through the navigation, a new row
+                // with its key already assigned is taken for an existing one and updated instead.
+                line.Units.Add(travelling);
+                context.Set<TransferOrderLineUnit>().Add(travelling);
+            }
+
+            travelling.QuantityShipped += -unit.Quantity;
         }
 
         transfer.Status = TransferStatus.Shipped;
@@ -365,7 +414,12 @@ public sealed class TransferService(
     /// </param>
     /// <param name="companyAllowsNegative">Whether the company permits stock below zero.</param>
     /// <param name="heldOverridePermissions">Override permissions the caller holds.</param>
+    /// <param name="arrivedTrackingNos">
+    /// Which serials or lots arrived, by line number, where not all of them did. A line not named
+    /// receives every unit still travelling on it.
+    /// </param>
     /// <param name="cancellationToken">Cancels the work.</param>
+    /// <returns>What arrived, or every reason it could not.</returns>
     /// <remarks>
     /// A shortage leaves the difference sitting in the in-transit location rather than writing it
     /// off silently. That is the honest position: the goods left, they did not arrive, and until
@@ -377,6 +431,7 @@ public sealed class TransferService(
         IReadOnlyDictionary<string, decimal>? shortages = null,
         bool companyAllowsNegative = false,
         IReadOnlySet<string>? heldOverridePermissions = null,
+        IReadOnlyDictionary<int, IReadOnlyList<string>>? arrivedTrackingNos = null,
         CancellationToken cancellationToken = default)
     {
         var transfer = await LoadAsync(transferNo, cancellationToken).ConfigureAwait(false);
@@ -402,11 +457,23 @@ public sealed class TransferService(
                 Arguments(transfer)));
         }
 
-        var arriving = transfer.Lines
-            .Where(static l => l.InTransit > 0)
-            .Select(line => (Line: line, Quantity: QuantityArriving(line, shortages)))
-            .Where(static x => x.Quantity > 0)
-            .ToList();
+        var refusals = new List<AsapMessage>();
+        var arriving = new List<Arrival>();
+
+        foreach (var line in transfer.Lines.Where(static l => l.InTransit > 0).OrderBy(static l => l.LineNo))
+        {
+            var arrival = Arriving(transfer, line, shortages, arrivedTrackingNos?.GetValueOrDefault(line.LineNo), refusals);
+
+            if (arrival is { Quantity: > 0 })
+            {
+                arriving.Add(arrival.Value);
+            }
+        }
+
+        if (refusals.Count > 0)
+        {
+            return Result<TransferReceipt>.Failure(refusals);
+        }
 
         if (arriving.Count == 0)
         {
@@ -415,21 +482,35 @@ public sealed class TransferService(
                 Arguments(transfer)));
         }
 
-        var movements = arriving
-            .SelectMany(x => new[]
+        var movements = new List<StockMovementRequest>();
+
+        foreach (var arrival in arriving)
+        {
+            // An untracked line moves as one; a tracked line moves unit by unit, each out of
+            // transit and straight into the destination so its cost is carried across with it.
+            var parts = arrival.Units.Count == 0
+                ? [(TrackingNo: (string?)null, arrival.Quantity)]
+                : arrival.Units.Select(static u => (TrackingNo: (string?)u.Unit.TrackingNo, u.Quantity)).ToList();
+
+            foreach (var (trackingNo, quantity) in parts)
             {
-                new StockMovementRequest(
-                    x.Line.ItemNo,
+                movements.Add(new StockMovementRequest(
+                    arrival.Line.ItemNo,
                     inTransit.Code,
-                    -x.Quantity,
-                    EntryType: ItemLedgerEntryType.TransferOut),
-                new StockMovementRequest(
-                    x.Line.ItemNo,
+                    -quantity,
+                    EntryType: ItemLedgerEntryType.TransferOut,
+                    TrackingNo: trackingNo,
+                    LineNo: arrival.Line.LineNo));
+
+                movements.Add(new StockMovementRequest(
+                    arrival.Line.ItemNo,
                     transfer.ToLocationCode,
-                    x.Quantity,
-                    EntryType: ItemLedgerEntryType.TransferIn),
-            })
-            .ToList();
+                    quantity,
+                    EntryType: ItemLedgerEntryType.TransferIn,
+                    TrackingNo: trackingNo,
+                    LineNo: arrival.Line.LineNo));
+            }
+        }
 
         var result = await posting
             .PostAsync(
@@ -447,9 +528,14 @@ public sealed class TransferService(
             return Result<TransferReceipt>.FailureFrom(result);
         }
 
-        foreach (var (line, quantity) in arriving)
+        foreach (var arrival in arriving)
         {
-            line.QuantityReceived += quantity;
+            arrival.Line.QuantityReceived += arrival.Quantity;
+
+            foreach (var (unit, quantity) in arrival.Units)
+            {
+                unit.QuantityReceived += quantity;
+            }
         }
 
         // Still in transit means the transfer is not finished, whether because a line was short or
@@ -490,23 +576,111 @@ public sealed class TransferService(
             reported);
     }
 
-    private static decimal QuantityArriving(
+    /// <summary>What arrives on one line, and which of its units.</summary>
+    private readonly record struct Arrival(
+        TransferOrderLine Line,
+        decimal Quantity,
+        List<(TransferOrderLineUnit Unit, decimal Quantity)> Units);
+
+    /// <summary>
+    /// Works out what arrives on a line, or adds why it cannot be worked out.
+    /// </summary>
+    /// <remarks>
+    /// An untracked line arrives in full or at the quantity the branch keyed. A tracked line
+    /// arrives unit by unit: every unit still travelling, the units named, or -- where only one
+    /// unit is travelling -- the quantity keyed of it. A short quantity across several units is
+    /// refused rather than guessed, because the unit left in transit has to be the one that is
+    /// actually missing.
+    /// </remarks>
+    private Arrival? Arriving(
+        TransferOrder transfer,
         TransferOrderLine line,
-        IReadOnlyDictionary<string, decimal>? shortages)
+        IReadOnlyDictionary<string, decimal>? shortages,
+        IReadOnlyList<string>? named,
+        List<AsapMessage> refusals)
     {
-        if (shortages is null || !shortages.TryGetValue(line.ItemNo, out var received))
+        var numbers = (named ?? [])
+            .Where(static n => !string.IsNullOrWhiteSpace(n))
+            .Select(static n => n.Trim().ToUpperInvariant())
+            .Distinct(StringComparer.Ordinal)
+            .ToList();
+
+        var travelling = line.Units.Where(static u => u.InTransit > 0).OrderBy(static u => u.TrackingNo).ToList();
+        var keyed = shortages is not null && shortages.TryGetValue(line.ItemNo, out var receivedQuantity)
+            ? Math.Clamp(receivedQuantity, 0m, line.InTransit)
+            : (decimal?)null;
+
+        if (travelling.Count == 0)
         {
-            return line.InTransit;
+            foreach (var number in numbers)
+            {
+                refusals.Add(UnitNotInTransit(transfer, line, number));
+            }
+
+            return new Arrival(line, keyed ?? line.InTransit, []);
         }
 
-        // Never more than left, whatever the receiving branch keys. More arriving than was sent is
-        // not a transfer, it is a stock count difference, and belongs on an adjustment.
-        return Math.Clamp(received, 0m, line.InTransit);
+        List<TransferOrderLineUnit> units;
+
+        if (numbers.Count > 0)
+        {
+            units = [];
+
+            foreach (var number in numbers)
+            {
+                var unit = travelling.FirstOrDefault(u => u.TrackingNo == number);
+
+                if (unit is null)
+                {
+                    refusals.Add(UnitNotInTransit(transfer, line, number));
+                    continue;
+                }
+
+                units.Add(unit);
+            }
+        }
+        else if (keyed is not null && travelling.Count > 1)
+        {
+            refusals.Add(messages.Render(
+                InventoryMessages.TransferShortNeedsTrackingNos,
+                new Dictionary<string, object?>(Arguments(transfer), StringComparer.OrdinalIgnoreCase)
+                {
+                    ["LineNo"] = line.LineNo,
+                    ["ItemNo"] = line.ItemNo,
+                    ["Count"] = travelling.Count,
+                },
+                MessageTarget.OnField($"Lines[{line.LineNo}]")));
+
+            return null;
+        }
+        else
+        {
+            units = travelling;
+        }
+
+        // One unit and a quantity keyed: part of a lot arrived. Anything else arrives whole.
+        var parts = units.Count == 1 && keyed is not null
+            ? [(units[0], Math.Min(keyed.Value, units[0].InTransit))]
+            : units.Select(static u => (u, u.InTransit)).ToList();
+
+        return new Arrival(line, parts.Sum(static p => p.Item2), parts);
     }
+
+    private AsapMessage UnitNotInTransit(TransferOrder transfer, TransferOrderLine line, string trackingNo)
+        => messages.Render(
+            InventoryMessages.TransferUnitNotInTransit,
+            new Dictionary<string, object?>(Arguments(transfer), StringComparer.OrdinalIgnoreCase)
+            {
+                ["LineNo"] = line.LineNo,
+                ["ItemNo"] = line.ItemNo,
+                ["TrackingNo"] = trackingNo,
+            },
+            MessageTarget.OnField($"Lines[{line.LineNo}]"));
 
     private Task<TransferOrder?> LoadAsync(string transferNo, CancellationToken cancellationToken)
         => context.Set<TransferOrder>()
             .Include(t => t.Lines)
+            .ThenInclude(l => l.Units)
             .FirstOrDefaultAsync(t => t.No == transferNo, cancellationToken);
 
     /// <summary>

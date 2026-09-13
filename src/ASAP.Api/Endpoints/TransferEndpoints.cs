@@ -34,9 +34,31 @@ public sealed record CreateTransferRequest(
 /// taken as arriving in full.
 /// </param>
 /// <param name="OverrideReason">Why a protection is being pushed past, if one is.</param>
+/// <param name="TrackingNos">
+/// Which serials or lots arrived, by line number, where not every unit travelling on a line did.
+/// </param>
 public sealed record ReceiveTransferRequest(
     IReadOnlyDictionary<string, decimal>? Shortages = null,
-    string? OverrideReason = null);
+    string? OverrideReason = null,
+    IReadOnlyDictionary<int, IReadOnlyList<string>>? TrackingNos = null);
+
+/// <summary>What a client sends to ship a transfer.</summary>
+/// <param name="TrackingNos">
+/// The serials or lot leaving on each line, by line number, on specifically costed items.
+/// </param>
+public sealed record ShipTransferRequest(
+    IReadOnlyDictionary<int, IReadOnlyList<string>>? TrackingNos = null);
+
+/// <summary>One serial or lot travelling on a transfer line.</summary>
+/// <param name="TrackingNo">The serial or lot.</param>
+/// <param name="QuantityShipped">How much of it left.</param>
+/// <param name="QuantityReceived">How much of it arrived.</param>
+/// <param name="InTransit">How much of it is still travelling.</param>
+public sealed record TransferUnitView(
+    string TrackingNo,
+    decimal QuantityShipped,
+    decimal QuantityReceived,
+    decimal InTransit);
 
 /// <summary>One line of a transfer as it is reported back.</summary>
 /// <param name="LineNo">Its position.</param>
@@ -47,6 +69,7 @@ public sealed record ReceiveTransferRequest(
 /// <param name="QuantityShipped">How much has left.</param>
 /// <param name="QuantityReceived">How much has arrived.</param>
 /// <param name="InTransit">How much is still travelling.</param>
+/// <param name="Units">The serials or lots that left on it, on a specifically costed item.</param>
 public sealed record TransferLineView(
     int LineNo,
     string ItemNo,
@@ -55,7 +78,8 @@ public sealed record TransferLineView(
     decimal Quantity,
     decimal QuantityShipped,
     decimal QuantityReceived,
-    decimal InTransit);
+    decimal InTransit,
+    IReadOnlyList<TransferUnitView> Units);
 
 /// <summary>A transfer as it is reported back.</summary>
 /// <param name="No">Its number.</param>
@@ -132,7 +156,7 @@ public static class TransferEndpoints
             return Forbidden(ReadPermission, "view transfers", http);
         }
 
-        var query = context.Set<TransferOrder>().AsNoTracking().Include(t => t.Lines).AsQueryable();
+        var query = context.Set<TransferOrder>().AsNoTracking().Include(t => t.Lines).ThenInclude(l => l.Units).AsQueryable();
 
         if (Enum.TryParse<TransferStatus>(status, ignoreCase: true, out var wanted))
         {
@@ -162,7 +186,7 @@ public static class TransferEndpoints
 
         var transfer = await context.Set<TransferOrder>()
             .AsNoTracking()
-            .Include(t => t.Lines)
+            .Include(t => t.Lines).ThenInclude(l => l.Units)
             .FirstOrDefaultAsync(t => t.No == transferNo, cancellationToken)
             .ConfigureAwait(false);
 
@@ -207,6 +231,7 @@ public static class TransferEndpoints
 
     private static Task<IResult> ShipAsync(
         string transferNo,
+        ShipTransferRequest? request,
         TransferService transfers,
         ISetupService setup,
         IUserContext user,
@@ -217,7 +242,7 @@ public static class TransferEndpoints
             http,
             setup,
             (allowsNegative, overrides) =>
-                transfers.ShipAsync(transferNo, allowsNegative, overrides, cancellationToken),
+                transfers.ShipAsync(transferNo, allowsNegative, overrides, request?.TrackingNos, cancellationToken),
             cancellationToken);
 
     private static Task<IResult> ReceiveAsync(
@@ -237,6 +262,7 @@ public static class TransferEndpoints
                 request?.Shortages,
                 allowsNegative,
                 overrides,
+                request?.TrackingNos,
                 cancellationToken),
             cancellationToken);
 
@@ -302,7 +328,14 @@ public static class TransferEndpoints
                     l.Quantity,
                     l.QuantityShipped,
                     l.QuantityReceived,
-                    l.InTransit))]);
+                    l.InTransit,
+                    [.. l.Units
+                        .OrderBy(static u => u.TrackingNo)
+                        .Select(static u => new TransferUnitView(
+                            u.TrackingNo,
+                            u.QuantityShipped,
+                            u.QuantityReceived,
+                            u.InTransit))]))]);
 
     private static bool Can(IUserContext user, string permission)
         => user.IsSuperUser || user.Has(permission);

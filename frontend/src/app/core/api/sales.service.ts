@@ -24,6 +24,9 @@ import {
 export interface SalesLineQuantity {
   lineNo: number;
   quantity: number;
+
+  /** The serials, one per unit, or the lot, on a specifically costed item. */
+  trackingNos?: string[];
 }
 
 /** Talks to the Sales endpoints. */

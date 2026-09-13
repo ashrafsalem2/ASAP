@@ -60,6 +60,11 @@ namespace ASAP.Modules.Inventory.Posting;
 /// decides the cost: a car sold without saying which car costs whichever one the database found
 /// first, and the margin on both is wrong.
 /// </param>
+/// <param name="LineNo">
+/// The document line this movement came from, where the caller has one. Refusals name it. Without
+/// it they name the movement's position in the posting, which on a document whose lines are 10, 20
+/// and 30 -- or whose one line became three serial numbers -- points at a line nobody can find.
+/// </param>
 public sealed record StockMovementRequest(
     string ItemNo,
     string LocationCode,
@@ -73,7 +78,8 @@ public sealed record StockMovementRequest(
     string? Note = null,
     string? VariantCode = null,
     string? AppliesToDocumentNo = null,
-    string? TrackingNo = null);
+    string? TrackingNo = null,
+    int? LineNo = null);
 
 /// <summary>What a stock posting produced.</summary>
 /// <param name="TransactionNo">The number grouping every entry written.</param>
@@ -196,8 +202,36 @@ public sealed partial class StockPostingService(
         // for zero -- a posting that never happens and never complains.
         var settledByEntry = new List<(ItemLedgerEntry Entry, decimal SettledCost, string? ContraAccountNo)>();
 
+        // What the outbound half of a transfer took off the shelf, waiting for the inbound half to
+        // put it back down. A transfer changes where goods are and nothing else, so the value that
+        // arrives is the value that left -- not what the item happens to cost today. Valuing the
+        // arrival at today's cost moved the valuation by the difference on every transfer of older
+        // stock, with no ledger entry to match, because a transfer posts nothing to the ledger.
+        var inTransfer = new Dictionary<(string ItemNo, string? VariantCode, string? TrackingNo), (decimal Quantity, decimal Cost)>();
+
         foreach (var (request, movement) in requests.Zip(movements))
         {
+            var key = (
+                request.ItemNo.ToUpperInvariant(),
+                movement.VariantCode?.ToUpperInvariant(),
+                Tracking(request.TrackingNo));
+
+            decimal? carriedCost = null;
+
+            if (request.EntryType is ItemLedgerEntryType.TransferIn
+                && request.Quantity > 0m
+                && request.UnitCost <= 0m
+                && inTransfer.TryGetValue(key, out var pool)
+                && pool.Quantity >= request.Quantity)
+            {
+                // The last of the pool takes whatever rounding left, so the halves agree to the halala.
+                carriedCost = pool.Quantity == request.Quantity
+                    ? pool.Cost
+                    : Math.Round(pool.Cost * request.Quantity / pool.Quantity, 2, MidpointRounding.AwayFromZero);
+
+                inTransfer[key] = (pool.Quantity - request.Quantity, pool.Cost - carriedCost.Value);
+            }
+
             var outcome = await WriteMovementAsync(
                     request,
                     movement,
@@ -205,8 +239,15 @@ public sealed partial class StockPostingService(
                     sourceCode,
                     documentNo,
                     transactionNo,
+                    carriedCost,
                     cancellationToken)
                 .ConfigureAwait(false);
+
+            if (request.EntryType is ItemLedgerEntryType.TransferOut && request.Quantity < 0m)
+            {
+                var held = inTransfer.GetValueOrDefault(key);
+                inTransfer[key] = (held.Quantity - request.Quantity, held.Cost - outcome.CostAmount);
+            }
 
             written.Add(outcome.Entry);
             costAmount += outcome.CostAmount;
@@ -270,6 +311,7 @@ public sealed partial class StockPostingService(
             string sourceCode,
             string? documentNo,
             long transactionNo,
+            decimal? carriedCost,
             CancellationToken cancellationToken)
     {
         var item = await context.Set<Item>()
@@ -301,6 +343,7 @@ public sealed partial class StockPostingService(
             Note = request.Note?.Trim(),
             Quantity = request.Quantity,
             DocumentNo = documentNo,
+            DocumentLineNo = request.LineNo,
             TransactionNo = transactionNo,
             SourceCode = sourceCode,
             BranchId = tenantContext.BranchId,
@@ -309,7 +352,7 @@ public sealed partial class StockPostingService(
         };
 
         var result = request.Quantity > 0
-            ? ReceiveStock(entry, item, movement, request)
+            ? ReceiveStock(entry, item, movement, request, carriedCost)
             : await IssueStockAsync(entry, item, location, movement, request, cancellationToken).ConfigureAwait(false);
 
         // What this variant last cost, kept beside the item's own figure. The item's becomes
@@ -342,9 +385,27 @@ public sealed partial class StockPostingService(
         ItemLedgerEntry entry,
         Item item,
         MovementView movement,
-        StockMovementRequest request)
+        StockMovementRequest request,
+        decimal? carriedCost)
     {
         entry.RemainingQuantity = request.Quantity;
+
+        if (carriedCost is { } carried)
+        {
+            var carriedUnitCost = Math.Round(carried / request.Quantity, 5, MidpointRounding.AwayFromZero);
+
+            context.Set<ValueEntry>().Add(NewValueEntry(
+                entry,
+                item,
+                ValueEntryType.DirectCost,
+                request.Quantity,
+                carriedUnitCost,
+                carried,
+                isExpected: false,
+                salesAmount: 0m));
+
+            return (carried, 0m);
+        }
 
         // What the goods cost when they left, where the return said which sale it came back from.
         // A return is not a purchase: nothing was bought, so nothing new was paid, and valuing it
@@ -378,7 +439,8 @@ public sealed partial class StockPostingService(
         // because a return restored at last year's cost would drag the item's current cost back
         // there with it and value every later shortfall at a price nobody has paid in months.
         if (request.EntryType is not ItemLedgerEntryType.SalesReturn
-            and not ItemLedgerEntryType.PurchaseReturn)
+            and not ItemLedgerEntryType.PurchaseReturn
+            and not ItemLedgerEntryType.TransferIn)
         {
             item.LastDirectCost = unitCost;
             item.UnitCost = unitCost;
@@ -705,11 +767,12 @@ public sealed partial class StockPostingService(
         // Serials and lots already moved by earlier lines of this same posting. Without it two
         // lines could receive one serial, or two lines sell the last unit of one lot, and each
         // would pass on its own against a ledger that has not seen the other yet.
-        var trackedInBatch = new Dictionary<(Guid ItemId, string TrackingNo), decimal>();
+        var trackedInBatch = new Dictionary<(Guid ItemId, string TrackingNo, Guid LocationId), decimal>();
 
         for (var index = 0; index < requests.Count; index++)
         {
             var request = requests[index];
+            var lineNo = request.LineNo ?? index + 1;
 
             // Not found and blocked are different problems with different answers. Reporting a
             // typo as "withdrawn from use" sends the user to an administrator to unblock
@@ -722,7 +785,7 @@ public sealed partial class StockPostingService(
                     {
                         ["ItemNo"] = request.ItemNo,
                     },
-                    MessageTarget.OnField($"Lines[{index + 1}]")));
+                    MessageTarget.OnField($"Lines[{lineNo}]")));
 
                 continue;
             }
@@ -735,12 +798,12 @@ public sealed partial class StockPostingService(
                     {
                         ["Location"] = request.LocationCode,
                     },
-                    MessageTarget.OnField($"Lines[{index + 1}]")));
+                    MessageTarget.OnField($"Lines[{lineNo}]")));
 
                 continue;
             }
 
-            var binResult = ResolveBin(request, location, bins, index + 1);
+            var binResult = ResolveBin(request, location, bins, lineNo);
 
             if (binResult.Refusal is { } binRefusal)
             {
@@ -763,10 +826,10 @@ public sealed partial class StockPostingService(
                         ("ItemNo", item.No),
                         ("Quantity", Math.Abs(request.Quantity)),
                         ("UnitCost", item.UnitCost)),
-                    MessageTarget.OnField($"Lines[{index + 1}]")));
+                    MessageTarget.OnField($"Lines[{lineNo}]")));
             }
 
-            var variantResult = ResolveVariant(request, item, variants, index + 1);
+            var variantResult = ResolveVariant(request, item, variants, lineNo);
 
             if (variantResult.Refusal is { } variantRefusal)
             {
@@ -774,7 +837,7 @@ public sealed partial class StockPostingService(
                 continue;
             }
 
-            var reasonRefusal = CheckReason(request, reasons, reasonRequired, index + 1);
+            var reasonRefusal = CheckReason(request, reasons, reasonRequired, lineNo);
 
             if (reasonRefusal is not null)
             {
@@ -788,7 +851,7 @@ public sealed partial class StockPostingService(
                     location.Id,
                     variantResult.VariantId,
                     trackedInBatch,
-                    index + 1,
+                    lineNo,
                     cancellationToken)
                 .ConfigureAwait(false);
 
@@ -817,7 +880,7 @@ public sealed partial class StockPostingService(
                 : [];
 
             movements.Add(new MovementView(
-                index + 1,
+                lineNo,
                 new ItemView(
                     item.No,
                     item.Description,
@@ -847,8 +910,10 @@ public sealed partial class StockPostingService(
             });
         }
 
+        // Once each. A transfer is two movements per line, and a line missing its serial number is
+        // missing it on both halves; saying so twice reads as two problems.
         return missing.Count > 0
-            ? Result<List<MovementView>>.Failure(missing)
+            ? Result<List<MovementView>>.Failure([.. missing.DistinctBy(static m => (m.Code, m.Detail))])
             : Result<List<MovementView>>.Success(movements, assumed);
     }
 
@@ -878,7 +943,7 @@ public sealed partial class StockPostingService(
         Item item,
         Guid locationId,
         Guid? variantId,
-        Dictionary<(Guid ItemId, string TrackingNo), decimal> inBatch,
+        Dictionary<(Guid ItemId, string TrackingNo, Guid LocationId), decimal> inBatch,
         int lineNo,
         CancellationToken cancellationToken)
     {
@@ -909,8 +974,41 @@ public sealed partial class StockPostingService(
             return messages.Render(InventoryMessages.SerialMovesOneUnit, arguments, target);
         }
 
-        var key = (item.Id, tracking);
-        var movedAlready = inBatch.GetValueOrDefault(key);
+        // A return names a unit that moved on the document it returns against, and on the line it
+        // returns. The car that comes back is the car that was sold; anything else is a different
+        // car arriving under cover of a return, at a cost read off a sale it was never part of.
+        // Entries from before lines were recorded are held to the document alone.
+        if (request.EntryType is ItemLedgerEntryType.SalesReturn or ItemLedgerEntryType.PurchaseReturn
+            && request.AppliesToDocumentNo is { Length: > 0 } document)
+        {
+            var wantsOutbound = request.EntryType is ItemLedgerEntryType.SalesReturn;
+
+            var movedOnDocument = await context.Set<ItemLedgerEntry>()
+                .AsNoTracking()
+                .AnyAsync(
+                    e => e.DocumentNo == document
+                         && e.ItemId == item.Id
+                         && (wantsOutbound ? e.Quantity < 0 : e.Quantity > 0)
+                         && (e.SerialNo == tracking || e.LotNo == tracking)
+                         && (request.LineNo == null || e.DocumentLineNo == null || e.DocumentLineNo == request.LineNo),
+                    cancellationToken)
+                .ConfigureAwait(false);
+
+            if (!movedOnDocument)
+            {
+                arguments["DocumentNo"] = document;
+                return messages.Render(InventoryMessages.TrackedUnitNotOnDocument, arguments, target);
+            }
+        }
+
+        // Kept by location as well as by unit, because one posting can take a unit out of one
+        // place and put it down in another. A serial is checked against wherever the batch has
+        // moved it; a lot, and a serial leaving, only against what the batch did here.
+        var key = (item.Id, tracking, locationId);
+        var movedHere = inBatch.GetValueOrDefault(key);
+        var movedAnywhere = inBatch
+            .Where(moved => moved.Key.ItemId == item.Id && moved.Key.TrackingNo == tracking)
+            .Sum(static moved => moved.Value);
 
         // What of this unit is on hand anywhere for a serial, here for a lot. A serial is one
         // physical thing, so a second receipt of it is wrong wherever the first one is standing.
@@ -926,7 +1024,7 @@ public sealed partial class StockPostingService(
             .SumAsync(static e => e.RemainingQuantity, cancellationToken)
             .ConfigureAwait(false);
 
-        onHand += movedAlready;
+        onHand += item.Tracking is ItemTracking.Serial ? movedAnywhere : movedHere;
 
         if (request.Quantity > 0m)
         {
@@ -946,17 +1044,22 @@ public sealed partial class StockPostingService(
                                   && e.LocationId == locationId)
                       .SumAsync(static e => e.RemainingQuantity, cancellationToken)
                       .ConfigureAwait(false)
-                  + movedAlready
+                  + movedHere
                 : onHand;
 
             if (here < Math.Abs(request.Quantity))
             {
+                // Counted as moved all the same, so the rest of the posting is judged as if it had.
+                // A transfer is this unit leaving and the same unit arriving; without this the
+                // arriving half reports the unit as already in stock, a second refusal that is
+                // only an echo of the first.
+                inBatch[key] = movedHere + request.Quantity;
                 arguments["AvailableQuantity"] = Math.Max(0m, here);
                 return messages.Render(InventoryMessages.TrackedUnitNotOnHand, arguments, target);
             }
         }
 
-        inBatch[key] = movedAlready + request.Quantity;
+        inBatch[key] = movedHere + request.Quantity;
 
         return null;
     }
@@ -1067,11 +1170,18 @@ public sealed partial class StockPostingService(
         // this whole mechanism exists to prevent.
         var wantsOutbound = request.EntryType is ItemLedgerEntryType.SalesReturn;
 
+        // A named unit comes back at what that unit left at. Averaging over the whole order would
+        // return one car at the mean of the three it sold, which is specific costing undone on the
+        // way back in.
+        var tracking = Tracking(request.TrackingNo);
+
         var original = await context.Set<ItemLedgerEntry>()
             .AsNoTracking()
             .Where(e => e.DocumentNo == document
                 && e.ItemId == itemId
-                && (wantsOutbound ? e.Quantity < 0 : e.Quantity > 0))
+                && (wantsOutbound ? e.Quantity < 0 : e.Quantity > 0)
+                && (tracking == null || e.SerialNo == tracking || e.LotNo == tracking)
+                && (request.LineNo == null || e.DocumentLineNo == null || e.DocumentLineNo == request.LineNo))
             .Select(static e => e.Id)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);

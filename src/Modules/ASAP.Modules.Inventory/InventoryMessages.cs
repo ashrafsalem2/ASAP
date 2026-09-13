@@ -258,6 +258,15 @@ public static class InventoryMessages
     /// <summary>A document line's serial numbers do not match the quantity.</summary>
     public static readonly MessageCode TrackingNumbersDoNotMatch = new("INV.TRACKING.COUNT_MISMATCH");
 
+    /// <summary>A return names a serial or lot that did not move on the document it returns against.</summary>
+    public static readonly MessageCode TrackedUnitNotOnDocument = new("INV.TRACKING.NOT_ON_DOCUMENT");
+
+    /// <summary>A transfer receipt names a serial or lot that is not travelling on it.</summary>
+    public static readonly MessageCode TransferUnitNotInTransit = new("INV.TRANSFER.UNIT_NOT_IN_TRANSIT");
+
+    /// <summary>A short receipt of several tracked units that does not say which arrived.</summary>
+    public static readonly MessageCode TransferShortNeedsTrackingNos = new("INV.TRANSFER.SHORT_NEEDS_NUMBERS");
+
     /// <summary>A transfer names one location as both source and destination.</summary>
     public static readonly MessageCode TransferToSameLocation = new("INV.TRANSFER.SAME_LOCATION");
 
@@ -1529,6 +1538,49 @@ public static class InventoryMessages
                 + "is decoration, and one that does makes the item specific.",
                 "احتسبه بالتكلفة المحددة، أو اتركه بلا تتبع. فالرقم التسلسلي الذي لا يحدد التكلفة زينة، "
                 + "والذي يحددها يجعل الصنف ذا تكلفة محددة."),
+            HelpTopic = "inventory/specific-costing",
+        },
+        new()
+        {
+            Code = TrackedUnitNotOnDocument,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("That unit was not on this document", "هذه الوحدة لم تكن على هذا المستند"),
+            Detail = new LocalizedText(
+                "Line {LineNo} returns {ItemNo} {TrackingNo} against {DocumentNo}, and that {Tracking} did not move on that line.",
+                "السطر {LineNo} يُرجع {ItemNo} {TrackingNo} مقابل {DocumentNo}، ولم يتحرك هذا الرقم على ذلك السطر."),
+            Resolution = new LocalizedText(
+                "Check the number against the document and the line. What comes back is the unit that left, "
+                + "on the line it left on, at the cost it left at; a unit from another order or line is returned against that one.",
+                "طابق الرقم مع المستند والسطر. فما يعود هو الوحدة التي خرجت، على السطر الذي خرجت عليه، "
+                + "بالتكلفة التي خرجت بها؛ والوحدة من أمر أو سطر آخر تُرجع مقابله."),
+            HelpTopic = "inventory/specific-costing",
+        },
+        new()
+        {
+            Code = TransferUnitNotInTransit,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("That unit is not on its way", "هذه الوحدة ليست في الطريق"),
+            Detail = new LocalizedText(
+                "Transfer {TransferNo} line {LineNo} has no {ItemNo} {TrackingNo} in transit.",
+                "السطر {LineNo} من التحويل {TransferNo} ليس فيه {ItemNo} {TrackingNo} في الطريق."),
+            Resolution = new LocalizedText(
+                "Name only units the transfer shipped and has not yet received. The transfer shows which they are.",
+                "اذكر فقط الوحدات التي شحنها التحويل ولم تُستلم بعد. والتحويل يعرض أيها."),
+            HelpTopic = "inventory/specific-costing",
+        },
+        new()
+        {
+            Code = TransferShortNeedsTrackingNos,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Say which units arrived", "اذكر الوحدات التي وصلت"),
+            Detail = new LocalizedText(
+                "Transfer {TransferNo} line {LineNo} is short, and {Count} different {ItemNo} numbers are travelling on it.",
+                "السطر {LineNo} من التحويل {TransferNo} ناقص، وفي الطريق عليه {Count} أرقام مختلفة من {ItemNo}."),
+            Resolution = new LocalizedText(
+                "Name the serials or lots that arrived. A quantity alone cannot say which car is missing, "
+                + "and the one left in transit has to be the one that is.",
+                "اذكر الأرقام التسلسلية أو الدفعات التي وصلت. فالكمية وحدها لا تقول أي سيارة ناقصة، "
+                + "والباقية في الطريق يجب أن تكون هي الناقصة فعلًا."),
             HelpTopic = "inventory/specific-costing",
         },
         new()

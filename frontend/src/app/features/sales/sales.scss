@@ -78,3 +78,9 @@
 .input--compact {
   max-width: 7rem;
 }
+
+/* Room for two or three chassis numbers before it needs to scroll. */
+.tracking-numbers {
+  max-width: 16rem;
+  min-width: 10rem;
+}

@@ -8,6 +8,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslationKey } from '../../core/i18n/translations';
 import { MessageService } from '../../core/messages/message.service';
+import { parseTrackingNumbers, quantityForNumbers } from '../../core/inventory/tracking-numbers';
 
 /** What the user has keyed against one line, for whichever step they are performing. */
 interface LineEntry {
@@ -53,6 +54,9 @@ export class PurchaseOrderDetail implements OnInit {
   private readonly receiptEntries = new Map<number, LineEntry>();
   private readonly invoiceEntries = new Map<number, LineEntry>();
   private readonly returnEntries = new Map<number, LineEntry>();
+
+  /** Serials or lots keyed against each line, by panel, kept apart from the quantities. */
+  private readonly numberEntries = { receive: new Map<number, string>(), return: new Map<number, string>() };
 
   protected readonly canReceiveAnything = computed(
     () => (this.order()?.lines ?? []).some((line) => line.outstandingToReceive > 0),
@@ -117,6 +121,14 @@ export class PurchaseOrderDetail implements OnInit {
     this.returnEntries.set(line.lineNo, { quantity: value, price: null });
   }
 
+  protected numbersOf(kind: 'receive' | 'return', line: PurchaseOrderLine): string {
+    return this.numberEntries[kind].get(line.lineNo) ?? '';
+  }
+
+  protected setNumbers(kind: 'receive' | 'return', line: PurchaseOrderLine, value: string): void {
+    this.numberEntries[kind].set(line.lineNo, value);
+  }
+
   protected invoiceQuantityOf(line: PurchaseOrderLine): number | null {
     return this.invoiceEntries.get(line.lineNo)?.quantity ?? null;
   }
@@ -168,7 +180,7 @@ export class PurchaseOrderDetail implements OnInit {
         this.orderNo,
 
         // Nothing keyed means everything outstanding, which is the ordinary case.
-        this.linesFrom(this.receiptEntries, (line) => line.outstandingToReceive),
+        this.linesFrom(this.receiptEntries, (line) => line.outstandingToReceive, this.numberEntries.receive),
         this.deliveryNo || undefined,
       );
 
@@ -185,6 +197,8 @@ export class PurchaseOrderDetail implements OnInit {
       );
 
       this.receiptEntries.clear();
+
+      this.numberEntries.receive.clear();
       this.deliveryNo = '';
 
       await this.load();
@@ -212,7 +226,7 @@ export class PurchaseOrderDetail implements OnInit {
     try {
       const result = await this.purchasing.sendBack(
         this.orderNo,
-        this.linesFrom(this.returnEntries, (line) => line.returnableQuantity),
+        this.linesFrom(this.returnEntries, (line) => line.returnableQuantity, this.numberEntries.return),
         this.returnReason.trim() || undefined,
       );
 
@@ -229,6 +243,7 @@ export class PurchaseOrderDetail implements OnInit {
       );
 
       this.returnEntries.clear();
+      this.numberEntries.return.clear();
       this.returnReason = '';
 
       await this.load();
@@ -311,6 +326,7 @@ export class PurchaseOrderDetail implements OnInit {
   private linesFrom(
     entries: Map<number, LineEntry>,
     outstanding: (line: PurchaseOrderLine) => number,
+    numbers?: Map<number, string>,
   ): PurchaseLineQuantity[] | undefined {
     const lines: PurchaseLineQuantity[] = [];
 
@@ -318,18 +334,20 @@ export class PurchaseOrderDetail implements OnInit {
       const entry = entries.get(line.lineNo);
       const keyedQuantity = entry?.quantity ?? null;
       const keyedPrice = entry?.price ?? null;
+      const trackingNos = parseTrackingNumbers(numbers?.get(line.lineNo));
 
-      if ((keyedQuantity ?? 0) <= 0 && keyedPrice === null) {
+      if ((keyedQuantity ?? 0) <= 0 && keyedPrice === null && trackingNos.length === 0) {
         continue;
       }
 
-      const quantity = (keyedQuantity ?? 0) > 0 ? (keyedQuantity as number) : outstanding(line);
+      const quantity = quantityForNumbers(keyedQuantity, trackingNos, outstanding(line));
 
       if (quantity > 0) {
         lines.push({
           lineNo: line.lineNo,
           quantity,
           directUnitCost: keyedPrice ?? undefined,
+          trackingNos: trackingNos.length > 0 ? trackingNos : undefined,
         });
       }
     }

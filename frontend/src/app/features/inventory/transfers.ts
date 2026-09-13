@@ -12,6 +12,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslationKey } from '../../core/i18n/translations';
 import { MessageService } from '../../core/messages/message.service';
+import { parseTrackingNumbers } from '../../core/inventory/tracking-numbers';
 
 /** One line being drafted onto a new transfer. */
 interface DraftLine {
@@ -58,6 +59,9 @@ export class Transfers implements OnInit {
    * somebody has half-typed into a receipt.
    */
   private readonly arrivals = new Map<string, number>();
+
+  /** Serials or lots keyed per transfer line: what is leaving, before it ships; what arrived, after. */
+  private readonly numbers = new Map<string, string>();
 
   async ngOnInit(): Promise<void> {
     try {
@@ -188,8 +192,31 @@ export class Transfers implements OnInit {
     }
   }
 
+  protected numbersOf(transfer: Transfer, line: TransferLine): string {
+    return this.numbers.get(`${transfer.no}/${line.lineNo}`) ?? '';
+  }
+
+  protected setNumbers(transfer: Transfer, line: TransferLine, value: string): void {
+    this.numbers.set(`${transfer.no}/${line.lineNo}`, value);
+  }
+
+  /** The serials or lots still on their way on a line, as one line of text. */
+  protected travelling(line: TransferLine): string {
+    return (line.units ?? [])
+      .filter((unit) => unit.inTransit > 0)
+      .map((unit) => (unit.inTransit === 1 ? unit.trackingNo : `${unit.trackingNo} × ${this.quantity(unit.inTransit)}`))
+      .join(', ');
+  }
+
   protected async ship(transfer: Transfer): Promise<void> {
-    await this.move(transfer, 'ship', () => this.inventory.shipTransfer(transfer.no), 'inventory.transfers.shippedAs');
+    const trackingNos = this.numbersByLine(transfer);
+
+    await this.move(
+      transfer,
+      'ship',
+      () => this.inventory.shipTransfer(transfer.no, trackingNos),
+      'inventory.transfers.shippedAs',
+    );
   }
 
   protected async receive(transfer: Transfer): Promise<void> {
@@ -206,7 +233,12 @@ export class Transfers implements OnInit {
     await this.move(
       transfer,
       'receive',
-      () => this.inventory.receiveTransfer(transfer.no, Object.keys(shortages).length ? shortages : undefined),
+      () =>
+        this.inventory.receiveTransfer(
+          transfer.no,
+          Object.keys(shortages).length ? shortages : undefined,
+          this.numbersByLine(transfer),
+        ),
       'inventory.transfers.receivedAs',
     );
   }
@@ -237,6 +269,7 @@ export class Transfers implements OnInit {
 
       for (const line of transfer.lines) {
         this.arrivals.delete(`${transfer.no}/${line.itemNo}`);
+        this.numbers.delete(`${transfer.no}/${line.lineNo}`);
       }
 
       await this.load();
@@ -245,6 +278,21 @@ export class Transfers implements OnInit {
     } finally {
       this.busy.set(null);
     }
+  }
+
+  /** The numbers keyed on a transfer, by line, or undefined when none were. */
+  private numbersByLine(transfer: Transfer): Record<number, string[]> | undefined {
+    const byLine: Record<number, string[]> = {};
+
+    for (const line of transfer.lines) {
+      const numbers = parseTrackingNumbers(this.numbers.get(`${transfer.no}/${line.lineNo}`));
+
+      if (numbers.length > 0) {
+        byLine[line.lineNo] = numbers;
+      }
+    }
+
+    return Object.keys(byLine).length > 0 ? byLine : undefined;
   }
 
   private async load(): Promise<void> {

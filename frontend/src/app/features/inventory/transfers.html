@@ -173,6 +173,10 @@
               @if (expanded() === transfer.no) {
                 <tr class="transfer__detail">
                   <td colspan="7">
+                    @if (canShip(transfer)) {
+                      <p class="transfer__hint">{{ t('inventory.transfers.numbersHint') }}</p>
+                    }
+
                     @if (canReceive(transfer)) {
                       <p class="transfer__hint">{{ t('inventory.transfers.shortages') }}</p>
                     }
@@ -188,6 +192,9 @@
                           <th class="numeric">{{ t('inventory.transfers.received') }}</th>
                           @if (canReceive(transfer)) {
                             <th class="numeric">{{ t('inventory.transfers.arrived') }}</th>
+                          }
+                          @if (canShip(transfer) || canReceive(transfer)) {
+                            <th>{{ t('inventory.tracking.numbers') }}</th>
                           }
                         </tr>
                       </thead>
@@ -211,6 +218,20 @@
                                   [placeholder]="quantity(line.inTransit)"
                                   [ngModel]="arrivalOf(transfer, line)"
                                   (ngModelChange)="setArrival(transfer, line, $event)"
+                                />
+                              </td>
+                            }
+                            @if (canShip(transfer) || canReceive(transfer)) {
+                              <td>
+                                @if (canReceive(transfer) && travelling(line)) {
+                                  <div class="code transfer__travelling">{{ travelling(line) }}</div>
+                                }
+                                <input
+                                  class="input input--compact tracking-numbers"
+                                  [placeholder]="t('inventory.tracking.placeholder')"
+                                  [attr.aria-label]="t('inventory.tracking.numbers')"
+                                  [ngModel]="numbersOf(transfer, line)"
+                                  (ngModelChange)="setNumbers(transfer, line, $event)"
                                 />
                               </td>
                             }

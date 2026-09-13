@@ -76,6 +76,78 @@ public sealed partial class InventorySchema : IModuleSchema
             builder.Ignore(u => u.IsBase);
         });
 
+        modelBuilder.Entity<Transfers.TransferRequest>(builder =>
+
+        {
+
+            builder.ToTable("TransferRequests", SchemaName);
+
+
+            builder.Property(r => r.No).HasMaxLength(20).IsRequired();
+
+            builder.Property(r => r.FromLocationCode).HasMaxLength(20).IsRequired();
+
+            builder.Property(r => r.ToLocationCode).HasMaxLength(20).IsRequired();
+
+            builder.Property(r => r.Reason).HasMaxLength(500);
+
+            builder.Property(r => r.RejectionReason).HasMaxLength(500);
+
+            builder.Property(r => r.RequestedByUserName).HasMaxLength(120);
+
+            builder.Property(r => r.ApprovedByUserName).HasMaxLength(120);
+
+            builder.Property(r => r.RowVersion).IsRowVersion();
+
+
+            builder.HasMany(r => r.Lines)
+
+                   .WithOne(l => l.TransferRequest!)
+
+                   .HasForeignKey(l => l.TransferRequestId)
+
+                   .OnDelete(DeleteBehavior.Cascade);
+
+
+            builder.HasIndex(r => new { r.CompanyId, r.No })
+
+                   .IsUnique()
+
+                   .HasFilter("[IsDeleted] = 0");
+
+
+            builder.HasIndex(r => new { r.CompanyId, r.Status, r.RequestDate });
+
+        });
+
+
+        modelBuilder.Entity<Transfers.TransferRequestLine>(builder =>
+
+        {
+
+            builder.ToTable("TransferRequestLines", SchemaName);
+
+
+            builder.Property(l => l.ItemNo).HasMaxLength(20).IsRequired();
+
+            builder.Property(l => l.VariantCode).HasMaxLength(20);
+
+            builder.Property(l => l.Note).HasMaxLength(500);
+
+            builder.Property(l => l.QuantityRequested).HasPrecision(18, 5);
+
+            builder.Property(l => l.QuantityApproved).HasPrecision(18, 5);
+
+            builder.Property(l => l.QuantityTransferred).HasPrecision(18, 5);
+
+            builder.Property(l => l.RowVersion).IsRowVersion();
+
+
+            builder.HasIndex(l => new { l.CompanyId, l.TransferRequestId, l.LineNo });
+
+        });
+
+
         modelBuilder.Entity<Locations.BinMovement>(builder =>
 
         {

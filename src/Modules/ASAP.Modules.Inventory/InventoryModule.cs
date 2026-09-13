@@ -73,6 +73,7 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
         services.AddScoped<Locations.LocationBranchLookup>();
 
 
+        services.AddScoped<Transfers.TransferRequestService>();
         services.AddScoped<Locations.BinMovementService>();
         services.AddScoped<Items.ReorderPolicyService>();
         services.AddScoped<Reservations.StockReservationService>();
@@ -251,6 +252,17 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
             new LocalizedText("View transfers", "عرض التحويلات")),
 
         PermissionDescriptor.Define(
+            Id, "TransferRequest", PermissionAction.Create,
+            new LocalizedText("Ask for stock from another place", "طلب مخزون من مكان آخر"),
+            new LocalizedText(
+                "Raise a request for stock that somebody at the place holding it then answers. "
+                + "Kept apart from shipping, so that asking for goods and agreeing to send them "
+                + "are never in the same hands.",
+                "رفع طلب مخزون يرد عليه أحد في المكان الذي يحتفظ به. وهي منفصلة عن الشحن، حتى لا "
+                + "يجتمع طلب البضاعة والموافقة على إرسالها في يد واحدة."),
+            implies: [$"{Id}.Transfer.Read"]),
+
+        PermissionDescriptor.Define(
             Id, "Transfer", PermissionAction.Post,
             new LocalizedText("Ship and receive transfers", "شحن واستلام التحويلات"),
             implies: [$"{Id}.Transfer.Read", $"{Id}.Stock.Read"],
@@ -288,6 +300,21 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
     /// <inheritdoc />
     public IReadOnlyCollection<SetupDescriptor> Setups =>
     [
+        new()
+        {
+            Key = $"{Id}.TransferRequest.NumberSeries",
+            Module = Id,
+            Group = new LocalizedText("Numbering", "الترقيم"),
+            DisplayName = new LocalizedText("Transfer request numbers", "ترقيم طلبات النقل"),
+            Description = new LocalizedText(
+                "The series transfer requests are numbered from.",
+                "المسلسل الذي تصدر منه أرقام طلبات النقل."),
+            ValueType = SetupValueType.Text,
+            Scope = SetupScope.Company,
+            DefaultValue = "TRANSFER-REQ",
+            RequiresPermission = $"{Id}.Transfer.Post",
+            HelpTopic = "inventory/transfer-requests",
+        },
         new()
         {
             Key = $"{Id}.BinMovement.NumberSeries",
@@ -483,6 +510,18 @@ public sealed class InventoryModule : IAsapModule, ASAP.Platform.Kernel.Sync.ISy
             Route = "/inventory/counts",
             RequiresPermission = $"{Id}.Count.Read",
             Order = 35,
+        },
+        new()
+        {
+            Id = "Inventory.TransferRequests",
+            Module = Id,
+            ParentId = "Inventory.Root",
+            DisplayName = new LocalizedText("Transfer requests", "طلبات النقل"),
+            Kind = NavigationKind.Page,
+            Route = "/inventory/transfer-requests",
+            RequiresPermission = $"{Id}.Transfer.Read",
+            Order = 38,
+            HelpTopic = "inventory/transfer-requests",
         },
         new()
         {

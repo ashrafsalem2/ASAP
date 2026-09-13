@@ -582,6 +582,47 @@ export interface Bin {
 }
 
 /** What is standing on one shelf. */
+/** Where a transfer request stands. */
+export type TransferRequestStatus = 'Draft' | 'Submitted' | 'Approved' | 'Rejected' | 'Fulfilled' | 'Cancelled';
+
+/** One thing asked for on a transfer request. */
+export interface TransferRequestLineRow {
+  lineNo: number;
+  itemNo: string;
+  itemName: string | null;
+  variantCode: string | null;
+  quantityRequested: number;
+  quantityApproved: number;
+  quantityTransferred: number;
+  outstandingToTransfer: number;
+  note: string | null;
+}
+
+/** A branch asking for stock. */
+export interface TransferRequestRow {
+  no: string;
+  fromLocationCode: string;
+  toLocationCode: string;
+  requestDate: string;
+  neededByDate: string | null;
+  status: TransferRequestStatus;
+  reason: string | null;
+  requestedByUserName: string | null;
+  approvedByUserName: string | null;
+  rejectionReason: string | null;
+  hasOutstanding: boolean;
+  lines: TransferRequestLineRow[];
+}
+
+/** The transfer a request became. */
+export interface TransferFromRequestResult {
+  transferNo: string;
+  fromLocationCode: string;
+  toLocationCode: string;
+  lineCount: number;
+  messages?: AsapMessage[];
+}
+
 /** Where a bin movement stands. */
 export type BinMovementStatus = 'Draft' | 'Posted' | 'Cancelled';
 

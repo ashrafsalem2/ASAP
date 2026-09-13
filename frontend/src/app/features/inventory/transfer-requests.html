@@ -1,0 +1,263 @@
+<div class="page">
+  <h1>{{ t('inventory.transferRequests.title') }}</h1>
+
+  <section class="panel">
+    <p class="panel__body page__intro">{{ t('inventory.transferRequests.intro') }}</p>
+
+    <div class="panel__body draft">
+      <label class="field">
+        <span class="field__label">{{ t('inventory.transferRequests.status') }}</span>
+        <select class="select" [(ngModel)]="filterStatus" name="status" (ngModelChange)="filter()">
+          <option value="">{{ t('inventory.transferRequests.all') }}</option>
+          @for (status of ['Draft', 'Submitted', 'Approved', 'Rejected', 'Fulfilled', 'Cancelled']; track status) {
+            <option [value]="status">{{ statusLabel($any(status)) }}</option>
+          }
+        </select>
+      </label>
+    </div>
+
+    @if (loading()) {
+      <p class="empty"><span class="spinner"></span> {{ t('common.loading') }}</p>
+    } @else if (requests().length === 0) {
+      <p class="empty">{{ t('inventory.transferRequests.none') }}</p>
+    } @else {
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('inventory.transferRequests.no') }}</th>
+              <th>{{ t('inventory.transferRequests.date') }}</th>
+              <th>{{ t('inventory.transferRequests.from') }}</th>
+              <th>{{ t('inventory.transferRequests.to') }}</th>
+              <th>{{ t('inventory.transferRequests.status') }}</th>
+              <th>{{ t('inventory.transferRequests.askedBy') }}</th>
+              <th>{{ t('inventory.transferRequests.reason') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (request of requests(); track request.no) {
+              <tr
+                class="admin__row"
+                [class.admin__row--selected]="selected()?.no === request.no"
+                (click)="select(request)"
+              >
+                <td class="code">{{ request.no }}</td>
+                <td>{{ request.requestDate }}</td>
+                <td class="code">{{ request.fromLocationCode }}</td>
+                <td class="code">{{ request.toLocationCode }}</td>
+                <td><span class="tag">{{ statusLabel(request.status) }}</span></td>
+                <td>{{ request.requestedByUserName ?? '—' }}</td>
+                <td>{{ request.reason ?? '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+
+  @if (selected(); as request) {
+    <section class="panel">
+      <h2 class="panel__title">
+        {{ t('inventory.transferRequests.detail', {
+          No: request.no,
+          From: request.fromLocationCode,
+          To: request.toLocationCode
+        }) }}
+      </h2>
+
+      @if (request.rejectionReason) {
+        <p class="panel__body hint">
+          {{ t('inventory.transferRequests.turnedDown', { Reason: request.rejectionReason }) }}
+        </p>
+      }
+
+      <div class="table-scroll">
+        <table class="table">
+          <thead>
+            <tr>
+              <th>{{ t('inventory.transferRequests.item') }}</th>
+              <th class="numeric">{{ t('inventory.transferRequests.asked') }}</th>
+              <th class="numeric">{{ t('inventory.transferRequests.agreed') }}</th>
+              <th class="numeric">{{ t('inventory.transferRequests.sentQty') }}</th>
+              <th>{{ t('inventory.transferRequests.note') }}</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (line of request.lines; track line.lineNo) {
+              <tr>
+                <td><span class="code">{{ line.itemNo }}</span> {{ line.itemName }}</td>
+                <td class="numeric">{{ line.quantityRequested }}</td>
+                <td class="numeric">
+                  <!-- Capped at what was asked. The server refuses more, and a box that let
+                       somebody type twenty would only teach them that by failing. -->
+                  @if (request.status === 'Submitted' && canAnswer()) {
+                    <input
+                      class="input input--number"
+                      type="number"
+                      min="0"
+                      [max]="line.quantityRequested"
+                      [(ngModel)]="agreeing[line.lineNo]"
+                      [name]="'agree' + line.lineNo"
+                    />
+                  } @else {
+                    {{ line.quantityApproved || '—' }}
+                  }
+                </td>
+                <td class="numeric">{{ line.quantityTransferred || '—' }}</td>
+                <td>{{ line.note ?? '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+
+      <div class="panel__body draft">
+        @if (request.status === 'Draft' && canAsk()) {
+          <button type="button" class="button button--primary" [disabled]="busy()" (click)="submit(request)">
+            {{ t('inventory.transferRequests.submit') }}
+          </button>
+        }
+
+        @if (request.status === 'Submitted' && canAnswer()) {
+          <button type="button" class="button button--primary" [disabled]="busy()" (click)="approve(request)">
+            {{ t('inventory.transferRequests.agree') }}
+          </button>
+
+          <label class="field">
+            <span class="field__label">{{ t('inventory.transferRequests.whyNot') }}</span>
+            <input class="input" [(ngModel)]="rejectionReason" name="rejectionReason" maxlength="500" />
+          </label>
+
+          <button
+            type="button"
+            class="button"
+            [disabled]="busy() || !rejectionReason.trim()"
+            (click)="reject(request)"
+          >
+            {{ t('inventory.transferRequests.turnDown') }}
+          </button>
+        }
+
+        @if (request.hasOutstanding && canAnswer()) {
+          <button type="button" class="button button--primary" [disabled]="busy()" (click)="transfer(request)">
+            {{ t('inventory.transferRequests.makeTransfer') }}
+          </button>
+        }
+
+        @if (canCancel(request)) {
+          <button type="button" class="button button--quiet" [disabled]="busy()" (click)="cancel(request)">
+            {{ t('inventory.transferRequests.cancel') }}
+          </button>
+        }
+      </div>
+
+      @if (request.status === 'Submitted' && canAnswer()) {
+        <p class="panel__body hint">{{ t('inventory.transferRequests.agreeHint') }}</p>
+      }
+    </section>
+  }
+
+  @if (canAsk()) {
+    <section class="panel">
+      <h2 class="panel__title">{{ t('inventory.transferRequests.newTitle') }}</h2>
+
+      <div class="panel__body draft">
+        <label class="field">
+          <span class="field__label">{{ t('inventory.transferRequests.from') }}</span>
+          <select class="select" [(ngModel)]="fromLocation" name="from">
+            <option value=""></option>
+            @for (location of places(); track location.code) {
+              <option [value]="location.code">{{ location.code }} — {{ location.name }}</option>
+            }
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field__label">{{ t('inventory.transferRequests.to') }}</span>
+          <select class="select" [(ngModel)]="toLocation" name="to">
+            <option value=""></option>
+            @for (location of places(); track location.code) {
+              @if (location.code !== fromLocation) {
+                <option [value]="location.code">{{ location.code }} — {{ location.name }}</option>
+              }
+            }
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field__label">{{ t('inventory.transferRequests.neededBy') }}</span>
+          <input class="input" type="date" [(ngModel)]="neededBy" name="neededBy" />
+        </label>
+
+        <label class="field">
+          <span class="field__label">{{ t('inventory.transferRequests.reason') }}</span>
+          <input class="input" [(ngModel)]="reason" name="reason" maxlength="500" />
+        </label>
+      </div>
+
+      <div class="panel__body draft">
+        <label class="field">
+          <span class="field__label">{{ t('inventory.transferRequests.item') }}</span>
+          <select class="select" [(ngModel)]="newItemNo" name="newItem">
+            <option value=""></option>
+            @for (item of items(); track item.no) {
+              <option [value]="item.no">{{ item.no }} — {{ item.description }}</option>
+            }
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field__label">{{ t('inventory.transferRequests.asked') }}</span>
+          <input class="input input--number" type="number" min="0" [(ngModel)]="newQuantity" name="newQuantity" />
+        </label>
+
+        <button type="button" class="button" [disabled]="!newItemNo || !newQuantity" (click)="addLine()">
+          {{ t('inventory.transferRequests.addLine') }}
+        </button>
+      </div>
+
+      @if (draft().length > 0) {
+        <div class="table-scroll">
+          <table class="table">
+            <tbody>
+              @for (line of draft(); track $index) {
+                <tr>
+                  <td class="code">{{ line.itemNo }}</td>
+                  <td class="numeric">{{ line.quantity }}</td>
+                  <td>
+                    <button type="button" class="button button--quiet" (click)="removeLine($index)">
+                      {{ t('inventory.transferRequests.removeLine') }}
+                    </button>
+                  </td>
+                </tr>
+              }
+            </tbody>
+          </table>
+        </div>
+
+        <div class="panel__body draft">
+          <button
+            type="button"
+            class="button"
+            [disabled]="busy() || !fromLocation || !toLocation"
+            (click)="raise(false)"
+          >
+            {{ t('inventory.transferRequests.saveDraft') }}
+          </button>
+
+          <button
+            type="button"
+            class="button button--primary"
+            [disabled]="busy() || !fromLocation || !toLocation"
+            (click)="raise(true)"
+          >
+            {{ t('inventory.transferRequests.raiseAndSend') }}
+          </button>
+        </div>
+      }
+
+      <p class="panel__body hint">{{ t('inventory.transferRequests.askHint') }}</p>
+    </section>
+  }
+</div>

@@ -92,6 +92,9 @@ public sealed class TransferService(
         {
             ["From"] = fromLocationCode,
             ["To"] = toLocationCode,
+
+            // The same-place refusal names it as {Location}. Without this it printed the braces.
+            ["Location"] = fromLocationCode,
         };
 
         var refusals = new List<AsapMessage>();

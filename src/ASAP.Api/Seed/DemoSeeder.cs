@@ -327,6 +327,7 @@ public sealed class DemoSeeder(
         Add("PURCH-INV", "Purchase invoices", allowGaps: true, "PINV-{YYYY}-00001");
         Add("PURCH-CM", "Purchase credit memos", allowGaps: true, "PCM-{YYYY}-00001");
         Add("TRANSFER", "Stock transfers", allowGaps: true, "TR-{YYYY}-00001");
+        Add("TRANSFER-REQ", "Transfer requests", allowGaps: true, "TRQ-{YYYY}-0001");
         Add("COUNT", "Stock counts", allowGaps: true, "CNT-{YYYY}-0001");
         Add("BINMOVE", "Bin movements", allowGaps: true, "BM-{YYYY}-0001");
         Add("POS-SESS", "Till sessions", allowGaps: true, "Z-{YYYY}-00001");

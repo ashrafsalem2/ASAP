@@ -73,6 +73,35 @@ public static class InventoryMessages
     /// <summary>There is not that much on the shelf.</summary>
     public static readonly MessageCode NotEnoughInBin = new("INV.BIN.NOT_ENOUGH");
 
+    /// <summary>A transfer request is not there.</summary>
+    public static readonly MessageCode TransferRequestNotFound = new("INV.TRQ.NOT_FOUND");
+
+    /// <summary>A transfer request has nothing on it.</summary>
+    public static readonly MessageCode TransferRequestHasNoLines = new("INV.TRQ.NO_LINES");
+
+    /// <summary>A transfer request line asks for nothing.</summary>
+    public static readonly MessageCode TransferRequestQuantityZero = new("INV.TRQ.QUANTITY_ZERO");
+
+    /// <summary>Somebody tried to approve their own request.</summary>
+    public static readonly MessageCode CannotApproveYourOwnTransferRequest =
+        new("INV.TRQ.SELF_APPROVAL");
+
+    /// <summary>A request is not waiting on an answer.</summary>
+    public static readonly MessageCode TransferRequestNotAwaiting = new("INV.TRQ.NOT_AWAITING");
+
+    /// <summary>An approval gave more than was asked for.</summary>
+    public static readonly MessageCode ApprovedMoreThanRequested = new("INV.TRQ.OVER_APPROVED");
+
+    /// <summary>A request cannot be edited once it has been sent for approval.</summary>
+    public static readonly MessageCode TransferRequestNotEditable = new("INV.TRQ.NOT_EDITABLE");
+
+    /// <summary>Nothing on the request is still to be sent.</summary>
+    public static readonly MessageCode TransferRequestNothingOutstanding =
+        new("INV.TRQ.NOTHING_OUTSTANDING");
+
+    /// <summary>A transfer would send more than was approved.</summary>
+    public static readonly MessageCode TransferMoreThanApproved = new("INV.TRQ.OVER_TRANSFER");
+
     /// <summary>A bin was named at a location that does not track bins.</summary>
     public static readonly MessageCode BinNotUsedHere = new("INV.BIN.NOT_USED");
 
@@ -501,6 +530,133 @@ public static class InventoryMessages
                 + "بذلك يترك الأرفف تحمل صورة خاطئة للمخزون من الآن فصاعدًا، ولا يُكتشف ذلك حتى "
                 + "يُرسل عامل إلى رف فارغ."),
             HelpTopic = "inventory/bins",
+        },
+        new()
+        {
+            Code = TransferRequestNotFound,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("No such request", "لا يوجد طلب بهذا الرقم"),
+            Detail = new LocalizedText(
+                "No transfer request in this company is numbered {RequestNo}.",
+                "لا يوجد طلب نقل في هذه الشركة برقم {RequestNo}."),
+            Resolution = new LocalizedText(
+                "Check the number against the request list.",
+                "راجع الرقم مقابل قائمة الطلبات."),
+            HelpTopic = "inventory/transfer-requests",
+        },
+        new()
+        {
+            Code = TransferRequestHasNoLines,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Nothing is being asked for", "لا شيء مطلوب"),
+            Detail = new LocalizedText(
+                "A transfer request has to say what is wanted.",
+                "طلب النقل يجب أن يذكر ما هو مطلوب."),
+            Resolution = new LocalizedText(
+                "Add at least one line.",
+                "أضف سطرًا واحدًا على الأقل."),
+            HelpTopic = "inventory/transfer-requests",
+        },
+        new()
+        {
+            Code = TransferRequestQuantityZero,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("That line asks for nothing", "هذا السطر لا يطلب شيئًا"),
+            Detail = new LocalizedText(
+                "Line {LineNo} asks for {Quantity:0.#####} of {ItemNo}.",
+                "السطر {LineNo} يطلب {Quantity:0.#####} من {ItemNo}."),
+            Resolution = new LocalizedText(
+                "Enter how much is wanted, or take the line off.",
+                "أدخل الكمية المطلوبة، أو احذف السطر."),
+            HelpTopic = "inventory/transfer-requests",
+        },
+        new()
+        {
+            Code = CannotApproveYourOwnTransferRequest,
+            Severity = MessageSeverity.Blocked,
+            Title = new LocalizedText("You cannot answer your own request", "لا يمكنك الرد على طلبك"),
+            Detail = new LocalizedText(
+                "{RequestNo} was raised by {RequestedBy}, who is signed in.",
+                "الطلب {RequestNo} رفعه {RequestedBy}، وهو المسجَّل دخوله الآن."),
+            Resolution = new LocalizedText(
+                "Somebody at the location holding the stock has to agree to it. An approval you "
+                + "can give yourself is a checkbox.",
+                "يجب أن يوافق عليه أحد في الموقع الذي يحتفظ بالمخزون. فالموافقة التي تمنحها لنفسك "
+                + "مجرد خانة اختيار."),
+            HelpTopic = "inventory/transfer-requests",
+        },
+        new()
+        {
+            Code = TransferRequestNotAwaiting,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("Not waiting on an answer", "ليس في انتظار رد"),
+            Detail = new LocalizedText(
+                "{RequestNo} is {Status} rather than waiting for an answer.",
+                "الطلب {RequestNo} حالته {Status} وليس في انتظار رد."),
+            Resolution = new LocalizedText(
+                "Only a submitted request can be agreed to or turned down.",
+                "لا يمكن الموافقة أو الرفض إلا لطلب مُرسَل."),
+            HelpTopic = "inventory/transfer-requests",
+        },
+        new()
+        {
+            Code = ApprovedMoreThanRequested,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("More than was asked for", "أكثر مما طُلب"),
+            Detail = new LocalizedText(
+                "Line {LineNo} asked for {Quantity:0.#####} of {ItemNo} and is being given "
+                + "{ApprovedQuantity:0.#####}.",
+                "السطر {LineNo} طلب {Quantity:0.#####} من {ItemNo} ويُمنح "
+                + "{ApprovedQuantity:0.#####}."),
+            Resolution = new LocalizedText(
+                "Send what was asked for or less. A warehouse clearing its shelves into a branch "
+                + "that cannot sell them has moved a problem rather than solved one.",
+                "أرسل ما طُلب أو أقل. فالمستودع الذي يفرّغ أرففه في فرع لا يستطيع بيعها قد نقل "
+                + "مشكلة لا حلّها."),
+            HelpTopic = "inventory/transfer-requests",
+        },
+        new()
+        {
+            Code = TransferRequestNotEditable,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("It has already been sent", "أُرسل بالفعل"),
+            Detail = new LocalizedText(
+                "{RequestNo} is {Status} and can no longer be changed.",
+                "الطلب {RequestNo} حالته {Status} ولم يعد قابلًا للتعديل."),
+            Resolution = new LocalizedText(
+                "Raise another request for the difference, or cancel this one.",
+                "ارفع طلبًا آخر بالفرق، أو ألغِ هذا الطلب."),
+            HelpTopic = "inventory/transfer-requests",
+        },
+        new()
+        {
+            Code = TransferRequestNothingOutstanding,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("It has all been sent", "أُرسل كله"),
+            Detail = new LocalizedText(
+                "Everything agreed on {RequestNo} is already on a transfer.",
+                "كل ما وُوفق عليه في {RequestNo} صار على أمر نقل بالفعل."),
+            Resolution = new LocalizedText(
+                "Raise another request if more is wanted.",
+                "ارفع طلبًا آخر إن كان المطلوب أكثر."),
+            HelpTopic = "inventory/transfer-requests",
+        },
+        new()
+        {
+            Code = TransferMoreThanApproved,
+            Severity = MessageSeverity.Error,
+            Title = new LocalizedText("More than was agreed", "أكثر مما وُوفق عليه"),
+            Detail = new LocalizedText(
+                "Line {LineNo} has {OutstandingQuantity:0.#####} of {ItemNo} still to send, and "
+                + "{Quantity:0.#####} is being sent.",
+                "بقي على السطر {LineNo} {OutstandingQuantity:0.#####} من {ItemNo} لم تُرسل، "
+                + "ويُرسل الآن {Quantity:0.#####}."),
+            Resolution = new LocalizedText(
+                "Send what is left, or raise another request. A line sent twice is stock nobody "
+                + "asked for arriving at a branch that cannot send it back without paperwork.",
+                "أرسل ما تبقى، أو ارفع طلبًا آخر. فالسطر المرسَل مرتين مخزون لم يطلبه أحد يصل إلى "
+                + "فرع لا يستطيع إعادته بلا مستندات."),
+            HelpTopic = "inventory/transfer-requests",
         },
         new()
         {

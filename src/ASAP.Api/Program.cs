@@ -155,6 +155,7 @@ app.MapFinanceEndpoints();
 app.MapPartyEndpoints();
 app.MapInventoryEndpoints();
 app.MapTransferEndpoints();
+app.MapTransferRequestEndpoints();
 app.MapPurchasingEndpoints();
 app.MapSalesEndpoints();
 app.MapPromotionsEndpoints();

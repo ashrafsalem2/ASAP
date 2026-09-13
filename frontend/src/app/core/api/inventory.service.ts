@@ -28,6 +28,8 @@ import {
   ReorderKind,
   ReorderPolicyRow,
   StockLocation,
+  TransferFromRequestResult,
+  TransferRequestRow,
   StockMovement,
   StockMovementRequest,
   StockOnHandRow,
@@ -300,6 +302,72 @@ export class InventoryService {
   bins(locationCode: string): Promise<Bin[]> {
     return firstValueFrom(
       this.http.get<Bin[]>(`${this.base}/locations/${encodeURIComponent(locationCode)}/bins`),
+    );
+  }
+
+  /** Requests for stock, most recent first. */
+  transferRequests(status?: string): Promise<TransferRequestRow[]> {
+    const query = status ? `?status=${encodeURIComponent(status)}` : '';
+
+    return firstValueFrom(
+      this.http.get<TransferRequestRow[]>(`${this.base}/transfer-requests${query}`),
+    );
+  }
+
+  /** Asks for stock from somewhere that has it. Commits nothing. */
+  createTransferRequest(request: {
+    fromLocationCode: string;
+    toLocationCode: string;
+    lines: { itemNo: string; quantity: number }[];
+    neededByDate?: string | null;
+    reason?: string | null;
+  }): Promise<TransferRequestRow> {
+    return firstValueFrom(
+      this.http.post<TransferRequestRow>(`${this.base}/transfer-requests`, request),
+    );
+  }
+
+  /** Sends a request to whoever holds the stock. */
+  submitTransferRequest(no: string): Promise<TransferRequestRow> {
+    return firstValueFrom(
+      this.http.post<TransferRequestRow>(`${this.base}/transfer-requests/${encodeURIComponent(no)}/submit`, {}),
+    );
+  }
+
+  /** Agrees to a request, in whole or in part. */
+  approveTransferRequest(no: string, lines: { lineNo: number; quantity: number }[]): Promise<TransferRequestRow> {
+    return firstValueFrom(
+      this.http.post<TransferRequestRow>(
+        `${this.base}/transfer-requests/${encodeURIComponent(no)}/approve`,
+        { lines },
+      ),
+    );
+  }
+
+  /** Turns a request down, with a reason. */
+  rejectTransferRequest(no: string, reason: string): Promise<TransferRequestRow> {
+    return firstValueFrom(
+      this.http.post<TransferRequestRow>(
+        `${this.base}/transfer-requests/${encodeURIComponent(no)}/reject`,
+        { reason },
+      ),
+    );
+  }
+
+  /** Turns what was agreed into a transfer. */
+  transferFromRequest(no: string): Promise<TransferFromRequestResult> {
+    return firstValueFrom(
+      this.http.post<TransferFromRequestResult>(
+        `${this.base}/transfer-requests/${encodeURIComponent(no)}/transfer`,
+        {},
+      ),
+    );
+  }
+
+  /** Withdraws a request that has produced nothing. */
+  cancelTransferRequest(no: string): Promise<TransferRequestRow> {
+    return firstValueFrom(
+      this.http.post<TransferRequestRow>(`${this.base}/transfer-requests/${encodeURIComponent(no)}/cancel`, {}),
     );
   }
 

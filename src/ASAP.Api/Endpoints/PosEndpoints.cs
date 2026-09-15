@@ -36,6 +36,7 @@ public sealed record SetPickBinRequest(string? PickBinCode);
 /// <param name="TaxCode">The tax to charge.</param>
 /// <param name="UnitCode">The unit rung, or null for the item's base unit.</param>
 /// <param name="VariantCode">Which variant of the item, where the item has them.</param>
+/// <param name="TrackingNos">The serials, one per unit, or the lot, on a specifically costed item.</param>
 public sealed record PosLinePayload(
     PosLineType Type,
     string No,
@@ -45,7 +46,8 @@ public sealed record PosLinePayload(
     string? Description = null,
     string? TaxCode = null,
     string? UnitCode = null,
-    string? VariantCode = null);
+    string? VariantCode = null,
+    IReadOnlyList<string>? TrackingNos = null);
 
 /// <summary>Money put towards a receipt, as a client sends it.</summary>
 /// <param name="Kind">What kind of money it is.</param>
@@ -832,7 +834,8 @@ public static class PosEndpoints
             payload.Description,
             payload.TaxCode,
             payload.UnitCode,
-            payload.VariantCode);
+            payload.VariantCode,
+            payload.TrackingNos);
 
     private static ParkedSaleView View(PosReceipt receipt)
         => new(
@@ -850,7 +853,12 @@ public static class PosEndpoints
                     l.UnitPrice,
                     l.DiscountPercent,
                     l.Description,
-                    l.TaxCode))]);
+                    l.TaxCode,
+
+                    // Stored in base units, so recalled in base units. Without the variant a
+                    // recalled shirt had lost its size and could not be rung up again.
+                    VariantCode: l.VariantCode,
+                    TrackingNos: l.TrackingNoList))]);
 
     private static object View(PosSession session)
         => new

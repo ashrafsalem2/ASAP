@@ -276,7 +276,8 @@ public sealed class PurchaseReturnService(
                 BinCode: bins.GetValueOrDefault((g.Line.ItemNo!, g.Line.VariantCode ?? string.Empty)),
                 VariantCode: g.Line.VariantCode,
                 AppliesToDocumentNo: order.No,
-                LineNo: g.Line.LineNo))
+                LineNo: g.Line.LineNo,
+                AppliesToLineNo: g.Line.LineNo))
             .ToList();
 
         if (movements.Count == 0)

@@ -26,6 +26,13 @@
   margin-inline-start: 0.5rem;
 }
 
+/* Under the description, wide enough for a couple of IMEIs. */
+.till__serials {
+  display: block;
+  margin-top: 0.25rem;
+  max-width: 18rem;
+}
+
 .till__discount {
   color: var(--caution);
 }

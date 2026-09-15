@@ -1617,6 +1617,8 @@ export interface ParkedSale {
     discountPercent: number;
     description?: string;
     taxCode?: string;
+    variantCode?: string;
+    trackingNos?: string[];
   }[];
 }
 

@@ -10,6 +10,8 @@ There are three things in a template.
 
 **A repeated region**, written [[lines]] … [[/lines]]. Everything between the tags is printed once per line, and inside it the placeholders come from that line. [[tenders]] does the same for how the sale was paid. A region with nothing in it prints nothing, which is what an empty receipt should look like.
 
+Inside [[lines]], {TrackingNos} is the serials or lot sold on that line — blank for anything not tracked. A shop selling phones puts it under the description, because the serial on the receipt is what a warranty is claimed against.
+
 **Everything else**, which is printed exactly as written. Spaces included: a receipt is a fixed-width document and the spacing is the layout.
 
 ## The width matters

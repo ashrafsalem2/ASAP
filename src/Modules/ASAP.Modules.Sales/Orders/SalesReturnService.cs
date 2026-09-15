@@ -271,7 +271,8 @@ public sealed class SalesReturnService(
                 Note: reason,
                 VariantCode: c.Line.VariantCode,
                 AppliesToDocumentNo: order.No,
-                LineNo: c.Line.LineNo))
+                LineNo: c.Line.LineNo,
+                AppliesToLineNo: c.Line.LineNo))
             .ToList();
 
         if (movements.Count == 0)

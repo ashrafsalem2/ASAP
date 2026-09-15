@@ -34,6 +34,10 @@ namespace ASAP.Modules.Pos.Receipts;
 /// Which colour, size or flavour, on an item that has them. A scan usually supplies it: a variant
 /// carries its own barcode precisely so the label on the garment says which size.
 /// </param>
+/// <param name="TrackingNos">
+/// The serials, one per unit, or the lot, on a specifically costed item. A phone sold at the counter
+/// costs what that phone cost, and its serial is what the warranty is claimed against.
+/// </param>
 public readonly record struct PosLineRequest(
     PosLineType Type,
     string No,
@@ -43,7 +47,8 @@ public readonly record struct PosLineRequest(
     string? Description = null,
     string? TaxCode = null,
     string? UnitCode = null,
-    string? VariantCode = null);
+    string? VariantCode = null,
+    IReadOnlyList<string>? TrackingNos = null);
 
 /// <summary>Money put towards a receipt.</summary>
 /// <param name="Kind">What kind of money it is.</param>
@@ -447,6 +452,7 @@ public sealed class PosReceiptService(
                 Quantity = line.Quantity,
                 UnitCode = line.UnitCode,
                 VariantCode = line.VariantCode,
+                TrackingNos = PosReceiptLine.JoinTrackingNos(line.TrackingNos),
                 QuantityPerUnit = line.QuantityPerUnit,
                 UnitPrice = line.UnitPrice,
                 DiscountPercent = line.DiscountPercent,
@@ -705,6 +711,9 @@ public sealed class PosReceiptService(
         /// <summary>The variant sold, on an item that has them.</summary>
         public string? VariantCode { get; init; }
 
+        /// <summary>The serials or lot sold, on a specifically costed item.</summary>
+        public IReadOnlyList<string> TrackingNos { get; init; } = [];
+
         /// <summary>
         /// How many base units that unit held when it was rung.
         /// </summary>
@@ -882,6 +891,9 @@ public sealed class PosReceiptService(
                 UnitCode = unitCode,
                 QuantityPerUnit = perUnit,
                 VariantCode = line.VariantCode,
+                TrackingNos = [.. (line.TrackingNos ?? [])
+                    .Where(static n => !string.IsNullOrWhiteSpace(n))
+                    .Select(static n => n.Trim().ToUpperInvariant())],
             });
         }
 
@@ -1154,13 +1166,29 @@ public sealed class PosReceiptService(
                 // The till's own shelf, stated once in station setup. A cashier took the goods off
                 // the shop floor and cannot say where that is on a warehouse map, so this is not
                 // the guess the bin rules refuse -- somebody wrote it down in advance.
-                BinCode: station.PickBinCode))
+                BinCode: station.PickBinCode,
+                LineNo: l.LineNo))
             .ToList();
 
         if (movements.Count == 0)
         {
             return 0m;
         }
+
+        // Serials and lots turn a line into the units it moves: the phone sold is costed as that
+        // phone, and one handed back against a receipt has to be one that left on it.
+        var units = TrackedMovements.SplitLines(
+            movements,
+            TrackedMovements.ByLine(lines, static l => l.LineNo, static l => l.TrackingNos),
+            messages);
+
+        if (units.Failed)
+        {
+            found.AddRange(units.Messages);
+            return 0m;
+        }
+
+        movements = units.Value;
 
         // Said here rather than left to Inventory, whose refusal tells the reader to name a bin.
         // That is sound advice on a warehouse journal and useless at a till, where the person
@@ -1489,6 +1517,7 @@ public sealed class PosReceiptService(
                 Quantity = line.Quantity,
                 UnitCode = line.UnitCode,
                 VariantCode = line.VariantCode,
+                TrackingNos = PosReceiptLine.JoinTrackingNos(line.TrackingNos),
                 QuantityPerUnit = line.QuantityPerUnit,
                 UnitPrice = line.UnitPrice,
                 DiscountPercent = line.DiscountPercent,

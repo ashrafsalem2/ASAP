@@ -12,6 +12,10 @@ A return refunds at the price paid, discount and all. Refunding at list price on
 
 A return is counted against every earlier return on the same receipt, not just against the sale. Checking only the transaction in hand lets somebody return two, then two more, against a sale of two.
 
+## Serial numbers and lots
+
+A specifically costed item — a phone, a car, a batch of medicine — needs its serials or lot on the line, and the till shows a box for them. Scanning serials sets the quantity to match. The sale is costed at exactly those units, the numbers are kept on the receipt, and a return against the receipt is refused for a unit that did not leave on it.
+
 ## Tenders
 
 A receipt can be paid with several tenders — some cash, the rest on a card. Change is given from cash only, and only up to what was tendered in cash. A card tender for more than the balance is refused rather than treated as a cash advance.

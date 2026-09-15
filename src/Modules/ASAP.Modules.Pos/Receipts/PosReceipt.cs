@@ -216,6 +216,25 @@ public sealed class PosReceiptLine : CompanyEntity
     public string? VariantCode { get; set; }
 
     /// <summary>
+    /// The serials or lot sold on this line, comma separated, on a specifically costed item.
+    /// </summary>
+    /// <remarks>
+    /// Printed on the receipt and kept with it, because the receipt is what a customer brings back
+    /// with the phone, and the serial on it is what says the phone is the one sold.
+    /// </remarks>
+    public string? TrackingNos { get; set; }
+
+    /// <summary>The numbers as a list.</summary>
+    public IReadOnlyList<string> TrackingNoList
+        => string.IsNullOrWhiteSpace(TrackingNos) ? [] : TrackingNos.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+
+    /// <summary>Joins numbers for storage, or null when there are none.</summary>
+    /// <param name="numbers">The serials or lot.</param>
+    /// <returns>The stored form.</returns>
+    public static string? JoinTrackingNos(IReadOnlyList<string>? numbers)
+        => numbers is { Count: > 0 } ? string.Join(",", numbers) : null;
+
+    /// <summary>
     /// How many base units that unit held at the moment of sale.
     /// </summary>
     /// <remarks>

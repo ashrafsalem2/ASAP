@@ -1564,8 +1564,8 @@ public static class InventoryMessages
             Severity = MessageSeverity.Error,
             Title = new LocalizedText("That unit was not on this document", "هذه الوحدة لم تكن على هذا المستند"),
             Detail = new LocalizedText(
-                "Line {LineNo} returns {ItemNo} {TrackingNo} against {DocumentNo}, and that {Tracking} did not move on that line.",
-                "السطر {LineNo} يُرجع {ItemNo} {TrackingNo} مقابل {DocumentNo}، ولم يتحرك هذا الرقم على ذلك السطر."),
+                "Line {LineNo} returns {ItemNo} {TrackingNo} against {DocumentNo}, and that {Tracking} is not one that moved on the line being returned.",
+                "السطر {LineNo} يُرجع {ItemNo} {TrackingNo} مقابل {DocumentNo}، وهذا الرقم ليس مما تحرك على السطر المُرجَع."),
             Resolution = new LocalizedText(
                 "Check the number against the document and the line. What comes back is the unit that left, "
                 + "on the line it left on, at the cost it left at; a unit from another order or line is returned against that one.",

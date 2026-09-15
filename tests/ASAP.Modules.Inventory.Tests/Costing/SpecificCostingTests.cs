@@ -294,15 +294,30 @@ public sealed class SpecificCostingTests : IDisposable
         await PostAsync(Receive("CAR", 1m, 95_000m, "VIN-B") with { LineNo = 20 }, "PO-1");
 
         var wrongLine = await PostAsync(
-            new StockMovementRequest("CAR", "SHOW", -1m, 0m, ItemLedgerEntryType.PurchaseReturn, AppliesToDocumentNo: "PO-1", TrackingNo: "VIN-B", LineNo: 10));
+            new StockMovementRequest("CAR", "SHOW", -1m, 0m, ItemLedgerEntryType.PurchaseReturn, AppliesToDocumentNo: "PO-1", TrackingNo: "VIN-B", AppliesToLineNo: 10));
 
         wrongLine.Failed.ShouldBeTrue();
         wrongLine.Messages.ShouldContain(m => m.Code == InventoryMessages.TrackedUnitNotOnDocument);
 
         var rightLine = await PostAsync(
-            new StockMovementRequest("CAR", "SHOW", -1m, 0m, ItemLedgerEntryType.PurchaseReturn, AppliesToDocumentNo: "PO-1", TrackingNo: "VIN-B", LineNo: 20));
+            new StockMovementRequest("CAR", "SHOW", -1m, 0m, ItemLedgerEntryType.PurchaseReturn, AppliesToDocumentNo: "PO-1", TrackingNo: "VIN-B", AppliesToLineNo: 20));
 
         rightLine.Succeeded.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// A till return is a new receipt with its own line numbers, and is held to the sale alone.
+    /// </summary>
+    [Fact]
+    public async Task A_return_on_a_new_document_is_held_to_the_sale_not_its_own_line_numbers()
+    {
+        await PostAsync(Receive("CAR", 1m, 80_000m, "VIN-A"));
+        await PostAsync(Issue("CAR", 1m, "VIN-A") with { LineNo = 3 }, "RCPT-1");
+
+        var back = await PostAsync(Returned("VIN-A", "RCPT-1") with { LineNo = 1 }, "RCPT-2");
+
+        back.Succeeded.ShouldBeTrue("line 1 of the return is not line 1 of the sale, and nobody said it was");
+        back.Value.CostAmount.ShouldBe(80_000m);
     }
 
     /// <summary>A refusal names the document's own line where the caller said which it was.</summary>

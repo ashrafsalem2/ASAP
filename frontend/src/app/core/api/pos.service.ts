@@ -28,6 +28,12 @@ export interface PosLinePayload {
   discountPercent?: number;
   description?: string;
   taxCode?: string;
+
+  /** Which variant, on an item that has them. */
+  variantCode?: string;
+
+  /** The serials, one per unit, or the lot, on a specifically costed item. */
+  trackingNos?: string[];
 }
 
 /** Money put towards a receipt. */

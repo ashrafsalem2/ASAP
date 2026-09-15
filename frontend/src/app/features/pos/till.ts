@@ -18,6 +18,7 @@ import { AuthService } from '../../core/auth/auth.service';
 import { I18nService } from '../../core/i18n/i18n.service';
 import { TranslationKey } from '../../core/i18n/translations';
 import { MessageService } from '../../core/messages/message.service';
+import { parseTrackingNumbers } from '../../core/inventory/tracking-numbers';
 
 /** One line on the sale being rung up. */
 interface TillLine {
@@ -28,6 +29,12 @@ interface TillLine {
   discountPercent: number;
   taxCode: string;
   taxPercent: number;
+
+  /** How the item's units are told apart; anything but None asks for the numbers. */
+  tracking: 'None' | 'Lot' | 'Serial';
+
+  /** The serials or lot as keyed or scanned, before they are split up. */
+  trackingNos: string;
 }
 
 /** Money offered towards it. */
@@ -297,6 +304,8 @@ export class Till implements OnInit {
           discountPercent,
           taxCode,
           taxPercent,
+          tracking: item.tracking ?? 'None',
+          trackingNos: '',
         },
       ]);
     }
@@ -308,6 +317,32 @@ export class Till implements OnInit {
 
   protected removeLine(index: number): void {
     this.lines.update((lines) => lines.filter((_, position) => position !== index));
+  }
+
+  /**
+   * Takes the serials scanned against a line.
+   *
+   * Each serial is one unit, so scanning three sets the quantity to three -- a cashier scanning
+   * phone after phone should not also have to count them. A lot sets nothing: any quantity can
+   * come out of one.
+   */
+  protected setTrackingNos(index: number, value: string): void {
+    this.lines.update((lines) =>
+      lines.map((line, position) => {
+        if (position !== index) {
+          return line;
+        }
+
+        const count = parseTrackingNumbers(value).length;
+        const sign = line.quantity < 0 ? -1 : 1;
+
+        return {
+          ...line,
+          trackingNos: value,
+          quantity: line.tracking === 'Serial' && count > 0 ? sign * count : line.quantity,
+        };
+      }),
+    );
   }
 
   protected setQuantity(index: number, value: number): void {
@@ -421,6 +456,8 @@ export class Till implements OnInit {
           discountPercent: line.discountPercent,
           taxCode: line.taxCode ?? '',
           taxPercent: this.taxCodes().find((code) => code.code === line.taxCode)?.percentage ?? 0,
+          tracking: this.items().find((item) => item.no === line.no)?.tracking ?? 'None',
+          trackingNos: (line.trackingNos ?? []).join(', '),
         })),
       );
 
@@ -606,6 +643,7 @@ export class Till implements OnInit {
       unitPrice: line.unitPrice,
       discountPercent: line.discountPercent,
       taxCode: line.taxCode || undefined,
+      trackingNos: line.tracking === 'None' ? undefined : parseTrackingNumbers(line.trackingNos),
     }));
   }
 

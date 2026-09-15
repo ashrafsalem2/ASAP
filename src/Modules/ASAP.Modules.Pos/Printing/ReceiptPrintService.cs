@@ -142,6 +142,10 @@ public sealed class ReceiptPrintService(
                 ("DiscountPercent", line.DiscountPercent),
                 ("OfferCode", line.OfferCode),
                 ("OfferDiscountAmount", line.OfferDiscountAmount),
+
+                // The serials sold, which is what a warranty is claimed against. Blank on anything
+                // not tracked, so a template can carry it without printing noise for most lines.
+                ("TrackingNos", line.TrackingNos ?? string.Empty),
                 ("LineAmount", line.LineAmount)))
             .ToList();
 

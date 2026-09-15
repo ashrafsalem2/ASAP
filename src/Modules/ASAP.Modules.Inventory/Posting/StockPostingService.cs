@@ -60,6 +60,12 @@ namespace ASAP.Modules.Inventory.Posting;
 /// decides the cost: a car sold without saying which car costs whichever one the database found
 /// first, and the margin on both is wrong.
 /// </param>
+/// <param name="AppliesToLineNo">
+/// The line of <paramref name="AppliesToDocumentNo"/> a return is returning, where it is known. A
+/// return of a named unit is held to that line as well as that document. A return raised on the
+/// same order knows it; a till return is a new receipt whose lines are numbered afresh, and says
+/// nothing rather than something wrong.
+/// </param>
 /// <param name="LineNo">
 /// The document line this movement came from, where the caller has one. Refusals name it. Without
 /// it they name the movement's position in the posting, which on a document whose lines are 10, 20
@@ -79,7 +85,8 @@ public sealed record StockMovementRequest(
     string? VariantCode = null,
     string? AppliesToDocumentNo = null,
     string? TrackingNo = null,
-    int? LineNo = null);
+    int? LineNo = null,
+    int? AppliesToLineNo = null);
 
 /// <summary>What a stock posting produced.</summary>
 /// <param name="TransactionNo">The number grouping every entry written.</param>
@@ -990,7 +997,7 @@ public sealed partial class StockPostingService(
                          && e.ItemId == item.Id
                          && (wantsOutbound ? e.Quantity < 0 : e.Quantity > 0)
                          && (e.SerialNo == tracking || e.LotNo == tracking)
-                         && (request.LineNo == null || e.DocumentLineNo == null || e.DocumentLineNo == request.LineNo),
+                         && (request.AppliesToLineNo == null || e.DocumentLineNo == null || e.DocumentLineNo == request.AppliesToLineNo),
                     cancellationToken)
                 .ConfigureAwait(false);
 
@@ -1181,7 +1188,7 @@ public sealed partial class StockPostingService(
                 && e.ItemId == itemId
                 && (wantsOutbound ? e.Quantity < 0 : e.Quantity > 0)
                 && (tracking == null || e.SerialNo == tracking || e.LotNo == tracking)
-                && (request.LineNo == null || e.DocumentLineNo == null || e.DocumentLineNo == request.LineNo))
+                && (request.AppliesToLineNo == null || e.DocumentLineNo == null || e.DocumentLineNo == request.AppliesToLineNo))
             .Select(static e => e.Id)
             .ToListAsync(cancellationToken)
             .ConfigureAwait(false);

@@ -129,6 +129,15 @@
                   <td>
                     <span class="code">{{ line.itemNo }}</span>
                     <span class="till__desc">{{ line.description }}</span>
+                    @if (line.tracking !== 'None') {
+                      <input
+                        class="input input--compact till__serials"
+                        [placeholder]="t('inventory.tracking.placeholder')"
+                        [attr.aria-label]="t('inventory.tracking.numbers')"
+                        [ngModel]="line.trackingNos"
+                        (ngModelChange)="setTrackingNos($index, $event)"
+                      />
+                    }
                   </td>
                   <td class="numeric">
                     <input

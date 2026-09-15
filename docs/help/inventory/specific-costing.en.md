@@ -39,6 +39,10 @@ A shipment or an issue names the unit leaving, and it costs exactly what that un
 
 A return names the unit coming back, and it has to be a unit that moved on that order: the car a customer brings back is the car they bought, and a car that goes back to the vendor is one that arrived on that purchase order. It comes back at the cost that car left at, not at the average of everything the order sold.
 
+## At the till
+
+A tracked item rung up at the till shows a box for its serials or lot under the line. Each serial scanned is one unit, so scanning three phones makes the quantity three. The serials are kept with the receipt — a receipt layout can print them with {TrackingNos} — and a return against that receipt must name a unit that left on it.
+
 ## Transfers
 
 A transfer names the units when it ships and remembers them. Receiving takes those same units out of transit at their own cost; see **Stock transfers**.
@@ -51,7 +55,6 @@ Shipment, receipt, return and transfer screens have a **Serials or lot** column 
 
 **Serials and lots** lists every tracked unit still in stock: where it is, when it arrived, what it cost and what it is worth in the books. A lot shows what is left of it.
 
-## Not yet supported
+## Moving tracked units
 
-- **Till sales** cannot yet name a serial or lot. Tracked items are refused at the till, with a message saying the number is missing, rather than being sold at the wrong unit's cost. Sell tracked items through a sales order.
-- Do not move a tracked unit with a pair of stock adjustments: that writes one off and writes one on through the variance accounts, which is not what happened. Use a transfer.
+Do not move a tracked unit with a pair of stock adjustments: that writes one off and writes one on through the variance accounts, which is not what happened. Use a transfer.
